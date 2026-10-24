@@ -31,7 +31,29 @@ export const SHOP = {
     { id: 'grape', name: 'Grape', icon: '🍇', price: 90, color: '#9a4aff' },
     { id: 'snow', name: 'Snow', icon: '⛄', price: 110, color: '#f4f8ff' },
     { id: 'shadow', name: 'Shadow', icon: '🌑', price: 140, color: '#2a2a34' },
+    { id: 'lemon', name: 'Lemon', icon: '🍋', price: 50, color: '#fff23a' },
+    { id: 'lime', name: 'Lime', icon: '🟢', price: 50, color: '#9dff3a' },
+    { id: 'cherry', name: 'Cherry', icon: '🍒', price: 60, color: '#c8102e' },
+    { id: 'peach', name: 'Peach', icon: '🍑', price: 60, color: '#ffb38a' },
+    { id: 'sky', name: 'Sky', icon: '☁️', price: 60, color: '#8ad8ff' },
+    { id: 'lavender', name: 'Lavender', icon: '💜', price: 70, color: '#c8a8ff' },
+    { id: 'forest', name: 'Forest', icon: '🌲', price: 70, color: '#1f7a3a' },
+    { id: 'chocolate', name: 'Chocolate', icon: '🍫', price: 80, color: '#6b3a1f' },
+    { id: 'banana', name: 'Banana', icon: '🍌', price: 80, color: '#ffe066' },
+    { id: 'slime', name: 'Slime', icon: '🟩', price: 90, color: '#5aff3a' },
+    { id: 'coral', name: 'Coral', icon: '🪸', price: 90, color: '#ff6f61' },
+    { id: 'navy', name: 'Navy', icon: '⚓', price: 100, color: '#1a2a6c' },
+    { id: 'ruby', name: 'Ruby', icon: '♦️', price: 160, color: '#e0115f' },
+    { id: 'emerald', name: 'Emerald', icon: '💚', price: 160, color: '#00c878' },
+    { id: 'diamond', name: 'Diamond', icon: '💎', price: 200, color: '#b9f2ff' },
     { id: 'gold', name: 'Gold', icon: '🏆', price: 220, color: '#ffc92a' },
+    // animated skins: the color changes while you play
+    { id: 'lava', name: 'Lava', icon: '🌋', price: 300, anim: t => `hsl(${10 + Math.sin(t * 3) * 14}, 100%, ${50 + Math.sin(t * 5) * 8}%)`, swatch: 'linear-gradient(135deg,#ff2a00,#ffb000)' },
+    { id: 'ocean-wave', name: 'Ocean Wave', icon: '🐳', price: 300, anim: t => `hsl(${195 + Math.sin(t * 2) * 25}, 90%, 55%)`, swatch: 'linear-gradient(135deg,#00a2ff,#00ffd0)' },
+    { id: 'galaxy', name: 'Galaxy', icon: '🌌', price: 350, anim: t => `hsl(${260 + Math.sin(t * 1.5) * 40}, 80%, ${40 + Math.sin(t * 4) * 10}%)`, swatch: 'linear-gradient(135deg,#2a0a6a,#c83aff,#3a6aff)' },
+    { id: 'disco', name: 'Disco', icon: '🪩', price: 400, anim: t => `hsl(${Math.floor(t * 4) * 67 % 360}, 100%, 60%)`, swatch: 'conic-gradient(#ff3a3a,#ffe23a,#3aff6a,#3ad8ff,#c83aff,#ff3a3a)' },
+    { id: 'rainbow', name: 'Rainbow', icon: '🌈', price: 500, anim: t => `hsl(${(t * 90) % 360}, 95%, 60%)`, swatch: 'linear-gradient(90deg,red,orange,yellow,lime,cyan,blue,magenta)' },
+    { id: 'ghost', name: 'Ghost', icon: '👻', price: 450, anim: t => `hsl(200, 60%, ${80 + Math.sin(t * 2) * 15}%)`, swatch: 'linear-gradient(135deg,#ffffff,#a8d8ff)' },
   ],
   bolt: [
     { id: 'default', name: 'My dimension', icon: '✦', price: 0 },
@@ -41,7 +63,7 @@ export const SHOP = {
     { id: 'rainbow', name: 'Rainbow', icon: '🌈', price: 200, color: 'rainbow' },
   ],
 };
-export const skinColor = id => SHOP.skin.find(s => s.id === id)?.color;
+export const skinColor = (id, t = 0) => { const s = SHOP.skin.find(k => k.id === id); return s?.anim ? s.anim(t) : s?.color; };
 export const DIM_PRICE = key => (key === 'middle' || key === 'flat' ? 150 : 100);
 
 function fresh() {

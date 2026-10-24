@@ -66,7 +66,7 @@ missiles, grenades, laser sweeps and solar flares (Shield bots block with their 
 **🧠 Ollama bot chat (optional):** if you run [Ollama](https://ollama.com) on your computer
 (`OLLAMA_ORIGINS=* ollama serve`), the host can tick "Bot chat with Ollama AI" in the lobby and bots say
 real AI-written lines. Their moves still come from their built-in brain.
-**Skins:** buy body colors in the 🛍️ Shop (Skins tab).
+**Skins:** 31 body colors in the 🛍️ Shop (Skins tab), including animated ones: Lava, Ocean Wave, Galaxy, Disco, Rainbow and Ghost.
 
 ## Dimensions (verses)
 | Dimension | Lane | Twist |

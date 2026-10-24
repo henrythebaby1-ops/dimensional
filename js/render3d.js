@@ -930,10 +930,13 @@ export class Renderer3D {
       seen.add(b.id);
       let g = this.bodies.get(b.id);
       const color = b.color || DIMS[b.nd]?.color || '#ffffff';
-      if (!g || g.userData.color !== color) {
-        if (g) { this.scene.remove(g); g.userData.mat.dispose(); }
+      if (!g) {
         g = this.makeBody(color);
         this.bodies.set(b.id, g);
+      } else if (g.userData.color !== color) {   // new skin (or an animated one): just recolor
+        g.userData.mat.color.set(color);
+        g.userData.mat.emissive.set(color);
+        g.userData.color = color;
       }
       const grav = b.g || DIMS[b.d]?.grav || 1;
       g.visible = b.visible !== false;
