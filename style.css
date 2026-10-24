@@ -372,3 +372,57 @@ body:not(.playing) #chat { bottom: 12px; }
 .lvl-btns .btn { flex: 1; }
 
 .mg-only .not-mg { display: none; }
+
+/* ---------- settings ---------- */
+.style-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 14px; }
+.style-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; border: 2px solid var(--line); background: rgba(255,255,255,.06); color: #fff; cursor: pointer; border-radius: 14px; font: inherit; }
+.style-card.sel { border-color: var(--accent); background: rgba(255,106,213,.15); }
+.style-card small { opacity: .75; font-size: 12px; }
+.sc-retro { font-family: 'Press Start 2P', monospace; font-size: 14px; color: #ffe23a; text-shadow: 3px 3px 0 #ff3d8b; }
+.sc-modern { font-family: Rubik, sans-serif; font-weight: 800; font-size: 18px; background: linear-gradient(90deg, #6ee26e, #ff6ad5); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---------- pixel icons (replace emojis) ---------- */
+.px-ic { display: inline-block; line-height: 1; }
+.px-ic img { width: 1.15em; height: 1.15em; vertical-align: -0.18em; image-rendering: pixelated; image-rendering: crisp-edges; }
+.tile i .px-ic img, .mini-tile i .px-ic img { width: 1.3em; height: 1.3em; }
+html:not(.r-px) .px-ic img { display: none; }
+html:not(.r-px) .px-ic::after { content: attr(data-e); }
+
+/* ---------- RETRO style: each part is its own class so the easter egg can peel them off one by one ---------- */
+html.r-pal { --panel: #1b0f3a; --line: #ffffff; --accent: #ff3d8b; --muted: #b8b0e0; }
+html.r-font body, html.r-font input, html.r-font select, html.r-font button { font-family: VT323, monospace; }
+html.r-font body { font-size: 19px; }
+html.r-font .logo, html.r-font h2, html.r-font h3, html.r-font .btn, html.r-font .tile, html.r-font .mini-tile, html.r-font .mode b, html.r-font .tab, html.r-font #lvl-name, html.r-font #dim-name, html.r-font .room-code, html.r-font .chip-btn, html.r-font .coins { font-family: 'Press Start 2P', monospace; letter-spacing: 0; }
+html.r-font .logo { font-size: clamp(18px, 6vw, 34px); }
+html.r-font h2 { font-size: 16px; }
+html.r-font h3 { font-size: 11px; }
+html.r-font .btn, html.r-font .tile, html.r-font .tab, html.r-font .chip-btn, html.r-font .coins { font-size: 10px; }
+html.r-font .mini-tile { font-size: 8px; }
+html.r-font .big-play { font-size: 16px; }
+html.r-font .mode b { font-size: 9px; line-height: 1.5; }
+html.r-font .mode span, html.r-font .muted, html.r-font small { font-size: 16px; }
+html.r-font .logo { text-shadow: 4px 4px 0 #ff3d8b, 8px 8px 0 #3a8aff; }
+html.r-box .panel, html.r-box .btn, html.r-box .tile, html.r-box .mini-tile, html.r-box .chip-btn, html.r-box .tab, html.r-box .mode, html.r-box input, html.r-box select,
+html.r-box .item, html.r-box .lvl-card, html.r-box .room-row, html.r-box .style-card, html.r-box .coins, html.r-box .toast, html.r-box #hud-level, html.r-box #hud-dim, html.r-box #hud-players,
+html.r-box .tb, html.r-box #chat-log div, html.r-box #chat-input, html.r-box .maker-tool, html.r-box .daily-btn, html.r-box .board, html.r-box #emote-bar, html.r-box #emote-bar button, html.r-box #mute, html.r-box #skip, html.r-box #fs {
+  border-radius: 0 !important; backdrop-filter: none !important; }
+html.r-box .panel { border: 4px solid #fff; box-shadow: 8px 8px 0 #000; background: var(--panel); }
+html.r-box .btn, html.r-box .tile, html.r-box .mini-tile, html.r-box .chip-btn, html.r-box .tab, html.r-box .mode, html.r-box .style-card, html.r-box .maker-tool, html.r-box .daily-btn {
+  border: 3px solid #fff; box-shadow: 4px 4px 0 #000; background: #2a1a55; transition: none; }
+html.r-box .btn:active, html.r-box .tile:active, html.r-box .mini-tile:active, html.r-box .mode:active, html.r-box .tab:active { transform: translate(4px, 4px); box-shadow: none; }
+html.r-box .btn.primary, html.r-box .tab.sel, html.r-box .mode.sel, html.r-box .style-card.sel, html.r-box .maker-tool.sel { background: #ff3d8b; color: #fff; }
+html.r-box .big-play { background: #39ff88 !important; color: #10202a !important; text-shadow: none; }
+html.r-box .daily-btn { background: #3a8aff; }
+html.r-box .tile:hover, html.r-box .mini-tile:hover, html.r-box .btn:hover { filter: brightness(1.2); }
+html.r-box input, html.r-box select { border: 3px solid #fff; background: #000; }
+html.r-box #hud-level, html.r-box #hud-dim, html.r-box #hud-players { border: 3px solid #fff; background: #1b0f3a; box-shadow: 4px 4px 0 #000; }
+html.r-box .toast { border: 3px solid #fff; background: #000; box-shadow: 4px 4px 0 #000; }
+/* CRT scanlines over everything */
+html.r-scan body::after { content: ''; position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.45) 100%);
+  transition: opacity 3s; }
+html.r-pix canvas#game { image-rendering: pixelated; image-rendering: crisp-edges; }
+/* the easter egg fades between the two looks */
+html.drift * { transition: border-radius 4s, box-shadow 4s, background-color 4s, border-color 4s, color 4s; }
+.public-check { justify-content: flex-start; text-align: left; }
+.public-check input { width: auto !important; flex: none; margin: 0; accent-color: var(--accent); transform: scale(1.3); }

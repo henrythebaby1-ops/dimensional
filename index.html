@@ -12,7 +12,7 @@
   <meta name="theme-color" content="#14042a">
   <meta name="description" content="A co-op game for 2-10 players, each stuck in a different dimension.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Rubik:wght@400;600;800&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,6 +25,7 @@
         <button id="account-btn" class="chip-btn">👤 <span id="account-name">Log in</span></button>
         <span id="menu-coins" class="coins">🪙 0</span>
         <button id="mute-menu" class="chip-btn" aria-label="Sound">🔊</button>
+        <button id="open-settings" class="chip-btn" aria-label="Settings">⚙️</button>
       </div>
       <h1 class="logo">DIMENSIONAL</h1>
       <p class="tag">Every player in a different dimension. Work together anyway.</p>
@@ -101,6 +102,19 @@
       <div class="shop-head"><h2>🌐 Player levels</h2><button id="community-close" class="btn small-btn">✕</button></div>
       <div class="tabs" id="community-tabs"><button class="tab sel" data-s="new">🆕 Newest</button><button class="tab" data-s="top">👍 Most liked</button><button class="tab" data-s="played">🔥 Most played</button><button class="tab" id="community-make">🛠️ Make one</button></div>
       <div id="community-grid" class="gallery-grid"><p class="muted">Loading…</p></div>
+    </div>
+  </section>
+
+  <section id="settings" class="panel-screen hidden">
+    <div class="panel">
+      <div class="shop-head"><h2>⚙️ Settings</h2><button id="settings-close" class="btn small-btn">✕</button></div>
+      <h3>UI style</h3>
+      <div class="style-pick">
+        <button id="style-retro" class="style-card"><span class="sc-retro">RETRO</span><small>Pixel art, chunky boxes, scanlines</small></button>
+        <button id="style-modern" class="style-card"><span class="sc-modern">Modern</span><small>Smooth, glassy, emojis</small></button>
+      </div>
+      <label class="check public-check"><input type="checkbox" id="set-egg"> ⏳ Time-travel easter egg (stay on the main menu a long time and see what happens…)</label>
+      <label class="check public-check"><input type="checkbox" id="set-pixel3d"> 🎮 Chunky pixel 3D in retro style</label>
     </div>
   </section>
 

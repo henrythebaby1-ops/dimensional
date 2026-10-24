@@ -288,6 +288,11 @@ export class Renderer3D {
     this.buildBoss();
   }
 
+  // retro look: draw the 3D world at a low resolution and let the browser blow it up into chunky pixels
+  setPixelated(on) {
+    this.r.setPixelRatio(on ? Math.max(0.3, 0.42 / Math.max(1, innerWidth / 1400)) : Math.min(devicePixelRatio, 2));
+    if (this.w) this.resize(this.w, this.h);
+  }
   resize(w, h) {
     this.w = w; this.h = h;
     this.r.setSize(w, h, false);

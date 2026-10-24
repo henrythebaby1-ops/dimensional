@@ -1,6 +1,7 @@
 import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, THEMES, setDimOrder, computeOrder } from './dims.js';
 import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo, TRAIN_ROLES, customLevel, setCustom, getCustom } from './levels.js';
 import { makeMaker } from './maker.js';
+import { startPixelIcons } from './pixels.js';
 const MIDY = MID * T;
 import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -3802,6 +3803,54 @@ onProfile(() => pushSave());
   if (tok) whoAmI(tok).then(r => { if (r?.username) { setAccount({ username: r.username, token: tok }); adoptSave(r.save); } else setAccount(null); }).catch(() => {});
 }
 $('open-boards').onclick = () => $('boards-wrap').classList.toggle('hidden');
+
+// ---------- UI style: retro or modern, and the time-travel easter egg ----------
+// Retro is made of separate pieces so the easter egg can peel them off one at a time.
+const RETRO_PARTS = ['r-scan', 'r-pix', 'r-pal', 'r-font', 'r-box', 'r-px'];
+const ui$ = { style: 'retro', egg: true, pix3d: true };
+try { Object.assign(ui$, JSON.parse(localStorage.getItem('dim-ui') || '{}')); } catch {}
+const saveUi = () => { try { localStorage.setItem('dim-ui', JSON.stringify(ui$)); } catch {} };
+let eraT = 0, eraStage = 0;
+function applyStyle(keep = 0) {
+  const html = document.documentElement;
+  const retro = ui$.style === 'retro';
+  RETRO_PARTS.forEach((c, i) => html.classList.toggle(c, retro && i >= keep && (c !== 'r-pix' || ui$.pix3d)));
+  renderer.setPixelated(retro && keep <= 1 && ui$.pix3d);
+  $('style-retro').classList.toggle('sel', retro);
+  $('style-modern').classList.toggle('sel', !retro);
+  $('set-egg').checked = ui$.egg;
+  $('set-pixel3d').checked = ui$.pix3d;
+}
+$('style-retro').onclick = () => { ui$.style = 'retro'; eraT = 0; eraStage = 0; saveUi(); applyStyle(); sfx('click'); };
+$('style-modern').onclick = () => { ui$.style = 'modern'; saveUi(); applyStyle(); sfx('click'); };
+$('set-egg').onchange = () => { ui$.egg = $('set-egg').checked; eraT = 0; eraStage = 0; saveUi(); applyStyle(); };
+$('set-pixel3d').onchange = () => { ui$.pix3d = $('set-pixel3d').checked; saveUi(); applyStyle(eraStage); };
+$('open-settings').onclick = () => $('settings').classList.remove('hidden');
+$('settings-close').onclick = () => $('settings').classList.add('hidden');
+// stay on the main menu long enough and the game slowly "upgrades" itself to the modern look
+const ERA_AT = [40, 52, 64, 76, 88, 100];
+const ERA_MSG = ['The scanlines are fading…', 'The pixels are getting smaller…', 'The colors are changing…', 'The letters look… smoother?', 'The boxes are getting round!', '✨ You waited so long the game became MODERN!'];
+setInterval(() => {
+  if (ui$.style !== 'retro') return;
+  const onMenu = mode === 'menu' && !document.hidden;
+  if (!onMenu || !ui$.egg) {
+    if (eraStage) { eraStage = 0; document.documentElement.classList.remove('drift'); applyStyle(); }
+    eraT = 0;
+    return;
+  }
+  eraT++;
+  const next = ERA_AT.findIndex(t => eraT < t);
+  const stage = next < 0 ? ERA_AT.length : next;
+  if (stage > eraStage) {
+    eraStage = stage;
+    document.documentElement.classList.add('drift');
+    applyStyle(stage);
+    toast(ERA_MSG[stage - 1], stage === ERA_AT.length ? '#ffe23a' : '#9feaff');
+    if (stage === ERA_AT.length) sfx('win');
+  }
+}, 1000);
+applyStyle();
+startPixelIcons();
 
 // ---------- level maker and player-made levels ----------
 let customId = null;

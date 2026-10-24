@@ -25,6 +25,12 @@ log in on any device.
 🎲 **Mini games**: ☄️ Meteor Shower, 🎨 Paint the Floor, 🚦 Red Light Green Light, plus Tag, King of the Hill,
 Coin Chaos, Last One Standing and Hot Potato.
 
+## Look
+The game starts in a **retro** style: hand-drawn pixel-art icons instead of emojis, pixel fonts, chunky boxes,
+CRT scanlines and a chunky-pixel 3D world. Switch to **Modern** in ⚙️ Settings.
+Easter egg: stay on the main menu for a while in retro style and the game slowly "upgrades" itself to modern
+(turn it off in Settings). Start playing and it's retro again.
+
 ## Game modes
 - **Story Chapter 1 — The Spectre**: 13 co-op levels. An intro cutscene shows how the
   Spectre tore the friends apart. The Spectre can't be beaten... unless you accept help.
