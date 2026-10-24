@@ -110,7 +110,9 @@ const held = new Set();
 addEventListener('pointerdown', unlockAudio);
 addEventListener('keydown', unlockAudio);
 addEventListener('keydown', e => {
-  if (mode !== 'play' || e.target.tagName === 'INPUT') return;
+  if (e.target.tagName === 'INPUT') return;
+  if (room && (mode === 'play' || mode === 'lobby') && (e.code === 'KeyT' || e.code === 'Slash' || (e.code === 'Enter' && !(P && canDrag(P))))) { e.preventDefault(); openChat(); return; }
+  if (mode !== 'play') return;
   if (/^Digit[1-8]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; }
   if (P && canDrag(P) && ['Space', 'KeyF', 'Enter'].includes(e.code)) {
     e.preventDefault();
@@ -138,9 +140,12 @@ function pressAction(a) {
 }
 
 // Touch: a floating thumb-stick on the left half, buttons on the right.
+// The stick is analog and follows your thumb if you drag past its edge, so it never "runs out".
+let analogX = 0;
 {
   const zone = $('stick-zone'), base = $('stick-base'), knob = $('stick-knob');
   let stickId = null, ox = 0, oy = 0, swiped = false;
+  const R = 46;
   // resting spot for the joystick, so you can always see where it is
   const restStick = () => {
     const r = zone.getBoundingClientRect();
@@ -151,8 +156,10 @@ function pressAction(a) {
   addEventListener('resize', restStick);
   const setDir = (dx, dy = 0) => {
     for (const k of ['left', 'right', 'up', 'down']) held.delete(k);
-    if (dx < -14) held.add('left');
-    if (dx > 14) held.add('right');
+    const ax = Math.abs(dx) < 7 ? 0 : Math.sign(dx) * Math.min(1, (Math.abs(dx) - 7) / (R * 0.6 - 7));
+    analogX = ax ? Math.sign(ax) * Math.max(0.35, Math.abs(ax)) : 0;   // gentle push = walk, full push = run
+    if (dx < -7) held.add('left');
+    if (dx > 7) held.add('right');
     if (dy < -18) held.add('up');
     if (dy > 18) held.add('down');
   };
@@ -168,7 +175,13 @@ function pressAction(a) {
   });
   zone.addEventListener('pointermove', e => {
     if (e.pointerId !== stickId) return;
-    const dx = clamp(e.clientX - ox, -50, 50), dy = clamp(e.clientY - oy, -50, 50);
+    let dx = e.clientX - ox, dy = e.clientY - oy;
+    const d = Math.hypot(dx, dy);
+    if (d > R) {                              // drag the stick's center along behind the thumb
+      ox += dx * (1 - R / d); oy += dy * (1 - R / d);
+      dx = e.clientX - ox; dy = e.clientY - oy;
+      base.style.transform = `translate(${ox - 66}px, ${oy - 66}px)`;
+    }
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     setDir(dx, dy);
     // swipe up on the stick to jump (floating dimensions just fly up instead)
@@ -197,6 +210,7 @@ function pressAction(a) {
     jumping.add(e.pointerId);
     pressAction('jump');
     held.add('jump');
+    buzz(8);
     jz.classList.add('down');
   });
   const jEnd = e => {
@@ -313,6 +327,57 @@ const maxHp = p => (level?.ch3 ? (p?.role === 'tank' ? 3 : 2) : p?.role === 'tan
 const seesDark = () => me.role === 'scout' || (P && DIMS[P.dim].flat);
 
 // Crawlers patrol back and forth on a shared level clock, so everyone sees them in the same place.
+// ---------- Hitboxverse: nametags are real, solid boxes ----------
+const TAG_W = 60, TAG_H = 12;
+const isHitbox = dim => !!DIMS[dim]?.hitbox;
+function tagRect(x, y, g) {
+  return { x: x + PW / 2 - TAG_W / 2, y: g < 0 ? y + PH + 16 : y - 16 - TAG_H, w: TAG_W, h: TAG_H };
+}
+// every Hitboxverse traveler's nametag, with how far it moved since last frame (so riders move with it)
+const tagLast = new Map();
+let tagList = [];
+function updateTags() {
+  const list = [];
+  const add = (id, x, y, dim, dead, g) => {
+    if (!isHitbox(dim) || dead) return;
+    const r = tagRect(x, y, g ?? (DIMS[dim].grav || 1));
+    const last = tagLast.get(id) || r;
+    list.push({ id, ...r, dx: r.x - last.x, dy: r.y - last.y });
+    tagLast.set(id, r);
+  };
+  if (P) add(me.id, P.x, P.y, P.dim, P.dead > 0, gravOf(P));
+  for (const id of gameRoster) {
+    if (id === me.id) continue;
+    const b = botActors.get(id);
+    if (b) { add(id, b.p.x, b.p.y, b.p.dim, b.p.dead > 0, gravOf(b.p)); continue; }
+    const r = remotes.get(id);
+    if (r && r.l === levelIdx) add(id, r.sx ?? r.x, r.sy ?? r.y, r.d, r.dead, r.g);
+  }
+  tagList = list;
+}
+const tagOverlap = (t, o) => t.x < (o.x + o.w) * T && t.x + t.w > o.x * T && t.y < (o.y + o.h) * T && t.y + t.h > o.y * T;
+
+// land on (and ride) other travelers' nametags
+function standOnTags(p, id, dt) {
+  const g = gravOf(p);
+  if (!g || !tagList.length) return;
+  for (const t of tagList) {
+    if (t.id === id) continue;
+    if (p.x + PW <= t.x || p.x >= t.x + t.w) continue;
+    const feet = g > 0 ? p.y + PH : p.y, top = g > 0 ? t.y + t.dy : t.y + t.h + t.dy;
+    const falling = p.vy * g >= 0;
+    if (falling && Math.abs(feet - top) < 8 + Math.abs(p.vy) * dt) {
+      p.y = g > 0 ? top - PH : top;
+      p.vy = 0;
+      p.onGround = true;
+      p.coyote = 0.1;
+      p.airJumps = DIMS[p.dim].jumps - 1;
+      if (!collides(p.x + t.dx, p.y, p.dim)) p.x += t.dx;
+      return;
+    }
+  }
+}
+
 function mobPos(o) {
   const u = levelT * o.speed / o.range + o.phase;
   const k = 1 - Math.abs((((u % 2) + 2) % 2) - 1);
@@ -440,6 +505,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   transitioning = false;
   latched.clear();
   targetHits.clear();
+  powerTaken.clear();
   grabbed.clear();
   killed.clear();
   levelT = 0;
@@ -529,15 +595,20 @@ function updateActor(p, inp, dt) {
   const steps = Math.ceil(dt / (1 / 120));
   const mv = level.ch2 && p.ch2 === 'dragger' ? NO_INPUT : inp;   // Builders can't walk
   for (let i = 0; i < steps && p.dead <= 0; i++) physics(p, mv, dt / steps);
+  standOnTags(p, p.id || (local ? me.id : null), dt);
   p.jumpBuf -= dt;
   if (p.dead > 0) return;
 
   const hadPress = p.press.length > 0;
   p.press = [];
   p.exit = false;
-  let inRift = false, inFlip = false;
+  let inRift = false, inFlip = false, inFan = false, convey = 0;
+  p.teleCd = Math.max(0, (p.teleCd || 0) - dt);
+  p.boostT = Math.max(0, (p.boostT || 0) - dt);
+  if (p.pow) { p.pow.t -= dt; if (p.pow.t <= 0) p.pow = null; }
+  const myTag = isHitbox(p.dim) ? tagRect(p.x, p.y, gravOf(p)) : null;
   for (const o of level.objs) {
-    if (!overlap(p.x, p.y, PW, PH, o)) continue;
+    if (!overlap(p.x, p.y, PW, PH, o) && !(myTag && (o.type === 'coin' || o.type === 'power' || o.type === 'key') && tagOverlap(myTag, o))) continue;
     if ((o.type === 'plate' || o.type === 'pad') && o.dim === p.dim) p.press.push(o.id);
     else if (o.type === 'exit') p.exit = true;
     else if (o.type === 'rolepad' && local && p.role !== o.role) {
@@ -570,6 +641,32 @@ function updateActor(p, inp, dt) {
         if (local) sfx('bounce');
       }
     }
+    else if (o.type === 'conveyor') convey = o.dir;
+    else if (o.type === 'fan') inFan = true;
+    else if (o.type === 'boost' && p.boostT <= 0.2) {
+      p.boostT = 0.9; p.boostDir = o.dir; p.face = o.dir;
+      if (local) sfx('rocket');
+    }
+    else if (o.type === 'tele' && !(p.teleCd > 0)) {
+      const lane = o.y >= MID;
+      const to = level.objs.find(k => k.type === 'tele' && k !== o && k.pair === o.pair && (k.y >= MID) === lane);
+      if (to) {
+        burst(p.x + PW / 2, p.y + PH / 2, '#c83aff', 14, 200);
+        p.x = (to.x + to.w / 2) * T - PW / 2;
+        p.y = lane ? (to.y + to.h) * T - PH - 1 : to.y * T + 1;
+        p.vx = 0; p.vy = 0; p.teleCd = 1.2;
+        burst(p.x + PW / 2, p.y + PH / 2, '#c83aff', 14, 200);
+        if (local) sfx('rift');
+      }
+    }
+    else if (o.type === 'power' && !powerGone(o)) {
+      powerTaken.set(o.id, levelT);
+      p.pow = { kind: o.kind, t: 8 };
+      if (o.kind === 'heal') p.hp = maxHp(p);
+      if (o.kind === 'shield') p.inv = 8;
+      burst((o.x + 0.5) * T, (o.y + 0.5) * T, POWER_COLORS[o.kind], 20, 220);
+      if (local) { sfx('key'); toast(POWER_TEXT[o.kind], POWER_COLORS[o.kind]); }
+    }
     else if (o.type === 'coin' && local && !coinsTaken.has(o.id)) {
       coinsTaken.add(o.id);
       addCoins(5);
@@ -593,6 +690,10 @@ function updateActor(p, inp, dt) {
     for (const o of level.solids) if (o.type === 'crumble' && o.y === row && o.x >= x0 && o.x <= x1) touchCrumble(o, local || isHost());
   }
   if (local && p.press.length && !hadPress) sfx('plate');
+  // conveyor belts carry you; fans blow you up (or down, in an upside-down lane)
+  if (convey && p.onGround && !collides(p.x + convey * 150 * dt, p.y, p.dim)) p.x += convey * 150 * dt;
+  p.inFan = inFan;
+  if (local && p.pow && !hintText) hintText = `${POWER_TEXT[p.pow.kind].split(' (')[0]} ${Math.ceil(p.pow.t)}s`;
   if (inRift && !p.inRift) shiftDimension(p);
   p.inRift = inRift;
   if (inFlip && !p.inFlip) flipGravity(p);
@@ -625,13 +726,15 @@ function physics(p, inp, h) {
     for (let k = 1; k <= 80; k++) if (!collides(p.x, p.y - (g || 1) * k, p.dim)) { p.y -= (g || 1) * k; break; }
   }
   let ix = (inp.has('right') ? 1 : 0) - (inp.has('left') ? 1 : 0);
+  if (p === P && analogX && inp === held) ix = analogX;   // the phone stick is analog: push a little to walk slowly
   if (D.mirror) ix = -ix;                    // controls follow the screen, not the world
-  if (ix) p.face = ix;
+  if (ix) p.face = Math.sign(ix);
   p.shielding = p.role === 'shield' && inp.has('down') && p.onGround;
   if (p.shielding) ix = 0;                   // can't walk while holding the shield up
   const pl = level.planet || {};
   const speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1) * (pl.speed || 1)
-    * (party?.kind === 'tag' && party.it === p.id ? 1.15 : 1);
+    * (party?.kind === 'tag' && party.it === p.id ? 1.15 : 1) * (p.pow?.kind === 'speed' ? 1.45 : 1) * (p.boostT > 0 ? 1.9 : 1);
+  if (p.boostT > 0 && !ix) ix = p.boostDir;
   const a = Math.min(pl.ice ? 0.035 : 1, p.onGround || D.fly ? D.accel : D.accel * 0.7);
   const k = 1 - Math.pow(1 - a, h * 60);
   p.vx += (ix * speed - p.vx) * k;
@@ -656,7 +759,8 @@ function physics(p, inp, h) {
     let gm = G * D.gravMul * (level.mod === 'lowgrav' ? 0.5 : 1) * (pl.grav || 1);
     if (!inp.has('jump') && g * p.vy < 0) gm *= 1.9;
     if (p.role === 'glider' && inp.has('jump') && g * p.vy > 0) { p.vy = g * Math.min(g * p.vy, 110); gm = 0; }   // float down   // short hops when jump is released
-    p.vy += g * gm * h;
+    if (p.inFan) p.vy += (-g * 470 - p.vy) * Math.min(1, 9 * h);   // a fan's updraft beats gravity
+    else p.vy += g * gm * h;
     const maxFall = pl.swim ? Math.min(D.maxFall, 240) : D.maxFall;
     if (g * p.vy > maxFall) p.vy = g * maxFall;
 
@@ -706,7 +810,7 @@ function physics(p, inp, h) {
 }
 
 function jump(p, D, g) {
-  p.vy = -g * JV * D.jumpMul * (p.role === 'jumper' ? 1.15 : 1);
+  p.vy = -g * JV * D.jumpMul * (p.role === 'jumper' ? 1.15 : 1) * (p.pow?.kind === 'jump' ? 1.3 : 1);
   if (p === P) sfx('jump');
   p.jumpBuf = 0;
   p.coyote = 0;
@@ -734,6 +838,11 @@ function respawn(p) {
   p.dim = p.native;
   Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0, hp: maxHp(p), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
 }
+
+const POWER_COLORS = { speed: '#3affff', jump: '#9dff3a', shield: '#ffd23a', heal: '#ff6ad5' };
+const POWER_TEXT = { speed: '⚡ SPEED! (8s)', jump: '🦘 SUPER JUMP! (8s)', shield: '🛡️ INVINCIBLE! (8s)', heal: '💖 Full health!' };
+const powerTaken = new Map();       // power-up id -> level time it was taken (they come back after 12s)
+const powerGone = o => levelT - (powerTaken.get(o.id) ?? -99) < 12;
 
 function hurt(p) {
   if (p.inv > 0 || p.dead > 0) return;
@@ -1115,6 +1224,21 @@ function botThink(b, dt) {
     // a field only flips you as you walk in: if I'm already inside with the wrong gravity, step out first
     if (field) goal = p.inFlip ? { x: (field.x - 1.5) * T, y: cy } : { x: (field.x + field.w / 2) * T, y: cy };
   }
+  // teleporters: a shortcut whose other end is closer to where I'm going
+  if (!b.way && Math.abs(goal.x - cx) > T * 3) {
+    const lane = cy > MID * T;
+    let best = null;
+    for (const t of level.objs) {
+      if (t.type !== 'tele' || (t.y >= MID) !== lane) continue;
+      const to = level.objs.find(k => k.type === 'tele' && k !== t && k.pair === t.pair && (k.y >= MID) === lane);
+      if (!to) continue;
+      const tx = (t.x + t.w / 2) * T, ox = (to.x + to.w / 2) * T;
+      if (Math.sign(tx - cx) !== Math.sign(goal.x - cx) && Math.abs(tx - cx) > T * 8) continue;   // on my way, or just behind me
+      if (Math.abs(goal.x - ox) + Math.abs(tx - cx) >= Math.abs(goal.x - cx)) continue;      // not actually shorter
+      if (!best || Math.abs(tx - cx) < Math.abs(best.x - cx)) best = { x: tx, y: cy };
+    }
+    if (best) goal = { ...goal, x: best.x, y: best.y, o: null, shootAt: goal.shootAt };
+  }
   const dx = goal.x - cx;
   let dir = Math.abs(dx) > 8 ? Math.sign(dx) : 0;
 
@@ -1239,6 +1363,19 @@ function botThink(b, dt) {
     if (b.alarm > 0.6 && b.alarm < 0.7) botSay(b, 'dodge');
   } else b.alarm = 0;
   if (b.stuck > 0.6 && (b.stuckLong = (b.stuckLong || 0) + dt) > 6) { b.stuckLong = 0; botSay(b, 'stuck'); }
+  if (p.inFan) dir = Math.sign(goal.x - cx) || 1;   // riding a fan's updraft: keep heading for the goal
+  // not getting any closer for a while? back off, then take a running jump (or try the other way)
+  const dist = Math.hypot(goal.x - cx, goal.y - cy);
+  if (b.prog === undefined || dist < b.prog - T) { b.prog = dist; b.progT = 0; }
+  else if (!b.escape) b.progT = (b.progT || 0) + dt;
+  if (b.progT > 4 && !b.escape && dist > T * 2) { b.escape = { t: 1.6, back: Math.random() < 0.7 }; b.progT = 0; b.prog = undefined; b.way = null; }
+  if (b.escape) {
+    b.escape.t -= dt;
+    const fwd = Math.sign(goal.x - cx) || 1;
+    if (b.escape.t > 0.9) dir = b.escape.back ? -fwd : fwd;
+    else { dir = fwd; if (p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.45; } }
+    if (b.escape.t <= 0) b.escape = null;
+  }
   if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
   if (dir) {
     const key = D.mirror ? -dir : dir;      // mirrored dimensions swap controls
@@ -1713,6 +1850,80 @@ function partyGoal(b) {
   return null;
 }
 
+// ---------- chat box ----------
+const BAD = /\b(f+u+c+k+\w*|sh+i+t+\w*|b+i+t+c+h+\w*|a+s+s+h+o+l+e+\w*|d+i+c+k+\w*|c+u+n+t+\w*|n+i+g+\w*|f+a+g+\w*|r+e+t+a+r+d+\w*|k+y+s+)\b/gi;
+const cleanChat = t => t.replace(/[\u0000-\u001f]/g, '').replace(BAD, m => '*'.repeat(m.length)).trim();
+function addChatLine(name, text, color = '#fff') {
+  const row = document.createElement('div');
+  const b = document.createElement('b');
+  b.textContent = name + ':';
+  b.style.color = color;
+  row.append(b, document.createTextNode(text));
+  const log = $('chat-log');
+  log.append(row);
+  while (log.children.length > 40) log.firstChild.remove();
+  log.scrollTop = log.scrollHeight;
+  setTimeout(() => row.classList.add('old'), 9000);
+}
+function chatColor(id) {
+  const r = id === me.id ? (P ? { nd: P.dim } : null) : remotes.get(id);
+  return DIMS[r?.nd]?.color || '#9feaff';
+}
+function onChat(id, name, text) {
+  text = cleanChat(text);
+  if (!text) return;
+  addChatLine(name, text, chatColor(id));
+  emoting.set(id, { i: 1, x: text.slice(0, 40), t: performance.now() });
+  sfx('emote');
+  if (isHost() && id !== me.id && !isBot(id)) botsHear(name, text);
+}
+function sendChat(text) {
+  text = cleanChat(text);
+  if (!text || !room) return;
+  send('chat', { id: me.id, n: me.name, t: text });
+  onChat(me.id, me.name, text);
+  if (isHost()) botsHear(me.name, text);
+}
+// bots answer when someone says their name, says hi or gg, or asks a question
+const BOT_REPLIES = { hi: ['Hi!', 'Hello!', 'Hey hey!', 'Yo!'], gg: ['GG!', 'GG EZ 😎', 'Good game!'], q: ['Maybe?', 'I think so!', 'No idea lol', 'Ask the portal'], any: ['lol', 'On my way!', 'Nice!', 'Wait for me!', 'Beep boop 🤖', 'Let\'s gooo'] };
+function botsHear(name, text) {
+  const list = [...botActors.values()];
+  if (!list.length) return;
+  const low = text.toLowerCase();
+  const named = list.find(b => low.includes(b.name.replace('🤖 ', '').toLowerCase()));
+  const kind = /\b(hi|hello|hey|yo|sup)\b/.test(low) ? 'hi' : /\bgg\b/.test(low) ? 'gg' : text.includes('?') ? 'q' : named ? 'any' : null;
+  if (!kind) return;
+  const b = named || list[Math.floor(Math.random() * list.length)];
+  const say = line => { const t = cleanChat(line).slice(0, 80); if (!t) return; send('chat', { id: b.p.id, n: b.name, t }); onChat(b.p.id, b.name, t); };
+  setTimeout(() => {
+    if (!botChat.on) return say(BOT_REPLIES[kind][Math.floor(Math.random() * BOT_REPLIES[kind].length)]);
+    const prompt = `You are ${b.name.replace('🤖 ', '')}, a funny robot player in the co-op platform game Dimensional. ${name} just said in chat: "${text}". Reply in chat with ONE short kid-friendly line, at most 10 words, no quotes.`;
+    fetch('http://localhost:11434/api/generate', { method: 'POST', body: JSON.stringify({ model: botChat.model, prompt, stream: false, options: { num_predict: 30 } }) })
+      .then(r => r.json()).then(j => say(String(j.response || '').replace(/["\n]/g, ' ').trim() || 'Beep!'))
+      .catch(() => say(BOT_REPLIES[kind][0]));
+  }, 700 + Math.random() * 900);
+}
+function openChat() {
+  $('chat').classList.add('open');
+  $('chat-form').classList.remove('hidden');
+  held.clear();
+  $('chat-input').focus();
+}
+function closeChat() {
+  $('chat').classList.remove('open');
+  $('chat-form').classList.add('hidden');
+  $('chat-input').blur();
+}
+$('chat-form').onsubmit = e => {
+  e.preventDefault();
+  sendChat($('chat-input').value);
+  $('chat-input').value = '';
+  closeChat();
+};
+$('chat-input').addEventListener('keydown', e => { if (e.key === 'Escape') closeChat(); e.stopPropagation(); });
+$('chat-input').addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== $('chat-input')) closeChat(); }, 150));
+$('chat-btn').onclick = () => ($('chat').classList.contains('open') ? closeChat() : openChat());
+
 // ---------- emotes and quick chat ----------
 const EMOTES = ['😂', '👍', '💀', 'GG', 'Over here!', 'Help!', 'Go go go!', 'Wait!'];
 const emoting = new Map();          // id -> { i, t }
@@ -2162,7 +2373,20 @@ function addBullets(list) {
 function updateBullets(dt) {
   const actors = [...(P ? [P] : []), ...[...botActors.values()].map(b => b.p)];
   const born = [];
+  if (level.mobs.length) for (const p of actors) {     // a Hitboxverse nametag squashes crawlers
+    if (!isHitbox(p.dim) || p.dead > 0) continue;
+    const t = tagRect(p.x, p.y, gravOf(p));
+    for (const o of level.mobs) {
+      if (killed.has(o.id)) continue;
+      const m = mobPos(o);
+      if (t.x < m.x + MW && t.x + t.w > m.x && t.y < m.y + MH && t.y + t.h > m.y) { killMob(o.id, p.id || me.id); send('kill', { id: o.id, by: p.id || me.id }); }
+    }
+  }
   for (const b of bullets) {
+    for (const t of tagList) {             // nametags are solid: shots stop on them
+      if (b.life >= 99 || b.k === 'ring' || b.k === 'beam') continue;
+      if (b.x > t.x && b.x < t.x + t.w && b.y > t.y - 4 && b.y < t.y + t.h + 4) { b.life = 99; burst(b.x, b.y, '#39ff88', 10, 160); }
+    }
     // a raised shield blocks anything coming at it from the front
     for (const p of actors) {
       if (!p.shielding || b.life >= 99 || b.k === 'ring' || b.k === 'beam') continue;
@@ -2530,6 +2754,8 @@ function onMsg(t, d) {
         else if (isHost() && botActors.has(d.id)) hurt(botActors.get(d.id).p);
       }
       break;
+    case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
+    case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
     case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
     case 'crumble': if (mode === 'play') { const o = level.solids.find(x => x.id === d.id && x.type === 'crumble'); if (o) touchCrumble(o, false); } break;
     case 'crate': if (mode === 'play' && typeof d.id === 'string') onCrateMsg(d); break;
@@ -2644,6 +2870,8 @@ function setScreen(m) {
   $('lobby').classList.toggle('hidden', m !== 'lobby');
   $('victory').classList.toggle('hidden', m !== 'victory');
   $('hud').classList.toggle('hidden', m !== 'play');
+  $('chat').classList.toggle('hidden', m !== 'play' && m !== 'lobby');
+  $('chat-btn').classList.toggle('hidden', !((m === 'play' || m === 'lobby') && isTouch));
   $('touch').classList.toggle('hidden', m !== 'play' || !isTouch);
   document.body.classList.toggle('playing', m === 'play');
   $('tb-auto').classList.toggle('on', autoFire);
@@ -2964,7 +3192,7 @@ function drawGame(dt) {
     ctx.clearRect(0, 0, VW, VH);
     drawBanana2D(ctx, VW, VH, {
       level, P, myDim: P.dim, bodies: bodiesForFrame(), killed, signals, pressed: pressedIds, grabbed, bullets, bolts, particles, time, laserOn, moverX,
-      coinsTaken, nameOf: id => (id === 'ally' ? 'Troppa' : nameOf(id)),
+      coinsTaken, powerGone, nameOf: id => (id === 'ally' ? 'Troppa' : nameOf(id)),
       crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
       mobs: level.mobs.filter(o => !killed.has(o.id)).map(o => ({ ...mobPos(o), dim: o.dim })),
     });
@@ -2982,7 +3210,7 @@ function drawGame(dt) {
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
     crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
-    moverX, coinsTaken, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
+    moverX, coinsTaken, powerGone, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
     crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
   }, dt);
   drawOverlay(D);
@@ -3082,6 +3310,7 @@ function drawLabels() {
       ctx.fillText(label, clamp(ex - Math.cos(a) * 34, 40, VW - 40), clamp(ey - Math.sin(a) * 24 + 4, 20, VH - 10));
       continue;
     }
+    if (isHitbox(r.d) && !r.dead) { drawTag(id, label, r.sx, r.sy, r.g ?? 1); drawExtras(id, p, p.y - 60); continue; }
     const ly = p.y < 70 ? p.y + 24 : p.y - 44;
     ctx.fillStyle = 'rgba(0,0,0,.55)';
     const w = ctx.measureText(label).width + 12;
@@ -3092,8 +3321,10 @@ function drawLabels() {
   }
   if (P && P.dead <= 0) {
     const p = renderer.project(P.x + PW / 2, P.y + PH / 2);
+    if (isHitbox(P.dim)) drawTag(me.id, me.name, P.x, P.y, gravOf(P));
     drawExtras(me.id, p, p.y < 70 ? p.y + 24 : p.y - 44);
   }
+  if (P && isHitbox(P.dim)) drawHitboxes();
   for (const pg of pings) {
     const p = renderer.project(pg.x, pg.y), k = pg.t / 2.2;
     ctx.strokeStyle = pg.col; ctx.globalAlpha = 1 - k; ctx.lineWidth = 3;
@@ -3102,6 +3333,50 @@ function drawLabels() {
     ctx.font = `600 ${fs}px Rubik, sans-serif`;
     ctx.globalAlpha = 1; ctx.lineWidth = 1;
   }
+}
+
+// a Hitboxverse nametag drawn exactly where its solid box is
+function drawTag(id, label, x, y, g) {
+  const t = tagRect(x, y, g);
+  const a = renderer.project(t.x, t.y), b = renderer.project(t.x + t.w, t.y + t.h);
+  const x0 = Math.min(a.x, b.x), y0 = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+  ctx.fillStyle = 'rgba(6,32,15,.92)';
+  ctx.fillRect(x0, y0, w, h);
+  ctx.strokeStyle = '#39ff88'; ctx.lineWidth = 2;
+  ctx.strokeRect(x0, y0, w, h);
+  ctx.fillStyle = '#39ff88';
+  ctx.font = `700 ${Math.max(9, Math.min(14, h * 0.85))}px Rubik, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(label.length > 12 ? label.slice(0, 11) + '…' : label, x0 + w / 2, y0 + h * 0.82);
+  ctx.lineWidth = 1;
+}
+
+// the Hitboxverse's debug view: every hitbox in the world outlined
+function drawHitboxes() {
+  const box = (x, y, w, h, col) => {
+    const a = renderer.project(x, y), b = renderer.project(x + w, y + h);
+    ctx.strokeStyle = col;
+    ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  };
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  for (const o of level.objs) {
+    if (o.type === 'mob' || (o.type === 'power' && powerGone(o)) || (o.type === 'coin' && coinsTaken.has(o.id))) continue;
+    box(o.x * T, o.y * T, o.w * T, o.h * T, o.type === 'laser' || o.type === 'cannon' ? '#ff3355' : '#ffe23a');
+  }
+  ctx.setLineDash([]);
+  for (const o of level.mobs) if (!killed.has(o.id)) { const m = mobPos(o); box(m.x, m.y, MW, MH, '#ff3355'); }
+  for (const b of bullets) if (b.k !== 'beam' && b.k !== 'ring') box(b.x - (b.r || 6), b.y - (b.r || 6), (b.r || 6) * 2, (b.r || 6) * 2, '#ff3355');
+  for (const a of allActors()) if (!a.dead) box(a.x, a.y, PW, PH, '#39ff88');
+  // spikes, and your own hurtbox
+  const ua = renderer.unproject(0, VH / 2).x / T, ub = renderer.unproject(VW, VH / 2).x / T;
+  const c0 = Math.max(0, Math.floor(Math.min(ua, ub)) - 1), c1 = Math.min(level.W, Math.ceil(Math.max(ua, ub)) + 1);
+  for (let r = 0; r < H; r++) for (let c = c0; c < c1; c++) {
+    const ch = level.grid[r][c];
+    if (ch === '^' || ch === 'v') box(c * T, r * T, T, T, '#ff3355');
+  }
+  if (P) box(P.x + 4, P.y + 6, PW - 8, PH - 12, '#ffffff');     // your real hurtbox is a little smaller than you
+  ctx.lineWidth = 1;
 }
 
 function drawBossBar() {
@@ -3188,6 +3463,7 @@ function step(dt, draw) {
       if (isHost()) for (const [id, b] of botActors) grab(b.p, id);
     }
     computeSignals();
+    updateTags();
     if (P && autoMe) { autoMe.p = P; botThink(autoMe, dt); }   // local test autopilot
     updateCrates(dt);
     updateDrag(dt);
@@ -3244,6 +3520,7 @@ $('start').onclick = async () => {
   if (!isHost() || players().length < MODES[gameMode].min) return;
   runStart = 0; levelIdx = -1; scores = {};
   let first = 0;
+  if (startAt > 0) { first = Math.min(startAt, modeLevels().length - 1); startAt = 0; goto(first); return; }   // picked in the level gallery
   if (gameMode === 'story') {
     const sv = loadSave();
     if ($('story-start').value === 'continue' && sv) first = Math.min(sv.level, modeLevels().length) - 1;
@@ -3334,7 +3611,7 @@ $('bot-add').onclick = addBot;
 $('bot-remove').onclick = removeBot;
 let pendingBots = 0;
 // Solo: pick any mode, bots fill in the team it needs, and it starts right away
-let pendingStart = false;
+let pendingStart = false, startAt = 0;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
@@ -3361,6 +3638,106 @@ for (const [head, list] of SOLO) {
   }
 }
 $('solo').onclick = () => $('solo-pick').classList.remove('hidden');
+
+// ---------- level gallery: a picture of every level, and play any of them ----------
+const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'],
+  ['race', '🏁 Race maps'], ['bossrush', 'Boss Rush'], ['survival', 'Arenas'], ['tag', 'Party'], ['training', 'Training']];
+let galleryMode = 'story';
+const THUMB_COLS = { plate: '#ffe23a', pad: '#ffe23a', bridge: '#9feaff', door: '#ff8a3a', exit: '#ffffff', key: '#ffd23a', rift: '#ff6ad5', flip: '#9feaff', laser: '#ff3355', crystal: '#c9a0ff', target: '#c9a0ff',
+  mob: '#ff3355', bounce: '#ff3d8b', mover: '#c8a06a', crumble: '#b88a50', cannon: '#555b66', coin: '#ffd23a', power: '#3affff', tele: '#c83aff', fan: '#cff4ff', boost: '#3affff', conveyor: '#444',
+  hill: '#ffd23a', hole: '#ff8a3a', phase: '#9a9aff' };
+// draw a level from above-the-side, like a screenshot of the whole map
+function drawThumb(cv, lv) {
+  const k = Math.max(2, Math.floor(Math.min(440 / lv.W, 110 / H)));
+  cv.width = lv.W * k; cv.height = H * k;
+  const g = cv.getContext('2d');
+  const th = lv.theme && THEMES[lv.theme];
+  const floor = th || ALL_DIMS[0], ceil = th || ALL_DIMS[1];
+  for (const [y0, d] of [[MID, floor], [0, ceil]]) {
+    const gr = g.createLinearGradient(0, y0 * k, 0, (y0 + MID) * k);
+    gr.addColorStop(0, d.sky[0]); gr.addColorStop(1, d.sky[1]);
+    g.fillStyle = gr; g.fillRect(0, y0 * k, cv.width, MID * k + k);
+  }
+  for (let r = 0; r < H; r++) for (let c = 0; c < lv.W; c++) {
+    const ch = lv.grid[r][c];
+    if (ch === '#') { const d = r >= MID ? floor : ceil; g.fillStyle = (lv.grid[r + (r >= MID ? -1 : 1)]?.[c] === '#') ? d.dirt : d.edge; g.fillRect(c * k, r * k, k, k); }
+    else if (ch === '^' || ch === 'v') { g.fillStyle = '#ff3355'; g.fillRect(c * k, r * k + (ch === '^' ? k / 2 : 0), k, k / 2); }
+  }
+  for (const o of lv.objs) {
+    g.fillStyle = (o.type === 'plate' || o.type === 'pad' || o.type === 'key' || o.type === 'laser') && o.dim !== null ? DIMS[o.dim]?.color || '#fff' : THUMB_COLS[o.type] || '#ffffff';
+    g.globalAlpha = o.type === 'fan' ? 0.4 : 1;
+    if (o.type === 'exit') { g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, k / 2); g.strokeRect(o.x * k, o.y * k, o.w * k, o.h * k); continue; }
+    g.fillRect(o.x * k, o.y * k, Math.max(k, o.w * k), Math.max(k, (o.type === 'plate' || o.type === 'pad' ? 0.5 : o.h) * k));
+  }
+  g.globalAlpha = 1;
+  if (lv.boss) { g.fillStyle = '#ff3d8b'; g.beginPath(); g.arc(cv.width * 0.7, MID * k, 4 * k, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = `bold ${4 * k}px sans-serif`; g.textAlign = 'center'; g.fillText('BOSS', cv.width * 0.7, MID * k + 1.5 * k); }
+  if (lv.dark) { g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, 0, cv.width, cv.height); }
+}
+function renderGallery() {
+  const tabs = $('gallery-tabs');
+  tabs.replaceChildren();
+  for (const [m, label] of GALLERY) {
+    const b = document.createElement('button');
+    b.className = 'tab' + (m === galleryMode ? ' sel' : '');
+    b.textContent = label;
+    b.onclick = () => { galleryMode = m; sfx('click'); renderGallery(); };
+    tabs.append(b);
+  }
+  const grid = $('gallery-grid');
+  grid.replaceChildren();
+  const list = galleryMode === 'tag' ? ['tag', 'koth', 'chaos', 'lms', 'potato', 'hunt'].map(m => [m, 0]) : MODES[galleryMode].levels.map((_, i) => [galleryMode, i]);
+  for (const [m, i] of list) {
+    let lv;
+    try { lv = buildLevel(m, i, 2); } catch { continue; }
+    const card = document.createElement('div');
+    card.className = 'lvl-card';
+    const cv = document.createElement('canvas');
+    drawThumb(cv, lv);
+    const nm = document.createElement('b');
+    nm.textContent = galleryMode === 'tag' ? `${MODES[m].name}` : lv.name;
+    const st = profile.stars[`${m}-${i}`];
+    if (st) nm.textContent += ' ' + '⭐'.repeat(st.stars);
+    const p = document.createElement('p');
+    p.textContent = lv.objective || '';
+    const play = document.createElement('button');
+    play.className = 'btn primary small-btn';
+    play.textContent = '▶ Play this level';
+    play.onclick = () => {
+      $('gallery').classList.add('hidden');
+      gameMode = m;
+      startAt = i;
+      pendingBots = SOLO_BOTS[m] || (MODES[m].min > 1 ? MODES[m].min - 1 : 0);
+      pendingStart = true;
+      $('create').click();
+    };
+    card.append(cv, nm, p, play);
+    grid.append(card);
+  }
+}
+$('open-gallery').onclick = () => { $('gallery').classList.remove('hidden'); renderGallery(); };
+$('gallery-close').onclick = () => $('gallery').classList.add('hidden');
+
+// ---------- skipping a level: the host skips right away, others vote ----------
+const skipVotes = new Set();
+function doSkip() {
+  if (!isHost() || transitioning || !level) return;
+  transitioning = true;
+  skipVotes.clear();
+  send('toast', { m: '⏭ Level skipped' });
+  toast('⏭ Level skipped', '#9feaff');
+  setTimeout(() => mode === 'play' && (party || level.race ? goto(levelIdx + 1) : gotoWithScene(levelIdx + 1)), 600);
+}
+function voteSkip(id) {
+  skipVotes.add(id);
+  const humans = players().length;
+  if (skipVotes.size * 2 >= humans) doSkip();
+  else { const m = `⏭ ${nameOf(id)} wants to skip (${skipVotes.size}/${Math.ceil(humans / 2)})`; send('toast', { m }); toast(m, '#9feaff'); }
+}
+$('skip').onclick = () => {
+  if (mode !== 'play') return;
+  if (isHost()) doSkip();
+  else { send('skipvote', { id: me.id }); toast('Asked to skip this level', '#9feaff'); }
+};
 $('solo-close').onclick = () => $('solo-pick').classList.add('hidden');
 $('again').onclick = () => { send('lobby', {}); setScreen('lobby'); };
 $('copy-link').onclick = async () => {

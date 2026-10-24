@@ -1,6 +1,6 @@
 // Your progress on this device: coins, things you bought, stars per level, unlocked dimensions, daily streak.
 const KEY = 'dim-profile';
-export const START_DIMS = ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'mirror', 'banana', 'illusion'];
+export const START_DIMS = ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'mirror', 'banana', 'illusion', 'hitbox'];
 
 export const SHOP = {
   hat: [

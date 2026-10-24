@@ -62,7 +62,12 @@ coins, crawlers, party wins and dailies. Spend them in the 🛍️ Shop on hats,
 new dimensions (6 start unlocked; finishing chapters unlocks more). ⭐ Records shows your stars and best times.
 **Emotes:** keys 1–8 (😂 👍 💀 GG, "Over here!", "Help!", "Go go go!", "Wait!"), or 😀 on phones.
 **Sound:** music for every dimension and boss, plus sound effects (🔊 to mute).
-**Gadgets:** bounce pads, moving platforms, crumbling floors, cannons and hidden coins in the levels.
+**Gadgets:** bounce pads, moving platforms, crumbling floors, cannons, hidden coins, ⏩ boost pads, conveyor belts,
+🌀 fans (updrafts), 🟣 teleporters and 💎 power-ups (speed, super jump, invincibility, full health). Try them all in the
+new **Gadget Lab** race map.
+**💬 Chat:** press T or Enter (💬 on phones). Bots answer when you say hi, gg, their name or ask a question.
+**⏭ Skip:** the host can skip a level; other players vote to skip.
+**🗺️ Levels:** a picture of every level in the game; press ▶ to play any of them.
 
 **Bots:** the host can add 🤖 bots in the lobby (or use 🎮 Solo). Bots get random names and skins. They hold
 plates, take turns crossing, climb, collect keystones, shoot, race, build and push, and they dodge
@@ -102,6 +107,7 @@ Bananaverse and get its color everywhere else.
 | Cloudverse | middle | Slow, drifting flight |
 | Bananaverse | floor | Top-down view of the Bananas of the Caribbean village; crawlers are angry bananas; sword slash |
 | Illusionverse | ceiling | Far things look huge, some spikes are fake; get close to see the truth |
+| Hitboxverse | floor | You see real hitboxes. Your nametag is a solid box: friends stand on it, it squashes crawlers, grabs coins and blocks shots |
 
 ## Roles
 Runner (+20% speed) · Jumper (higher jumps) · Gunner (faster, longer shots) ·

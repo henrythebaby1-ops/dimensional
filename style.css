@@ -96,7 +96,8 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 #stick-base { position: fixed; left: 0; top: 0; width: 132px; height: 132px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: rgba(255,255,255,.1);
   opacity: .55; pointer-events: none; transition: opacity .12s; }
 #stick-base.on { opacity: 1; }
-#stick-knob { position: absolute; left: 38px; top: 38px; width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.6); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+#stick-base { transition: opacity .15s; will-change: transform; }
+#stick-knob { will-change: transform; position: absolute; left: 38px; top: 38px; width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.6); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
 /* right half: tap anywhere to jump */
 #jump-zone { position: absolute; right: 0; top: 28%; bottom: 0; width: 50%; pointer-events: auto; touch-action: none; }
 .jump-hint { position: absolute; right: max(26px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom)); width: 104px; height: 104px; border-radius: 50%;
@@ -271,6 +272,26 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 #banner-line { font-weight: 800; font-size: 18px; }
 #banner-sub { color: var(--muted); font-size: 13px; }
 #banner-coins { color: #ffd23a; font-weight: 900; font-size: 20px; margin-top: 4px; }
+#chat { position: fixed; left: 12px; bottom: 70px; z-index: 6; width: min(360px, 60vw); pointer-events: none; }
+#chat-log { display: flex; flex-direction: column; gap: 3px; max-height: 34vh; overflow: hidden; justify-content: flex-end; }
+#chat-log div { background: rgba(0,0,0,.55); padding: 4px 9px; border-radius: 8px; font-size: 13px; width: fit-content; max-width: 100%; word-break: break-word; transition: opacity .6s; }
+#chat-log div.old { opacity: 0; }
+#chat.open #chat-log div.old { opacity: 1; }
+#chat.open #chat-log { overflow-y: auto; pointer-events: auto; background: rgba(10,8,24,.6); border-radius: 10px; padding: 6px; }
+#chat-log b { margin-right: 4px; }
+#chat-form { display: flex; gap: 6px; margin-top: 6px; pointer-events: auto; }
+#chat-input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(10,8,24,.92); color: #fff; font: inherit; }
+#skip { position: absolute; left: calc(50% + 64px); top: 8px; pointer-events: auto; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.45); color: #fff; font-size: 15px; }
+.gallery-panel { max-width: 980px; }
+#gallery-tabs { flex-wrap: wrap; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; max-height: 62vh; overflow-y: auto; }
+.lvl-card { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.lvl-card canvas { width: 100%; border-radius: 8px; image-rendering: pixelated; background: #000; }
+.lvl-card b { font-size: 14px; }
+.lvl-card p { margin: 0; font-size: 11px; opacity: .75; flex: 1; }
+#chat-btn { position: fixed; z-index: 6; top: 8px; left: calc(50% - 110px); border: 1px solid var(--line); background: rgba(10,8,24,.75); color: #fff; border-radius: 12px; padding: 6px 12px; font-size: 18px; }
+body:not(.playing) #chat { bottom: 12px; }
+.touch #chat { bottom: auto; top: 140px; width: 46vw; }
 #emote-bar { position: fixed; right: 12px; bottom: 120px; z-index: 5; display: grid; grid-template-columns: repeat(4, auto); gap: 8px; background: rgba(10,8,24,.9);
   padding: 10px; border-radius: 14px; border: 1px solid var(--line); }
 #emote-bar button { border: 1px solid var(--line); background: rgba(255,255,255,.1); color: #fff; border-radius: 10px; padding: 10px 8px; font: inherit; font-weight: 700; font-size: 14px; min-width: 54px; }

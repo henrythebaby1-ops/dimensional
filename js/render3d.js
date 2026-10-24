@@ -523,6 +523,23 @@ export class Renderer3D {
         }
         break;
       }
+      case 'hitbox': {
+        // the world as a debug view: green grids and wireframe boxes
+        const grid = new THREE.GridHelper(300, 150, 0x39ff88, 0x0f5a2a);
+        grid.rotation.x = Math.PI / 2;
+        grid.position.set(0, H / 2, -12);
+        grid.material.transparent = true; grid.material.opacity = 0.4;
+        this.decor.add(grid);
+        this.anim = { spin: [] };
+        for (let i = 0; i < 40; i++) {
+          const sz = 1 + r() * 3;
+          const m = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(sz, sz, sz)), new THREE.LineBasicMaterial({ color: i % 5 ? 0x39ff88 : 0xff3355 }));
+          m.position.set((r() - 0.5) * 150, -4 + r() * (H + 8), -6 - r() * 30);
+          this.decor.add(m);
+          if (i % 3 === 0) this.anim.spin.push(m);
+        }
+        break;
+      }
       case 'illusion': {
         // floating blocks like a voxel world… some are near, some impossibly far
         const cols = [0x8a5cff, 0xff9ec7, 0x9ff3ff, 0xffe23a];
@@ -972,6 +989,60 @@ export class Renderer3D {
         root.add(slab, ring);
         break;
       }
+      case 'conveyor': {
+        const belt = new THREE.Mesh(new THREE.BoxGeometry(o.w, 0.22, 1.4), mat(std(0x2a2a32)));
+        belt.position.y = -side * (o.h / 2 - 0.11);
+        root.add(belt);
+        e.arrows = [];
+        const am = mat(glow(0xffd23a, { emissiveIntensity: 0.9 }));
+        for (let i = 0; i < o.w * 2; i++) {
+          const a = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.3, 3), am);
+          a.rotation.z = -o.dir * Math.PI / 2; a.rotation.y = Math.PI / 2;
+          a.position.set(0, belt.position.y + side * 0.14, 0.4);
+          e.arrows.push(a); root.add(a);
+        }
+        break;
+      }
+      case 'boost': {
+        const pad = new THREE.Mesh(new THREE.BoxGeometry(o.w - 0.1, 0.12, 1.3), mat(glow(0x3affff, { emissiveIntensity: 0.6 })));
+        pad.position.y = -side * (o.h / 2 - 0.06);
+        root.add(pad);
+        e.chev = [];
+        for (let i = 0; i < 3; i++) {
+          const c = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.35, 3), mat(glow(0xffffff, { emissiveIntensity: 1 })));
+          c.rotation.z = -o.dir * Math.PI / 2;
+          c.position.set((i - 1) * 0.45, pad.position.y + side * 0.14, 0);
+          e.chev.push(c); root.add(c);
+        }
+        break;
+      }
+      case 'fan': {
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.3, 16), mat(std(0x8a94a8, { metalness: 0.6 })));
+        base.position.y = -side * (o.h / 2 - 0.15);
+        e.blades = new THREE.Group();
+        for (let i = 0; i < 4; i++) { const bl = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.05, 0.25), mat(std(0xdfe6f0))); bl.position.x = 0.4; const piv = new THREE.Group(); piv.rotation.y = i * Math.PI / 2; piv.add(bl); e.blades.add(piv); }
+        e.blades.position.y = base.position.y + side * 0.2;
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, o.h, 16, 1, true), mat(new THREE.MeshBasicMaterial({ color: 0xcff4ff, side: THREE.DoubleSide, depthWrite: false }), 0.12));
+        e.streaks = [];
+        for (let i = 0; i < 6; i++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6, 0.04), mat(new THREE.MeshBasicMaterial({ color: 0xffffff }), 0.6)); st.position.set((Math.random() - 0.5) * 1.4, 0, (Math.random() - 0.5) * 1.2); st.userData.k = Math.random(); e.streaks.push(st); root.add(st); }
+        e.side = side;
+        root.add(base, e.blades, col);
+        break;
+      }
+      case 'tele': {
+        const c = [0xc83aff, 0x3affd8, 0xffa83a, 0xff3a8a][(o.pair?.charCodeAt(0) || 0) % 4];
+        e.ring = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.12, 8, 28), mat(glow(c, { emissiveIntensity: 1.1 })));
+        e.disc = new THREE.Mesh(new THREE.CircleGeometry(0.68, 24), mat(new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }), 0.35));
+        root.add(e.ring, e.disc);
+        break;
+      }
+      case 'power': {
+        const c = { speed: 0x3affff, jump: 0x9dff3a, shield: 0xffd23a, heal: 0xff6ad5 }[o.kind] || 0xffffff;
+        e.gem = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32, 0), mat(glow(c, { emissiveIntensity: 1 })));
+        e.halo = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.04, 6, 24), mat(glow(c, { emissiveIntensity: 0.8 })));
+        root.add(e.gem, e.halo);
+        break;
+      }
       case 'hole': {
         e.hole = new THREE.Mesh(new THREE.SphereGeometry(1.4, 24, 18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
         e.disk = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.35, 8, 48), mat(glow(0xff8a3a, { emissiveIntensity: 1.2 })));
@@ -1073,6 +1144,11 @@ export class Renderer3D {
         }
         case 'hill': e.crown.rotation.z = t; e.crown.position.y = Math.sin(t * 2) * 3; break;
         case 'coin': e.root.visible = !s.coinsTaken.has(o.id); e.coin.rotation.z = t * 3; break;
+        case 'conveyor': e.arrows.forEach((a, i) => { a.position.x = (((i / e.arrows.length + t * 0.6 * o.dir / o.w) % 1 + 1) % 1 - 0.5) * o.w; }); break;
+        case 'boost': e.chev.forEach((c, i) => { c.material.emissiveIntensity = 0.4 + Math.max(0, Math.sin(t * 8 - i * o.dir * 1.2)) * 1.4; }); break;
+        case 'fan': e.blades.rotation.y = t * 14; e.streaks.forEach(st => { st.position.y = ((((st.userData.k + t * 1.2) % 1) - 0.5) * o.h) * e.side * -1; }); break;
+        case 'tele': e.ring.rotation.z = t * 2; e.disc.material.opacity = 0.25 + Math.sin(t * 4) * 0.1; break;
+        case 'power': { const gone = s.powerGone?.(o); e.root.visible = !gone; e.gem.rotation.y = t * 2; e.gem.rotation.x = t; e.gem.position.y = Math.sin(t * 3) * 0.12; e.halo.rotation.x = t * 1.5; break; }
         case 'hole': { const k = s.holeStrength ?? 1; e.root.visible = k > 0; e.root.scale.setScalar(0.5 + k * 0.5); e.disk.rotation.z = t * 2; break; }
         case 'rolepad': case 'dimpad': e.ring.rotation.z = t; e.ring.position.y += Math.sin(t * 3) * 0.002; break;
         case 'flip':

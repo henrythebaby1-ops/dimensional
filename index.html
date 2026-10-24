@@ -26,6 +26,7 @@
         <button id="open-shop" class="btn small-btn">🛍️ Shop</button>
         <button id="open-records" class="btn small-btn">⭐ Records</button>
         <button id="open-training" class="btn small-btn">🧪 Training</button>
+        <button id="open-gallery" class="btn small-btn">🗺️ Levels</button>
         <button id="mute-menu" class="btn small-btn" aria-label="Sound">🔊</button>
       </div>
       <button id="daily-btn" class="btn daily-btn">📅 <b>Daily Challenge</b> <span id="daily-desc"></span></button>
@@ -175,6 +176,7 @@
     <div id="hint"></div>
     <button id="mute" aria-label="Sound">🔊</button>
     <button id="fs" aria-label="Fullscreen">⛶</button>
+    <button id="skip" aria-label="Skip level">⏭</button>
   </div>
 
   <div id="toasts"></div>
@@ -203,6 +205,14 @@
       </div>
       <div id="shop-grid" class="shop-grid"></div>
       <p class="muted small">Earn coins by finishing levels (more for ⭐), finding hidden coins, shooting crawlers, winning party games and doing the Daily Challenge.</p>
+    </div>
+  </section>
+
+  <section id="gallery" class="panel-screen hidden">
+    <div class="panel shop-panel gallery-panel">
+      <div class="shop-head"><h2>🗺️ All levels</h2><button id="gallery-close" class="btn small-btn">✕</button></div>
+      <div class="tabs" id="gallery-tabs"></div>
+      <div id="gallery-grid" class="gallery-grid"></div>
     </div>
   </section>
 
@@ -291,6 +301,15 @@ Restarting…</pre>
       <button data-k="fire" class="tb" id="tb-fire" aria-label="Fire">✦<small>FIRE</small></button>
     </div>
   </div>
+
+  <div id="chat" class="hidden">
+    <div id="chat-log"></div>
+    <form id="chat-form" class="hidden" autocomplete="off">
+      <input id="chat-input" maxlength="80" placeholder="Say something… (Enter to send)">
+      <button class="btn small-btn" type="submit">Send</button>
+    </form>
+  </div>
+  <button id="chat-btn" class="hidden" aria-label="Chat">💬</button>
 
   <div id="rotate">↻ Turn your phone sideways to see both worlds</div>
 

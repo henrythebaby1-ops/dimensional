@@ -52,6 +52,8 @@ export const ALL_DIMS = [
     topdown: true, sword: true, desc: 'From the world of the Bananas of the Caribbean! You see it from above, the crawlers are angry bananas, and you fight with a sword.' },
   { key: 'illusion', name: 'Illusionverse', grav: -1, color: '#c9a0ff', sky: ['#1a0a30', '#ff9ec7'], ground: '#5a3a8a', dirt: '#3f2866', edge: '#9ff3ff',
     illusion: true, desc: 'What you see is not what is there. Far things look huge, some spikes are fake — get close to see the truth. Upside down.' },
+  { key: 'hitbox', name: 'Hitboxverse', color: '#39ff88', sky: ['#000000', '#04140a'], ground: '#06200f', dirt: '#03140a', edge: '#39ff88',
+    hitbox: true, desc: 'You see the game\'s real hitboxes. Your NAMETAG is solid: friends can stand on it, it squashes crawlers, grabs coins and blocks shots.' },
   // Chapter 2: the Unicoder pulls everyone into one world made of code. Never picked or assigned normally.
   { key: 'unicode', name: 'Unicode', hidden: true, color: '#e8fff0', sky: ['#02060a', '#06261a'], ground: '#0f2a1d', dirt: '#0a1e14', edge: '#39ff88',
     desc: 'The Unicoder\'s world. Everything here is made of letters.' },

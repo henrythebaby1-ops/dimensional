@@ -603,11 +603,65 @@ function training(n, roles) {
   for (let x = 92; x <= 96; x++) b.both('crumble', {}, x, 3, 1, 1);
   b.both('cannon', { dir: -1, period: 3, offset: 0 }, W - 2, 6, 1, 1);
   b.mobs([60, 68], 3, 1);
+  // the new gadgets to try
+  b.both('boost', { dir: 1 }, 99, 1, 2, 1);
+  b.both('conveyor', { dir: -1 }, 102, 1, 4, 1);
+  b.both('fan', {}, 85, 1, 2, 9);
+  b.both('tele', { pair: 'a' }, 70, 1, 2, 2);
+  b.both('tele', { pair: 'a' }, 88, 1, 2, 2);
+  ['speed', 'jump', 'shield', 'heal'].forEach((k, i) => b.both('power', { kind: k }, 62 + i * 2, 4, 1, 1));
   b.both('exit', {}, W - 6, 1, 3, 3);
   return b.done({
     name: '🧪 Training Grounds', training: true, spread: false,
     objective: 'Try anything! Floor pads change your ROLE, the shelf above changes your DIMENSION. Dummies respawn. Portal at the end = done.',
   });
+}
+
+// power-up orbs float above a couple of ledges: speed, super jump, invincibility or full health
+function addPowers(lv, seed) {
+  const spots = [];
+  for (let x = 6; x < lv.W - 6; x++) for (let r = MID + 1; r < H - 3; r++) {
+    if (lv.grid[r][x] === '#' && lv.grid[r - 1][x] === '.' && lv.grid[r - 2][x] === '.' && lv.grid[r - 3][x] === '.') spots.push([x, r - 2]);
+  }
+  if (!spots.length) return lv;
+  const kinds = ['speed', 'jump', 'shield', 'heal'];
+  [0.3, 0.7].forEach((f, i) => {
+    const [x, r] = spots[Math.floor(f * spots.length)];
+    const kind = kinds[(seed + i) % 4];
+    lv.objs.push({ id: 'pow' + i, type: 'power', kind, dim: null, x, y: r, w: 1, h: 1 });
+    lv.objs.push({ id: 'pow' + i + 't', type: 'power', kind, dim: null, x, y: H - 1 - r, w: 1, h: 1 });
+  });
+  return lv;
+}
+
+// every new mechanic in one map: boost pads, conveyors, a fan over a pit, teleporters and power-ups
+function gadgetLab(n) {
+  const b = new Builder(n, 112);
+  b.shell();
+  b.both('boost', { dir: 1 }, 5, 1, 3, 1);
+  b.both('conveyor', { dir: 1 }, 12, 1, 8, 1);
+  for (let x = 24; x <= 28; x++) b.set(x, 0, '.');                 // a pit — the fan blows you over it
+  b.both('fan', {}, 24, 0, 5, 7);
+  b.both('power', { kind: 'speed' }, 33, 3, 1, 1);
+  b.box(42, 43, 1, 9);                                               // a tall wall: teleport through it, or bounce over
+  b.both('tele', { pair: 'a' }, 38, 1, 2, 2);
+  b.both('tele', { pair: 'a' }, 47, 1, 2, 2);
+  b.both('bounce', {}, 35, 1, 2, 1);
+  b.both('conveyor', { dir: -1 }, 52, 1, 10, 1);                    // walking against the belt
+  b.box(56, 57, 1, 1, '^');
+  b.both('power', { kind: 'jump' }, 64, 2, 1, 1);
+  b.box(70, 73, 1, 6);                                               // a high ledge: super jump or the fan
+  b.both('fan', {}, 67, 1, 2, 8);
+  for (let x = 78; x <= 84; x++) b.set(x, 0, '.');
+  b.both('mover', { range: 4, freq: 0.2, phase: 0 }, 78, 0, 3, 1);
+  b.both('boost', { dir: 1 }, 88, 1, 3, 1);
+  b.both('power', { kind: 'shield' }, 94, 2, 1, 1);
+  b.both('cannon', { dir: -1, period: 2.6, offset: 0 }, 110, 2, 1, 1);
+  b.both('tele', { pair: 'b' }, 98, 1, 2, 2);
+  b.both('tele', { pair: 'b' }, 101, 1, 2, 2);
+  b.box(100, 100, 1, 12);
+  b.both('exit', {}, 105, 1, 3, 3);
+  return b.done({ name: 'Gadget Lab', objective: 'NEW gadgets! ⏩ boost pads, conveyor belts, 🌀 fans that blow you up, 🟣 teleporters and 💎 power-ups.' });
 }
 
 // ---------- more race maps ----------
@@ -817,8 +871,8 @@ export const MODES = {
   },
   survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
   endless: { name: 'Endless', levels: [n => ({ ...arena(n), name: 'Endless Arena' })], min: 1, waves: Infinity },
-  trial: { name: 'Time Trial', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet].map(f => n => ({ ...f(n), race: false, trial: true })), min: 1 },
-  race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet], min: 2 },
+  trial: { name: 'Time Trial', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet, gadgetLab].map(f => n => ({ ...f(n), race: false, trial: true })), min: 1 },
+  race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet, gadgetLab], min: 2 },
   story2: { name: 'Story Ch.2', levels: [lowercase, gapFill, stackOverflow, escapeSeq, unicoderBoss], min: 1 },
   story3: {
     name: 'Story Ch.3', min: 1,
@@ -861,6 +915,7 @@ export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   let lv = m.levels[idx](n);
   if (['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
+  if (['story', 'story3', 'story4', 'daily', 'space', 'time', 'sea', 'survival', 'endless', 'hunt', 'bossrush'].includes(mode) && !lv.ch2) lv = addPowers(lv, idx + lv.W);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
     : mode === 'space' ? `${['🌍', '🟡', '🔴', '☀️', '🪐', '🟠', '🧊', '🌈', '🕳️'][idx]} ${lv.name}`
     : mode === 'time' ? `${['🦖', '🏺', '🏰', '🏴‍☠️', '🤠', '🏙️', '🚀', '⌛', '⏰'][idx]} ${lv.name}`
