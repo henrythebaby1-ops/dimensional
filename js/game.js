@@ -1,8 +1,8 @@
-import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, setDimOrder, computeOrder } from './dims.js';
-import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo } from './levels.js';
+import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, THEMES, setDimOrder, computeOrder } from './dims.js';
+import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo, TRAIN_ROLES } from './levels.js';
 const MIDY = MID * T;
 import { Room, fetchLeaderboard, recordClear, fetchGift, giveGift } from './net.js';
-import { playIntro, playIntro2, playIntro3, crashAndRestart, dieScreen } from './story.js';
+import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH } from './render3d.js';
 import { unlockAudio, sfx, playMusic, isMuted, setMuted } from './audio.js';
 import { profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, recordLevel, finishDaily, todayKey } from './profile.js';
@@ -385,6 +385,21 @@ function onSnapshot(d) {
   if (Math.abs((+d.lt || 0) - levelT) > 0.25) levelT = +d.lt || levelT;   // keep crawlers in step
 }
 
+function friendsForScene() {
+  const order = computeOrder(players());
+  return players().map((p, i) => ({ name: p.name, color: ALL_DIMS.find(x => x.key === order[i])?.color || '#fff' }));
+}
+
+async function gotoWithScene(idx) {
+  const key = MODES[gameMode].scenes?.[idx];
+  if (key && SCENES[key]) {
+    const f = friendsForScene();
+    send('scene', { k: key, f });
+    await playStory(f, SCENES[key]);
+  }
+  if (mode === 'play') goto(idx);
+}
+
 function goto(idx, res = null, to = null) {
   const ids = rosterIds();
   const rs = idx === 0 && levelIdx !== idx ? Date.now() : runStart || Date.now();
@@ -442,7 +457,8 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   surv = level.survival ? { wave: 0, lives: 3 + n, next: 3 } : null;
   signals = {};
   const myIdx = ids.indexOf(me.id);
-  P = myIdx < 0 ? null : newPlayer(level.ch2 ? 0 : rot ? (myIdx + idx) % n : myIdx, me.role, level.ch2 || level.spread ? myIdx : undefined);
+  P = myIdx < 0 ? null : newPlayer(level.ch2 ? 0 : rot ? (myIdx + idx) % n : myIdx, level.levelRole || me.role, level.ch2 || level.spread ? myIdx : undefined);
+  if (P && level.levelRole) setTimeout(() => toast(`This level: everyone is a ${ROLES[level.levelRole].icon} ${ROLES[level.levelRole].name}! ${ROLES[level.levelRole].desc}`, '#ffe23a'), 2000);
   if (P) { P.id = me.id; P.ch2 = ch2Roles.get(me.id); }
   if (P && level.ch2) setTimeout(() => P && toast(P.ch2 === 'dragger' ? '🧱 You are a BUILDER — drag the glowing blocks' : P.ch2 === 'walker' ? '🚶 You are a WALKER — push your Builders' : '🧱🚶 You can walk AND build', '#39ff88'), 1200);
   hunt = level.hunt ? { next: 1.5, left: MODES.hunt.time } : null;
@@ -513,6 +529,27 @@ function updateActor(p, inp, dt) {
     if (!overlap(p.x, p.y, PW, PH, o)) continue;
     if ((o.type === 'plate' || o.type === 'pad') && o.dim === p.dim) p.press.push(o.id);
     else if (o.type === 'exit') p.exit = true;
+    else if (o.type === 'rolepad' && local && p.role !== o.role) {
+      p.role = o.role;
+      p.hp = maxHp(p);
+      sfx('buy');
+      toast(`${ROLES[o.role].icon} ${ROLES[o.role].name}: ${ROLES[o.role].desc}`, '#ffe23a');
+    }
+    else if (o.type === 'dimpad' && local) {
+      const nd = DIMS.findIndex(d => d.key === o.dimKey);
+      if (nd >= 0 && nd !== p.dim && !p.dimCd) {
+        const target = ALL_DIMS.find(d => d.key === o.dimKey);
+        DIMS[p.native] = target;            // in training your own slot simply becomes the new dimension
+        p.dim = p.native;
+        p.gflip = false;
+        Object.assign(p, spawnPoint(p.native, p.slot));
+        p.x = (o.x + 1) * T - PW / 2;
+        p.dimCd = 1;
+        sfx('rift');
+        toast(`Now in ${target.name}: ${target.desc}`, target.color);
+        setTimeout(() => { p.dimCd = 0; }, 1500);
+      }
+    }
     else if (o.type === 'bounce') {
       const g = gravOf(p);
       if (g && p.vy * g > -100) {
@@ -578,6 +615,8 @@ function physics(p, inp, h) {
   let ix = (inp.has('right') ? 1 : 0) - (inp.has('left') ? 1 : 0);
   if (D.mirror) ix = -ix;                    // controls follow the screen, not the world
   if (ix) p.face = ix;
+  p.shielding = p.role === 'shield' && inp.has('down') && p.onGround;
+  if (p.shielding) ix = 0;                   // can't walk while holding the shield up
   const speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1)
     * (party?.kind === 'tag' && party.it === p.id ? 1.15 : 1);
   const a = p.onGround || D.fly ? D.accel : D.accel * 0.7;
@@ -595,7 +634,8 @@ function physics(p, inp, h) {
     p.jumpBuf = 0;
   } else {
     let gm = G * D.gravMul * (level.mod === 'lowgrav' ? 0.5 : 1);
-    if (!inp.has('jump') && g * p.vy < 0) gm *= 1.9;   // short hops when jump is released
+    if (!inp.has('jump') && g * p.vy < 0) gm *= 1.9;
+    if (p.role === 'glider' && inp.has('jump') && g * p.vy > 0) { p.vy = g * Math.min(g * p.vy, 110); gm = 0; }   // float down   // short hops when jump is released
     p.vy += g * gm * h;
     if (g * p.vy > D.maxFall) p.vy = g * D.maxFall;
 
@@ -669,7 +709,7 @@ function die(p) {
 }
 
 function respawn(p) {
-  if (party?.kind === 'lms') { p.dead = 1e9; if (p === P) toast('💀 You are out — spectating'); return; }
+  if (party?.kind === 'lms' || party?.kind === 'potato') { p.dead = 1e9; if (p === P) toast('💀 You are out — spectating'); return; }
   p.dim = p.native;
   Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0, hp: maxHp(p), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
 }
@@ -752,7 +792,7 @@ function stateOf(p, id, name) {
   return {
     id, l: levelIdx, x: Math.round(p.x), y: Math.round(p.y), vx: Math.round(p.vx), vy: Math.round(p.vy),
     d: p.dim, nd: p.native, g: gravOf(p), f: p.face, p: p.press, ro: p.role, e: p.exit, hp: p.hp, dead: p.dead > 0, name,
-    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt] : p.cos,
+    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt] : p.cos, sh: p.shielding ? 1 : 0,
   };
 }
 
@@ -802,7 +842,7 @@ function setupBots(ids, idx, n, rot) {
   for (const b of bots) {
     const i = ids.indexOf(b.id);
     if (i < 0) continue;
-    const bp = newPlayer(level.ch2 ? 0 : rot ? (i + idx) % n : i, b.role, level.ch2 || level.spread ? i : undefined);
+    const bp = newPlayer(level.ch2 ? 0 : rot ? (i + idx) % n : i, level.levelRole || b.role, level.ch2 || level.spread ? i : undefined);
     bp.id = b.id;
     bp.cos = b.cos;
     bp.ch2 = ch2Roles.get(b.id);
@@ -886,7 +926,7 @@ function botGoal(b) {
       }
       // every crawler is in the other lane: go through a gravity field to reach them
       const field = near(level.objs.filter(o => o.type === 'flip'));
-      if (field && !D.fly) return { x: (field.x + 0.5) * T, y: p.y + PH / 2 };
+      if (field && !D.fly) return { x: (p.inFlip ? field.x - 1.5 : field.x + field.w / 2) * T, y: p.y + PH / 2 };
     }
   }
   if (boss && !boss.hunter && boss.floatter) return { x: cx, y: p.y + PH / 2, fire: true };
@@ -902,7 +942,8 @@ function botGoal(b) {
   const endOf = l => Math.max(...blockersOf(l).map(e => e.x + e.w)) * T;
   const pendingOf = a => [...new Set(level.objs.filter(o => (o.type === 'bridge' || o.type === 'laser') && o.link && o.dim === a.dim).map(o => o.link))]
     .filter(l => a.x < endOf(l) + 8);
-  const canGo = a => { const pend = pendingOf(a); return pend.length > 0 && pend.every(l => signals[l]); };
+  // only the next obstacle in front of me matters (a level can have several chasms in a row)
+  const canGo = a => { const pend = pendingOf(a).sort((l1, l2) => endOf(l1) - endOf(l2)); return pend.length > 0 && !!signals[pend[0]]; };
   const firstGoer = actors.find(a => !a.dead && canGo(a));
   const myTurn = firstGoer === p;
   // 1. hold plates that a teammate still needs
@@ -988,7 +1029,8 @@ function botThink(b, dt) {
   // a goal in the other lane needs flipped gravity first: route through a gravity field
   if (!D.fly && goal.o && needGrav(goal.o) !== g && goal.o.type !== 'exit') {
     const field = level.objs.filter(o => o.type === 'flip').sort((a, c) => Math.abs(a.x * T - cx) - Math.abs(c.x * T - cx))[0];
-    if (field) goal = { x: (field.x + 0.5) * T, y: cy };
+    // a field only flips you as you walk in: if I'm already inside with the wrong gravity, step out first
+    if (field) goal = p.inFlip ? { x: (field.x - 1.5) * T, y: cy } : { x: (field.x + field.w / 2) * T, y: cy };
   }
   const dx = goal.x - cx;
   let dir = Math.abs(dx) > 8 ? Math.sign(dx) : 0;
@@ -1059,7 +1101,11 @@ function botThink(b, dt) {
     const laser = level.objs.some(o => o.type === 'laser' && o.dim === p.dim && laserOn(o) && Math.abs((o.x + 0.5) * T - (cx + dir * 30)) < T * 1.2);
     if (laser) dir = 0;                       // wait for my laser to switch off
     else if (gap >= 4 && D.jumps <= 1) dir = 0;  // too wide: wait for a bridge
-    else if ((wall || gap || spike) && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.35; }
+    else if ((wall || gap || spike) && p.onGround) {
+      p.jumpBuf = 0.14;
+      b.jumpHold = 0.45;
+      if (gap || spike) b.commit = { dir, t: 0.9 };   // a jump over a gap: keep going until we land
+    }
     const above = g > 0 ? goal.y < p.y - T * 1.5 : goal.y > p.y + PH + T * 1.5;
     const ledge = !solid(tx, feet, p.dim);
     if (above && p.onGround && ((Math.abs(dx) < T * 4 && Math.abs(dx) > T * 0.4) || ledge)) { p.jumpBuf = 0.14; b.jumpHold = 0.4; }
@@ -1084,6 +1130,12 @@ function botThink(b, dt) {
   if (!D.fly && !D.climb && p.onGround && !b.way && Math.abs(dx) < T * 2.5) {
     const up = g > 0 ? goal.y < p.y - T * 1.5 : goal.y > p.y + PH + T * 1.5;
     if (up) { b.climbT = Math.max(b.climbT || 0, 3); planClimb(b, p, g, cx, cy, Math.sign(dx) || 1); }
+  }
+  // once committed to a jump, keep moving the same way in the air (stopping mid-air drops you in the pit)
+  if (b.commit) {
+    b.commit.t -= dt;
+    if ((p.onGround && b.commit.t < 0.75) || b.commit.t <= 0) b.commit = null;
+    else { dir = b.commit.dir; if (b.commit.t > 0.45) inp.add('jump'); }
   }
   if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
   if (dir) {
@@ -1354,7 +1406,7 @@ function carryStep(b, dt) {
 // ---------- party mini-games: Tag, King of the Hill, Coin Chaos, Last One Standing ----------
 let party = null;                  // { kind, left, it, itCd, scoreT, swapT, collapseT, collapseK, coinT, sendT }
 let partyCoins = new Map();        // id -> { x, y } (Coin Chaos)
-const SCORED = ['race', 'hunt', 'tag', 'koth', 'chaos', 'lms'];
+const SCORED = ['race', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato'];
 
 function partyActors() {
   const list = [];
@@ -1378,7 +1430,7 @@ function lineOfSight(a, b) {
 const touching = (a, b, m = 2) => a.x < b.x + PW + m && a.x + PW + m > b.x && a.y < b.y + PH + m && a.y + PH + m > b.y;
 
 function sendParty() {
-  send('pt', { left: party.left, it: party.it, sc: scores });
+  send('pt', { left: party.left, it: party.it, sc: scores, fu: party.fuse });
 }
 
 function hostParty(dt) {
@@ -1398,6 +1450,41 @@ function hostParty(dt) {
   }
   pt.sendT -= dt;
   if (pt.sendT <= 0) { pt.sendT = 1; sendParty(); }
+  if (pt.kind === 'potato') {
+    const alivePot = acts.filter(a => !a.dead);
+    if (!pt.it || !alivePot.some(a => a.id === pt.it)) {
+      pt.it = alivePot[Math.floor(Math.random() * alivePot.length)]?.id;
+      pt.fuse = 12;
+      if (pt.it) { send('it', { id: pt.it }); onTagged(pt.it); }
+    }
+    pt.fuse -= dt;
+    pt.itCd -= dt;
+    const it = alivePot.find(a => a.id === pt.it);
+    if (it && pt.itCd <= 0) for (const a of alivePot) {
+      if (a.id === pt.it || !touching(it, a)) continue;
+      pt.it = a.id; pt.itCd = 1;
+      send('it', { id: a.id });
+      onTagged(a.id);
+      break;
+    }
+    if (pt.fuse <= 0 && it) {               // BOOM: the holder is out
+      const m = `💥 ${nameOf(it.id)} exploded!`;
+      send('toast', { m });
+      toast(m, '#ff5a3a');
+      send('pvp', { id: it.id, boom: 1 });
+      if (it.ref) { it.ref.hp = 1; it.ref.inv = 0; hurt(it.ref); }
+      for (const a of alivePot) if (a.id !== it.id) scores[a.id] = (scores[a.id] || 0) + 1;
+      pt.it = null;
+    }
+    if (alivePot.length <= 1 && acts.length > 1) {
+      transitioning = true;
+      if (alivePot[0]) scores = { [alivePot[0].id]: 1 };
+      const m = alivePot[0] ? `${nameOf(alivePot[0].id)} survived the Hot Potato!` : 'Nobody survived!';
+      send('toast', { m }); toast(m, '#ffe23a'); sendParty();
+      setTimeout(() => mode === 'play' && goto(1), 1600);
+    }
+    return;
+  }
   if (pt.kind === 'tag') {
     if (!pt.it || !acts.some(a => a.id === pt.it)) { pt.it = acts[Math.floor(Math.random() * acts.length)]?.id; onTagged(pt.it); send('it', { id: pt.it }); }
     pt.itCd -= dt;
@@ -1496,7 +1583,7 @@ function partyGoal(b) {
   const p = b.p, cx = p.x + PW / 2, cy = p.y + PH / 2;
   const others = partyActors().filter(a => a.id !== p.id && !a.dead);
   const nearest = others.sort((a, c) => Math.abs(a.x - p.x) - Math.abs(c.x - p.x))[0];
-  if (party.kind === 'tag') {
+  if (party.kind === 'tag' || party.kind === 'potato') {
     if (party.it === p.id) return nearest ? { x: nearest.x + PW / 2, y: nearest.y + PH / 2 } : null;
     const it = others.find(a => a.id === party.it);
     if (!it) return null;
@@ -1514,7 +1601,7 @@ function partyGoal(b) {
     }
     if (best && bd < 5000) return { x: best.x, y: best.y };
     const field = level.objs.filter(o => o.type === 'flip').sort((a, c) => Math.abs(a.x * T - cx) - Math.abs(c.x * T - cx))[0];
-    return field ? { x: (field.x + 0.5) * T, y: cy } : null;
+    return field ? { x: (p.inFlip ? field.x - 1.5 : field.x + field.w / 2) * T, y: cy } : null;
   }
   if (party.kind === 'lms' && nearest) {
     // clear shot: strafe and fire; blocked by cover: move to get a better angle
@@ -1538,7 +1625,7 @@ function sendEmote(i) {
 // ---------- rewards: coins, stars and best times ----------
 let levelStartMs = Date.now(), myDeaths = 0;
 function completeLevel(mode, idx, lv, startMs, deaths) {
-  if (!['story', 'story2', 'story3', 'daily'].includes(mode) || !lv) return;
+  if (!['story', 'story2', 'story3', 'story4', 'daily'].includes(mode) || !lv) return;
   const ms = Date.now() - startMs;
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
@@ -1614,7 +1701,7 @@ function hostChecks(dt) {
     transitioning = true;
     send('toast', { m: 'Level complete!' });
     toast('Level complete!', '#ffe23a');
-    setTimeout(() => mode === 'play' && goto(levelIdx + 1), 1400);
+    setTimeout(() => mode === 'play' && gotoWithScene(levelIdx + 1), 1400);
   }
 }
 
@@ -1722,7 +1809,8 @@ function newBoss(n) {
   return { x: level.W * T / 2, y: H * T / 2, tx: level.W * T / 2, ty: H * T / 2, hp, max: hp,
     exposed: 0, exposeT: 5, shatterT: 0, shatterCd: 0, atkT: 3, atkN: 0, t: 0, sendT: 0,
     spectre: !!level.spectre, helped: false, offerT: 18, unicoder: !!level.unicoder,
-    floatter: !!(level.floatter || level.hunter), hunter: !!level.hunter, stunT: 0 };
+    floatter: !!(level.floatter || level.hunter || level.troppa), hunter: !!level.hunter, stunT: 0,
+    troppa: !!level.troppa, final: !!level.final, allyT: 3 };
 }
 
 function hostBoss(dt) {
@@ -1748,6 +1836,16 @@ function hostBoss(dt) {
       showOffer();
     }
   }
+  if (b.final) {                             // Troppa fights at your side
+    b.allyT -= dt;
+    if (b.allyT <= 0) {
+      b.allyT = 2.2;
+      const ap = allyPos();
+      bolts.push({ x: ap.x, y: ap.y, vx: 0, vy: 0, d: 0, mine: false, life: 0, h: true, col: '#ff5a3a' });
+      send('bolt', { x: ap.x, y: ap.y, vx: 0, vy: 0, d: 0, h: true, c: '#ff5a3a' });
+      if (!transitioning) { boss.hp = Math.max(1, boss.hp - 1); }
+    }
+  }
   b.atkT -= dt;
   if (b.atkT <= 0) {
     spawnAttack();
@@ -1758,6 +1856,13 @@ function hostBoss(dt) {
     b.sendT = 0.1;
     send('boss', { x: b.x, y: b.y, hp: b.hp, max: b.max, e: b.exposed, et: b.exposeT, s: b.shatterT, t: b.t, a: b.atkT, n: b.atkN, hp2: b.helped });
   }
+}
+
+// Troppa (as an ally in the final fight) floats near the team
+function allyPos() {
+  const a = allActors().filter(x => !x.dead);
+  const ax = a.length ? a.reduce((s, x) => s + x.x, 0) / a.length : level.W * T / 2;
+  return { x: ax - T * 2, y: MIDY - T * 2 + Math.sin(time * 2) * T * 0.6 };
 }
 
 // ---------- the Floatter ----------
@@ -1784,6 +1889,24 @@ function hostFloatter(dt) {
     const pick = () => alive[Math.floor(Math.random() * alive.length)];
     const kind = b.atkN++ % 2;
     const volley = b.hunter ? 1 : phase2 ? 3 : 2;
+    if (b.troppa) {
+      // Troppa: lobbed grenades that burst into shockwaves, and laser sweeps across a whole row
+      for (let i = 0; i < volley; i++) {
+        const tgt = pick(), tid = actorId(tgt);
+        if (kind === 0) {
+          const ga = tgt.y > MIDY ? 1 : -1, tt = 1.1;
+          const vx = (tgt.x + PW / 2 - b.x) / tt + (i - (volley - 1) / 2) * 60;
+          const vy = (tgt.y + PH / 2 - b.y) / tt - 0.5 * ga * 900 * tt;
+          list.push([b.x, b.y, vx, vy, 10, 'gr', ga, 0, 'b' + bulletSeq++, tid]);
+        } else {
+          list.push([level.W * T / 2, tgt.y + PH / 2, 0, 0, 0, 'beam', 0, 0, 'b' + bulletSeq++, tid]);
+          break;
+        }
+      }
+      send('atk', { b: list });
+      addBullets(list);
+      return;
+    }
     for (let i = 0; i < volley; i++) {
       const tgt = pick();
       const tid = actorId(tgt);
@@ -1851,7 +1974,17 @@ function onShatter() {
 
 function spawnAttack() {
   const b = boss, phase2 = b.hp < b.max / 2, list = [];
-  const kind = b.atkN++ % 3;
+  const kind = b.atkN++ % (b.final ? 5 : 3);
+  if (kind === 3 || kind === 4) {            // the final Spectre borrows the Floatter's and Troppa's weapons
+    for (const a of allActors().filter(x => !x.dead).slice(0, 4)) {
+      const tid = actorId(a);
+      if (kind === 3) { const ang = Math.atan2(a.y - b.y, a.x - b.x); list.push([b.x, b.y, Math.cos(ang) * 170, Math.sin(ang) * 170, 8, 'm', 0, 0, 'b' + bulletSeq++, tid]); }
+      else { const ga = a.y > MIDY ? 1 : -1; list.push([b.x, b.y, (a.x - b.x) / 1.1, (a.y - b.y) / 1.1 - 0.5 * ga * 900 * 1.1, 10, 'gr', ga, 0, 'b' + bulletSeq++, tid]); }
+    }
+    send('atk', { b: list });
+    addBullets(list);
+    return;
+  }
   if (kind === 0) {
     const k = phase2 ? 16 : 11, off = Math.random() * Math.PI;
     for (let i = 0; i < k; i++) {
@@ -1875,13 +2008,32 @@ function spawnAttack() {
 }
 
 function addBullets(list) {
-  for (const [x, y, vx, vy, r, k, w, h, id, tgt] of list) bullets.push({ x, y, vx, vy, r, k, w, h, id, tgt, life: 0, hits: new Set() });
+  for (const [x, y, vx, vy, r, k, w, h, id, tgt] of list) {
+    bullets.push({ x, y, vx, vy, r, k, w, h, id, tgt, life: 0, hits: new Set() });
+    if (k === 'm' && P) sfx('missile');
+    if ((k === 's' || k === 'gr') && P) sfx('rocket');
+  }
 }
 
 function updateBullets(dt) {
   const actors = [...(P ? [P] : []), ...[...botActors.values()].map(b => b.p)];
   const born = [];
   for (const b of bullets) {
+    // a raised shield blocks anything coming at it from the front
+    for (const p of actors) {
+      if (!p.shielding || b.life >= 99 || b.k === 'ring' || b.k === 'beam') continue;
+      const fx = p.x + PW / 2 + p.face * 18, fy = p.y + PH / 2;
+      if (Math.abs(b.x - fx) < 16 && Math.abs(b.y - fy) < 26) { b.life = 99; burst(b.x, b.y, '#9feaff', 12, 180); if (p === P) sfx('click'); }
+    }
+    if (b.k === 'gr') b.vy += (b.w || 1) * 900 * dt;   // grenades fall toward their target's world
+    if (b.k === 'beam') {                    // Troppa's laser sweep: warning line, then a burning row
+      b.life += dt;
+      if (b.life > 1.0 && b.life < 1.6) for (const p of actors) {
+        if (p.dead <= 0 && Math.abs(p.y + PH / 2 - b.y) < 20 && !b.hits.has(p)) { b.hits.add(p); hurt(p); }
+      }
+      if (b.life > 1.6) b.life = 99;
+      continue;
+    }
     if (b.k === 'm') {                       // homing missile
       const t = targetPos(b.tgt);
       if (t) {
@@ -1895,10 +2047,11 @@ function updateBullets(dt) {
     else { b.x += b.vx * dt; b.y += b.vy * dt; }
     b.life += dt;
     // Floatter shots blow up on walls and covers
-    if ((b.k === 'm' || b.k === 's') && (solid(Math.floor(b.x / T), Math.floor(b.y / T), -1) || b.life > 6)) {
+    if ((b.k === 'm' || b.k === 's' || b.k === 'gr') && (solid(Math.floor(b.x / T), Math.floor(b.y / T), -1) || b.life > 6)) {
       b.life = 99;
-      burst(b.x, b.y, b.k === 'm' ? '#ff5a3a' : '#7fe7ff', 18, 220);
-      if (b.k === 's') born.push({ x: b.x, y: b.y, k: 'ring', r: 6, life: 0, hits: new Set() });
+      burst(b.x, b.y, b.k === 'm' ? '#ff5a3a' : b.k === 'gr' ? '#9adf3a' : '#7fe7ff', 18, 220);
+      if (P && Math.hypot(b.x - P.x, b.y - P.y) < T * 8) sfx('boom');
+      if (b.k === 's' || b.k === 'gr') born.push({ x: b.x, y: b.y, k: 'ring', r: 6, life: 0, hits: new Set() });
       continue;
     }
     for (const p of actors) {
@@ -1908,13 +2061,13 @@ function updateBullets(dt) {
         if (Math.abs(d - b.r) < 16 && !b.hits.has(p)) { b.hits.add(p); hurt(p); }
         continue;
       }
-      if (b.k === 'm' || b.k === 's') {
+      if (b.k === 'm' || b.k === 's' || b.k === 'gr') {
         const cx = clamp(b.x, p.x, p.x + PW), cy = clamp(b.y, p.y, p.y + PH);
         if (Math.hypot(b.x - cx, b.y - cy) < b.r) {
           hurt(p);
           b.life = 99;
           burst(b.x, b.y, '#ff5a3a', 20, 240);
-          if (b.k === 's') born.push({ x: b.x, y: b.y, k: 'ring', r: 6, life: 0, hits: new Set([p]) });
+          if (b.k === 's' || b.k === 'gr') born.push({ x: b.x, y: b.y, k: 'ring', r: 6, life: 0, hits: new Set([p]) });
         }
         continue;
       }
@@ -1924,7 +2077,7 @@ function updateBullets(dt) {
       } else if (p.x < b.x + b.w / 2 && p.x + PW > b.x - b.w / 2 && p.y < b.y + b.h && p.y + PH > b.y) hurt(p);
     }
   }
-  bullets = bullets.filter(b => b.life < 7 && b.x > -100 && b.x < level.W * T + 100 && b.y > -100 && b.y < H * T + 100).concat(born);
+  bullets = bullets.filter(b => b.life < 7 && (b.k === 'beam' || b.x > -100) && b.x < level.W * T + 100 && b.y > -100 && b.y < H * T + 100).concat(born);
 }
 
 // my shots can knock the Floatter's missiles and rockets out of the air
@@ -1946,10 +2099,11 @@ function autoTarget(p) {
   if (party?.kind === 'lms') { const f = nearestFoe(p); return f ? Math.sign(f.x - p.x) || 1 : 0; }
   if (boss && !boss.hunter) return p.face || 1;             // boss fights: shots home in anyway
   const near = (x, y, rx, ry) => Math.abs(y - cy) < ry && Math.abs(x - cx) < rx;
+  const range = DIMS[p.dim].sword ? T * 2 : T * 9;   // a sword only reaches close up
   for (const o of level.mobs) {
     if (killed.has(o.id)) continue;
     const m = mobPos(o);
-    if (near(m.x + MW / 2, m.y + MH / 2, T * 9, T)) return Math.sign(m.x + MW / 2 - cx) || 1;
+    if (near(m.x + MW / 2, m.y + MH / 2, range, T)) return Math.sign(m.x + MW / 2 - cx) || 1;
   }
   for (const k of bullets) if ((k.k === 'm' || k.k === 's') && near(k.x, k.y, T * 7, T * 1.3)) return Math.sign(k.x - cx) || 1;
   for (const o of level.targets) {
@@ -1972,9 +2126,37 @@ function nearestFoe(p) {
   return best;
 }
 
+// Bananaverse: a sword slash instead of a shot (like the Bananas of the Caribbean)
+function slash(p) {
+  p.boltCd = 0.32;
+  const cx = p.x + PW / 2, cy = p.y + PH / 2, reach = T * 2;
+  for (let i = 0; i < 10; i++) {
+    const a = -0.9 + i * 0.2;
+    particles.push({ x: cx + p.face * Math.cos(a) * reach * 0.7, y: cy + Math.sin(a) * reach * 0.7, z: 0.4, vx: p.face * 40, vy: 0, life: 0, max: 0.25, col: '#ffffff', s: 6 });
+  }
+  if (p === P) sfx('shoot');
+  const inFront = (x, y) => Math.sign(x - cx) !== -p.face && Math.abs(x - cx) < reach && Math.abs(y - cy) < T * 1.3;
+  for (const o of level.mobs) {
+    if (killed.has(o.id)) continue;
+    const m = mobPos(o);
+    if (inFront(m.x + MW / 2, m.y + MH / 2)) { killMob(o.id, p.id); send('kill', { id: o.id, by: p.id }); }
+  }
+  for (const k of bullets) if ((k.k === 'm' || k.k === 's' || k.k === 'gr') && inFront(k.x, k.y)) { k.life = 99; send('bdown', { id: k.id }); }
+  for (const t of level.targets) {
+    if (latched.has(t.link) || t.dim === p.dim || Math.abs((t.x + 0.5) * T - cx) > reach) continue;
+    latched.add(t.link); send('latch', { k: t.link }); onCrystal(t);
+  }
+  if (party?.kind === 'lms') for (const a of partyActors()) {
+    if (a.id === p.id || a.dead || !inFront(a.x + PW / 2, a.y + PH / 2)) continue;
+    if (a.ref) hurt(a.ref); else send('pvp', { id: a.id, by: p.id });
+  }
+  if (boss?.hunter && inFront(boss.x, boss.y)) { if (isHost()) stunFloatter(); else send('hit', { d: 0 }); }
+}
+
 function fireBolt(p, aimDir) {
   const r = p.role;
   if (aimDir) p.face = aimDir;
+  if (DIMS[p.dim].sword && !(boss && !boss.hunter)) return slash(p);
   p.boltCd = (boss ? 0.28 : 0.22) * (r === 'gunner' ? 0.55 : r === 'sniper' ? 1.6 : 1);
   const g = gravOf(p), homing = !!boss && !boss.hunter;
   const b = { x: p.x + PW / 2 + p.face * 10, y: p.y + PH / 2, vx: p.face * (homing ? 300 : r === 'sniper' ? 1000 : 720), vy: homing ? -g * 320 : 0,
@@ -2006,7 +2188,7 @@ function updateBolts(dt) {
       b.x += b.vx * dt; b.y += b.vy * dt;
       if (dist < 60) {
         b.life = 99;
-        const ok = boss.unicoder ? boss.shatterT > 0 : boss.helped || boss.shatterT > 0 || boss.exposed === b.d;
+        const ok = boss.floatter ? true : boss.unicoder ? boss.shatterT > 0 : boss.helped || boss.shatterT > 0 || boss.exposed === b.d;
         burst(b.x, b.y, ok ? DIMS[b.d].color : '#888888', ok ? 10 : 5, ok ? 200 : 90);
         if (b.mine && ok) {
           const dmg = boss.shatterT > 0 ? 2 : 1;
@@ -2075,6 +2257,7 @@ function onCrystal(t) {
 function killMob(id, by) {
   if (killed.has(id)) return;
   killed.add(id);
+  if (level?.training) setTimeout(() => killed.delete(id), 3000);   // training dummies come back
   if (hunt && typeof by === 'string') scores[by] = (scores[by] || 0) + 1;
   if (by === me.id) { addCoins(2); sfx('kill'); }
   const o = level.mobs.find(m => m.id === id);
@@ -2099,11 +2282,12 @@ function applyHit(d) {
   boss.hp = Math.max(0, boss.hp - clamp(Number(d) || 0, 0, 2) * (boss.helped ? 2 : 1));
   if (boss.hp <= 0) {
     transitioning = true;
-    const m = boss.spectre ? 'THE SPECTRE FADES…' : boss.unicoder ? 'THE UNICODER IS DELETED!' : boss.floatter ? 'THE FLOATTER FALLS SILENT!' : 'THE BOSS IS BROKEN!';
+    const m = boss.final ? 'THE SPECTRE IS GONE FOREVER!' : boss.spectre ? 'THE SPECTRE FADES…' : boss.unicoder ? 'THE UNICODER IS DELETED!'
+      : boss.troppa ? 'THE COLLAR BREAKS!' : boss.floatter ? 'THE FLOATTER FALLS SILENT!' : 'THE BOSS IS BROKEN!';
     send('toast', { m });
     toast(m, '#ffe23a');
     burst(boss.x, boss.y, '#ffffff', 120, 600);
-    setTimeout(() => mode === 'play' && goto(levelIdx + 1), 2000);   // next boss round, or the ending
+    setTimeout(() => mode === 'play' && gotoWithScene(levelIdx + 1), 2000);   // next boss round, or the ending
   }
 }
 
@@ -2171,7 +2355,7 @@ function onMsg(t, d) {
       break;
     case 'surv': if (mode === 'play' && surv) { surv.wave = d.w | 0; surv.lives = d.lives | 0; } break;
     case 'died': if (mode === 'play' && isHost()) loseLife(); break;
-    case 'pt': if (mode === 'play' && party) { party.left = +d.left || 0; if (d.it && d.it !== party.it) onTagged(String(d.it)); if (d.sc && typeof d.sc === 'object') scores = d.sc; } break;
+    case 'pt': if (mode === 'play' && party) { party.left = +d.left || 0; if (d.fu !== undefined) party.fuse = +d.fu; if (d.it && d.it !== party.it) onTagged(String(d.it)); if (d.sc && typeof d.sc === 'object') scores = d.sc; } break;
     case 'it': if (mode === 'play' && party && typeof d.id === 'string') onTagged(d.id); break;
     case 'pcoin': if (mode === 'play' && party && typeof d.id === 'string') partyCoins.set(d.id, { x: +d.x, y: +d.y }); break;
     case 'pgot': if (mode === 'play' && party && typeof d.id === 'string') takePartyCoin(d.id, String(d.by)); break;
@@ -2179,7 +2363,7 @@ function onMsg(t, d) {
     case 'collapse': if (mode === 'play' && party?.kind === 'lms') collapse(d.k | 0); break;
     case 'pvp':
       if (mode === 'play' && party?.kind === 'lms') {
-        if (d.id === me.id && P) hurt(P);
+        if (d.id === me.id && P) { if (d.boom) { P.hp = 1; P.inv = 0; } hurt(P); }
         else if (isHost() && botActors.has(d.id)) hurt(botActors.get(d.id).p);
       }
       break;
@@ -2198,6 +2382,8 @@ function onMsg(t, d) {
     case 'intro': if (Array.isArray(d.f) && mode !== 'play') playIntro(d.f.slice(0, MAX_PLAYERS)); break;
     case 'intro2': if (Array.isArray(d.f) && mode !== 'play') playIntro2(d.f.slice(0, MAX_PLAYERS)); break;
     case 'intro3': if (Array.isArray(d.f) && mode !== 'play') playIntro3(d.f.slice(0, MAX_PLAYERS)); break;
+    case 'intro4': if (Array.isArray(d.f) && mode !== 'play') playStory(d.f.slice(0, MAX_PLAYERS), SCENES.ch4intro); break;
+    case 'scene': if (SCENES[d.k] && Array.isArray(d.f)) playStory(d.f.slice(0, MAX_PLAYERS), SCENES[d.k]); break;
     case 'heal':
       if (mode === 'play' && P && P.dead <= 0) {
         P.hp = Math.min(maxHp(P), P.hp + 1);
@@ -2401,7 +2587,7 @@ async function showVictory() {
     const iWon = ranked.some(r => r[2] === me.id && r[1] === top);
     addCoins(iWon ? 40 : 10);
     sfx(iWon ? 'win' : 'click');
-    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING' }[gameMode];
+    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO' }[gameMode];
     $('win-coins').textContent = iWon ? '🏆 You won! +40 🪙' : '+10 🪙 for playing';
     big.textContent = winners.join(' & ');
     text.textContent = ranked.map(([n, p]) => `${n}: ${p}`).join(' · ');
@@ -2429,7 +2615,23 @@ async function showVictory() {
     loadBoard($('board-win'), 'daily');
     return;
   }
+  if (gameMode === 'story4') {
+    playStory(friendsForScene(), SCENES.ch4end);
+    addCoins(150);
+    title.textContent = 'THE END';
+    text.textContent = 'The Spectre is gone forever. Troppa is free. The worlds are one again. Thank you for playing Dimensional!';
+    big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
+  if (gameMode === 'training') {
+    title.textContent = 'TRAINING DONE';
+    text.textContent = 'Now go use what you learned!';
+    big.textContent = fmtTime(ms);
+    return;
+  }
   if (gameMode === 'story2') {
+    playStory(friendsForScene(), SCENES.ch2end);
     unlockChapterDims(['jungle', 'mushroom']);
     title.textContent = 'CHAPTER 2 COMPLETE';
     text.textContent = 'The Unicoder scatters into a million letters. Everyone can walk again — together.';
@@ -2437,6 +2639,7 @@ async function showVictory() {
     return;
   }
   if (gameMode === 'story3') {
+    playStory(friendsForScene(), SCENES.ch3end);
     unlockChapterDims(['void', 'cloud']);
     title.textContent = 'CHAPTER 3 COMPLETE';
     text.textContent = 'The Floatter crashes out of the sky. For the first time in forever, the space between the worlds is quiet.';
@@ -2531,10 +2734,13 @@ function bodiesForFrame() {
     const r = remotes.get(id);
     if (!r || r.l !== levelIdx) continue;
     list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id),
-      hat: Array.isArray(r.co) ? r.co[0] : 'none', trail: Array.isArray(r.co) ? r.co[1] : 'none' });
+      hat: Array.isArray(r.co) ? r.co[0] : 'none', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
   }
   if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.face, vx: P.vx, ghost: false,
-    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id), hat: profile.equip.hat, trail: profile.equip.trail });
+    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id), hat: profile.equip.hat, trail: profile.equip.trail,
+    sword: !!DIMS[P.dim].sword, shield: !!P.shielding });
+  for (const [id, b] of botActors) { const e = list.find(x => x.id === id); if (e) { e.shield = !!b.p.shielding; } }
+  if (level.ally && boss) { const ap = allyPos(); list.push({ id: 'ally', x: ap.x - PW / 2, y: ap.y - PH / 2, d: 0, nd: 0, g: 1, f: 1, vx: 0, ghost: false, visible: true, color: '#4f6f46', hat: 'helmet', trail: 'none' }); }
   return list;
 }
 
@@ -2542,8 +2748,10 @@ function drawGame(dt) {
   const D = P ? DIMS[P.dim] : DIMS[0];
   let camTarget = P ? { x: P.x + PW / 2, y: P.y + PH / 2 } : { x: 0, y: H * T / 2 };
   if (!P) { const r = remotes.get(gameRoster[0]); if (r) camTarget = { x: r.sx, y: r.sy }; }
+  // chapter style repaints the world, except for dimensions with a look of their own
+  const VD = level.theme && !D.flat && !D.topdown && D.key !== 'unicode' ? { ...D, ...THEMES[level.theme] } : D;
   renderer.frame({
-    D, flipX: !!D.mirror, flipY: P ? gravOf(P) < 0 : false, level, time, myDim: P ? P.dim : -1, P,
+    D: VD, flipX: !!D.mirror, flipY: P ? gravOf(P) < 0 : false, level, time, myDim: P ? P.dim : -1, P,
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
     crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
@@ -2587,10 +2795,10 @@ function drawOverlay(D) {
 
 // speech bubbles for emotes, and the big IT marker in Tag
 function drawExtras(id, p, ly) {
-  if (party?.kind === 'tag' && party.it === id) {
-    ctx.font = `900 ${isTouch ? 16 : 20}px Orbitron, sans-serif`;
+  if ((party?.kind === 'tag' || party?.kind === 'potato') && party.it === id) {
+    ctx.font = party.kind === 'potato' ? `${isTouch ? 24 : 30}px sans-serif` : `900 ${isTouch ? 16 : 20}px Orbitron, sans-serif`;
     ctx.fillStyle = '#ff3355';
-    ctx.fillText('IT!', p.x, ly - 6);
+    ctx.fillText(party.kind === 'potato' ? `💣 ${Math.max(0, Math.ceil(party.fuse ?? 0))}` : 'IT!', p.x, ly - 6);
   }
   const em = emoting.get(id);
   if (em && performance.now() - em.t < 2600) {
@@ -2609,6 +2817,21 @@ function drawExtras(id, p, ly) {
 
 function drawLabels() {
   ctx.textAlign = 'center';
+  if (level.training) {
+    ctx.font = `700 ${isTouch ? 11 : 13}px Rubik, sans-serif`;
+    for (const o of level.objs) {
+      if (o.type !== 'rolepad' && o.type !== 'dimpad') continue;
+      if (o.type === 'rolepad' && o.y < MID) continue;
+      const p = renderer.project((o.x + o.w / 2) * T, (o.type === 'rolepad' ? o.y - 0.6 : o.y - 0.5) * T);
+      if (p.x < -40 || p.x > VW + 40) continue;
+      const txt = o.type === 'rolepad' ? `${ROLES[o.role].icon} ${ROLES[o.role].name}` : ALL_DIMS.find(d => d.key === o.dimKey)?.name;
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      const w = ctx.measureText(txt).width + 10;
+      ctx.fillRect(p.x - w / 2, p.y - 16, w, 20);
+      ctx.fillStyle = o.type === 'rolepad' ? '#ffe23a' : ALL_DIMS.find(d => d.key === o.dimKey)?.color || '#fff';
+      ctx.fillText(txt, p.x, p.y - 1);
+    }
+  }
   const fs = isTouch ? 12 : 14;
   ctx.font = `600 ${fs}px Rubik, sans-serif`;
   const edge = 14;
@@ -2660,7 +2883,7 @@ function drawBossBar() {
   ctx.fillStyle = '#3a1030'; ctx.fillRect(x, y, w, 12);
   ctx.fillStyle = boss.hunter ? '#5a2a2a' : '#ff3d8b'; ctx.fillRect(x, y, boss.hunter ? w : w * boss.hp / boss.max, 12);
   ctx.textAlign = 'left'; ctx.font = `900 ${isTouch ? 11 : 14}px Orbitron, sans-serif`; ctx.fillStyle = '#fff';
-  ctx.fillText(boss.spectre ? 'THE SPECTRE' : boss.unicoder ? 'THE UNICODER' : boss.floatter ? 'THE FLOATTER' : 'THE FRACTURE', x, y - 7);
+  ctx.fillText(boss.final ? 'THE SPECTRE RETURNS' : boss.spectre ? 'THE SPECTRE' : boss.unicoder ? 'THE UNICODER' : boss.troppa ? 'TROPPA' : boss.floatter ? 'THE FLOATTER' : 'THE FRACTURE', x, y - 7);
   ctx.textAlign = 'right';
   if (boss.hunter) {
     ctx.fillStyle = boss.stunT > 0 ? '#9feaff' : '#ff5a3a';
@@ -2725,7 +2948,7 @@ function step(dt, draw) {
   if (mode === 'play' && level) {
     levelT += dt;
     if (hunt && !isHost()) hunt.left = Math.max(0, hunt.left - dt);
-    if (party && !isHost()) party.left = Math.max(0, party.left - dt);
+    if (party && !isHost()) { party.left = Math.max(0, party.left - dt); if (party.fuse) party.fuse -= dt; }
     updateCannons();
     if (party?.kind === 'chaos') {   // grab coins in Coin Chaos
       const grab = (p, id) => {
@@ -2806,6 +3029,11 @@ $('start').onclick = async () => {
     send('intro', { f: friends });
     await playIntro(friends);
   }
+  if (gameMode === 'story4') {
+    const f = friendsForScene();
+    send('intro4', { f });
+    await playStory(f, SCENES.ch4intro);
+  }
   if (gameMode === 'story3') {
     const order = computeOrder(players());
     const friends = players().map((p, i) => {
@@ -2870,7 +3098,7 @@ $('hud-level').onclick = () => $('hud-level').classList.toggle('open');
 
 // lobby pickers: role and dimension; menu picker: controls
 const roleSel = $('role-pick'), dimSel = $('dim-pick'), ctrlSel = $('controls');
-for (const [k, r] of Object.entries(ROLES)) roleSel.append(new Option(`${r.icon} ${r.name} — ${r.desc}`, k));
+for (const [k, r] of Object.entries(ROLES)) if (!r.levelOnly) roleSel.append(new Option(`${r.icon} ${r.name} — ${r.desc}`, k));
 
 roleSel.value = me.role;
 dimSel.value = me.dim;
@@ -2964,7 +3192,7 @@ function renderRecords() {
   const list = $('records-list');
   list.replaceChildren();
   let total = 0, max = 0;
-  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter']]) {
+  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa']]) {
     const h = document.createElement('h3');
     h.textContent = title;
     list.append(h);
@@ -2996,6 +3224,7 @@ $('records-close').onclick = () => $('records').classList.add('hidden');
   const lv = info.make(2);
   $('daily-desc').textContent = `· ${lv.name} with ${info.mod.name}${profile.daily.last === todayKey() ? ' · ✓ done today' : ' · +100 🪙'}`;
 }
+$('open-training').onclick = () => { gameMode = 'training'; $('create').click(); };
 $('daily-btn').onclick = () => {
   gameMode = 'daily';
   $('create').click();

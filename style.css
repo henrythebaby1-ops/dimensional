@@ -268,3 +268,27 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 #emote-bar button { border: 1px solid var(--line); background: rgba(255,255,255,.1); color: #fff; border-radius: 10px; padding: 10px 8px; font: inherit; font-weight: 700; font-size: 14px; min-width: 54px; }
 #mute { position: absolute; left: calc(50% + 24px); top: 8px; pointer-events: auto; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.45); color: #fff; font-size: 15px; }
 
+.cut-stage.war { background: linear-gradient(#1a0a0a, #4a1a12 70%, #2a1410 70%); }
+.cut-stage.red { background: linear-gradient(#3a0008, #8a1020 70%, #3a0a10 70%); }
+.cut-stage.factory { background: linear-gradient(#2a3140, #6a7488 70%, #3a404c 70%); }
+.cut-stage.dark { background: linear-gradient(#05030c, #1a1030 70%, #120a20 70%); }
+.cut-stage.shake { animation: stageGlitch .2s steps(2) 8; }
+.cut-stage.flash::after { content: ''; position: absolute; inset: 0; background: #fff; animation: flashOut 1s forwards; }
+@keyframes flashOut { from { opacity: 1; } to { opacity: 0; } }
+.cut-stage.fade-out .cut-spectre, .cut-stage.fade-out .cut-uni-static { animation: fadeAway 3s forwards; }
+.cut-stage.fade-in .cut-spectre { animation: fadeIn 2.5s forwards; opacity: 0; }
+@keyframes fadeAway { to { opacity: 0; transform: translateX(-50%) scale(1.6); filter: blur(10px); } }
+@keyframes fadeIn { to { opacity: .6; } }
+.cut-stage.fall .cut-floatter { animation: fallDown 2.6s ease-in forwards; }
+@keyframes fallDown { to { top: 320px; transform: translateX(-50%) rotate(40deg); } }
+.cut-uni-static { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); white-space: pre; text-align: center; font: 900 20px/1.1 monospace; color: #39ff88; text-shadow: 0 0 10px #39ff88; z-index: 2; }
+.cut-troppa { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); width: 70px; height: 120px; z-index: 2; animation: float 2s ease-in-out infinite alternate; }
+.cut-troppa > div { position: absolute; }
+.tp-helmet { left: 12px; top: 0; width: 46px; height: 34px; border-radius: 22px 22px 6px 6px; background: #3b4a3a; box-shadow: inset 0 -6px 0 rgba(0,0,0,.3); }
+.tp-visor { left: 18px; top: 14px; width: 34px; height: 10px; border-radius: 4px; background: #ff3333; box-shadow: 0 0 12px #ff3333; }
+.tp-collar { left: 14px; top: 34px; width: 42px; height: 9px; border-radius: 5px; background: #b48cff; box-shadow: 0 0 14px #b48cff; }
+.tp-body { left: 10px; top: 42px; width: 50px; height: 56px; border-radius: 8px; background: #4f5f46; }
+.tp-pack { left: -6px; top: 46px; width: 16px; height: 40px; border-radius: 6px; background: #2c2f36; }
+.cut-stage.angry .tp-visor { animation: thump .2s infinite alternate; }
+.cut-stage.freed .tp-collar { display: none; }
+.cut-stage.freed .tp-visor { background: #7fe7ff; box-shadow: 0 0 12px #7fe7ff; }

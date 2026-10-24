@@ -65,6 +65,12 @@ function makeHat(id) {
       for (let i = 0; i < 5; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 4), hatMat(0xffd23a, { metalness: 0.8 })); const a = i / 5 * Math.PI * 2; sp.position.set(Math.cos(a) * 0.22, top + 0.2, Math.sin(a) * 0.22); g.add(sp); }
       break;
     }
+    case 'helmet': {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatMat(0x3b4a3a));
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.1), hatMat(0x7fe7ff, { emissive: 0x7fe7ff, emissiveIntensity: 0.9 }));
+      dome.position.y = top - 0.05; visor.position.set(0, top - 0.02, 0.3);
+      g.add(dome, visor); break;
+    }
     default: return null;
   }
   return g;
@@ -182,6 +188,7 @@ export class Renderer3D {
     disposeTree(this.decor);
     this.decor.clear();
     this.anim = null;
+    this.noParallax = false;
     const r = rng(D.key.length * 977 + 13);
     const floorY = up > 0 ? -1 : H + 1;
     const addPoints = (n, color, size, spread) => {
@@ -208,6 +215,100 @@ export class Renderer3D {
       }
     };
     switch (D.key) {
+      case 'factory': {
+        const steel = std(0x4a5160, { metalness: 0.7, roughness: 0.4 }), brass = std(0xb8862b, { metalness: 0.8, roughness: 0.3 });
+        this.anim = { gears: [] };
+        for (let i = 0; i < 16; i++) {
+          const gear = new THREE.Group();
+          const rad = 1.5 + r() * 3;
+          gear.add(new THREE.Mesh(new THREE.TorusGeometry(rad, rad * 0.18, 6, 24), i % 3 ? steel : brass));
+          for (let k = 0; k < 10; k++) { const tooth = new THREE.Mesh(new THREE.BoxGeometry(rad * 0.3, rad * 0.35, rad * 0.3), i % 3 ? steel : brass); const a = k / 10 * Math.PI * 2; tooth.position.set(Math.cos(a) * rad * 1.15, Math.sin(a) * rad * 1.15, 0); tooth.rotation.z = a; gear.add(tooth); }
+          gear.position.set((r() - 0.5) * 150, -4 + r() * (H + 8), -16 - r() * 30);
+          gear.userData.spin = (r() - 0.5) * 1.2;
+          this.decor.add(gear);
+          this.anim.gears.push(gear);
+        }
+        for (let i = 0; i < 10; i++) {
+          const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 60, 8), steel);
+          pipe.rotation.z = Math.PI / 2;
+          pipe.position.set((r() - 0.5) * 60, -4 + r() * (H + 8), -12 - r() * 20);
+          this.decor.add(pipe);
+        }
+        addPoints(500, 0x9aa4b8, 0.3, 6);
+        break;
+      }
+      case 'war': {
+        const rubble = std(0x3a2f26, { roughness: 1 }), metal = std(0x2c2f36, { metalness: 0.6 });
+        for (let i = 0; i < 26; i++) {
+          const h = 3 + r() * 9;
+          const ruin = new THREE.Mesh(new THREE.BoxGeometry(1 + r() * 3, h, 1 + r() * 2), i % 4 ? rubble : metal);
+          ruin.position.set((r() - 0.5) * 160, floorY + up * h / 2, -14 - r() * 30);
+          ruin.rotation.z = (r() - 0.5) * 0.4;
+          if (up < 0) ruin.rotation.x = Math.PI;
+          this.decor.add(ruin);
+        }
+        this.anim = { pts: addPoints(900, 0x3a2a2a, 0.5, 4), vy: up * 1.5, sway: 2 };
+        addPoints(300, 0xff6a2a, 0.15, 6);
+        break;
+      }
+      case 'arcade': {
+        const grid = new THREE.GridHelper(300, 100, 0x00f0ff, 0xff2bd6);
+        grid.rotation.x = Math.PI / 2;
+        grid.position.set(0, H / 2, -20);
+        grid.material.transparent = true; grid.material.opacity = 0.35;
+        this.decor.add(grid);
+        const shapes = [new THREE.TorusGeometry(1.2, 0.12, 6, 20), new THREE.OctahedronGeometry(1.2), new THREE.BoxGeometry(1.6, 1.6, 1.6)];
+        this.anim = { spin: [] };
+        for (let i = 0; i < 30; i++) {
+          const m = new THREE.LineSegments(new THREE.EdgesGeometry(shapes[i % 3]), new THREE.LineBasicMaterial({ color: [0x00f0ff, 0xff2bd6, 0xffe23a][i % 3] }));
+          m.position.set((r() - 0.5) * 150, -4 + r() * (H + 8), -8 - r() * 20);
+          this.decor.add(m);
+          this.anim.spin.push(m);
+        }
+        break;
+      }
+      case 'banana': {
+        // the Bananas of the Caribbean village, seen from above: grass, dirt roads, red-roof houses, round bushes
+        const grass = new THREE.Mesh(new THREE.PlaneGeometry(400, 140), std(0x6cc35a, { flatShading: false, roughness: 1 }));
+        grass.rotation.x = -Math.PI / 2;
+        grass.position.set(100, 0.98, -50);
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(400, 3), std(0xe2c58e, { flatShading: false, roughness: 1 }));
+        road.rotation.x = -Math.PI / 2;
+        road.position.set(100, 1.0, -3);
+        this.decor.add(grass, road);
+        const wall = std(0xf3ead6), roof = std(0xb4442d), bush = std(0x2f8f3a, { flatShading: false }), trunk = std(0x7a5230);
+        for (let i = 0; i < 40; i++) {
+          const house = new THREE.Group();
+          const w = 2 + r() * 2, d = 2 + r() * 1.5;
+          const body = new THREE.Mesh(new THREE.BoxGeometry(w, 1.4, d), wall);
+          const top = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.75, 1.2, 4), roof);
+          body.position.y = 0.7; top.position.y = 2; top.rotation.y = Math.PI / 4;
+          house.add(body, top);
+          house.position.set(-20 + r() * 240, 1, -6 - r() * 40);
+          this.decor.add(house);
+        }
+        for (let i = 0; i < 90; i++) {
+          const b = new THREE.Mesh(new THREE.SphereGeometry(0.5 + r() * 0.6, 10, 8), bush);
+          b.position.set(-20 + r() * 240, 1.4, -5 - r() * 45);
+          this.decor.add(b);
+          if (i % 3 === 0) { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 1.2, 6), trunk); t.position.set(b.position.x, 1.5, b.position.z); b.position.y = 2.6; this.decor.add(t); }
+        }
+        this.noParallax = true;
+        break;
+      }
+      case 'illusion': {
+        // floating blocks like a voxel world… some are near, some impossibly far
+        const cols = [0x8a5cff, 0xff9ec7, 0x9ff3ff, 0xffe23a];
+        this.anim = { spin: [] };
+        for (let i = 0; i < 70; i++) {
+          const sz = 0.4 + r() * 3;
+          const c = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), std(cols[i % 4], { emissive: cols[i % 4], emissiveIntensity: 0.15 }));
+          c.position.set((r() - 0.5) * 150, -8 + r() * (H + 16), -4 - r() * 60);
+          this.decor.add(c);
+          if (i % 2) this.anim.spin.push(c);
+        }
+        break;
+      }
       case 'unicode': {
         this.anim = { pts: addPoints(1400, 0x39ff88, 0.22, 4), vy: -up * 6, sway: 0 };
         const tex = glyphTexture('#39ff88', 256, 64, 'ΨЖ∆§◆¤⌘Ѫ☼¥');
@@ -434,13 +535,28 @@ export class Renderer3D {
     const edge = new THREE.InstancedMesh(new THREE.BoxGeometry(1.01, 0.18, DEPTH + 0.06), this.edgeMat, edges.length);
     edges.forEach(([tx, y], i) => { _m.makeTranslation(tx + 0.5, y, 0); edge.setMatrixAt(i, _m); });
     const spike = new THREE.InstancedMesh(new THREE.ConeGeometry(0.15, 0.62, 5), this.spikeMat, spikes.length * 6);
+    this.spikeMesh = spike;
+    this.spikeInfo = [];
     let si = 0;
     for (const [tx, ty, c] of spikes) for (let a = 0; a < 3; a++) for (let b = 0; b < 2; b++) {
       _q.setFromAxisAngle(_v.set(1, 0, 0), c === '^' ? 0 : Math.PI);
       _p.set(tx + 0.17 + a * 0.33, c === '^' ? H - ty - 1 + 0.31 : H - ty - 0.31, (b - 0.5) * 0.9);
       spike.setMatrixAt(si++, _m.compose(_p, _q, _s.set(1, 1, 1)));
+      this.spikeInfo.push({ x: _p.x, base: c === '^' ? H - ty - 1 : H - ty, dir: c === '^' ? 1 : -1, z: _p.z, flip: c !== '^' });
     }
-    this.levelGroup.add(tiles, edge, spike);
+    // decoy spikes: only the Illusionverse sees them, and they vanish when you get close
+    this.decoys = new THREE.Group();
+    const dr = rng(level.W * 7 + 3);
+    for (let i = 0; i < Math.floor(W / 6); i++) {
+      const tx = 3 + Math.floor(dr() * (W - 6)), floorRow = dr() < 0.5 ? H - 1 : 0;
+      if (grid[floorRow][tx] !== '#' || grid[floorRow === 0 ? 1 : H - 2][tx] !== '.') continue;
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.62, 5), new THREE.MeshStandardMaterial({ color: 0xe8e8f0, metalness: 0.5, roughness: 0.3, transparent: true, side: THREE.DoubleSide }));
+      cone.position.set(tx + 0.5, floorRow === 0 ? H - 1 - 0.31 : 1 + 0.31, 0);
+      if (floorRow === 0) cone.rotation.x = Math.PI;
+      this.decoys.add(cone);
+    }
+    this.decoys.visible = false;
+    this.levelGroup.add(tiles, edge, spike, this.decoys);
 
     const seam = new THREE.Mesh(new THREE.PlaneGeometry(W + 40, DEPTH * 1.6),
       new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
@@ -540,7 +656,26 @@ export class Renderer3D {
         const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mat(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0x220000 })));
         pupil.position.set(0, 0.05, 0.5);
         e.body = body; e.pupil = pupil;
-        root.add(body, eye, pupil);
+        e.normal = new THREE.Group();
+        e.normal.add(body, eye, pupil);
+        // what the Bananaverse sees instead: an angry banana with eyebrows
+        e.banana = new THREE.Group();
+        const peel = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16, Math.PI * 0.85), mat(std(0xffd23a, { flatShading: false, roughness: 0.5 })));
+        peel.rotation.z = Math.PI + Math.PI * 0.075;
+        const tipMat = mat(std(0x5a3a1a));
+        for (const a of [Math.PI * 1.075, Math.PI * 1.925]) { const tip = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), tipMat); tip.position.set(Math.cos(a) * 0.42, Math.sin(a) * 0.42, 0); e.banana.add(tip); }
+        const browMat = mat(std(0x111111));
+        for (const sx of [-1, 1]) {
+          const ey = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), mat(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0x111111 })));
+          ey.position.set(sx * 0.12, -0.32, 0.16);
+          const brow = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.04), browMat);
+          brow.position.set(sx * 0.12, -0.22, 0.17);
+          brow.rotation.z = sx * -0.5;
+          e.banana.add(ey, brow);
+        }
+        e.banana.add(peel);
+        e.banana.visible = false;
+        root.add(e.normal, e.banana);
         break;
       }
       case 'target': {
@@ -596,6 +731,18 @@ export class Renderer3D {
         e.crown = new THREE.Mesh(new THREE.TorusGeometry(o.w * 0.45, 0.08, 6, 30), mat(glow(0xffd23a, { emissiveIntensity: 1 })));
         e.crown.rotation.x = Math.PI / 2;
         root.add(e.crown);
+        break;
+      }
+      case 'rolepad': case 'dimpad': {
+        const pc = o.type === 'rolepad' ? 0xffe23a : new THREE.Color(DIMS.find(d => d.key === o.dimKey)?.color || '#ffffff').getHex();
+        const side = o.y >= MID ? 1 : -1;
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(o.w - 0.2, 0.2, 1.4), mat(glow(pc, { emissiveIntensity: 0.6 })));
+        slab.position.y = -side * (o.h / 2 - 0.1);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.05, 6, 24), mat(glow(pc)));
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = slab.position.y + side * 0.3;
+        e.ring = ring;
+        root.add(slab, ring);
         break;
       }
       case 'coin': {
@@ -667,6 +814,10 @@ export class Renderer3D {
           e.root.position.set(X(m.x + 13), Y(m.y + 11) + Math.abs(Math.sin(t * 8 + o.x)) * 0.12 * g, 0);
           e.body.rotation.z = -t * 4 * m.face;
           e.pupil.position.x = m.face * 0.08;
+          const ban = s.D.key === 'banana';
+          e.normal.visible = !ban;
+          e.banana.visible = ban;
+          if (ban) e.banana.rotation.z = Math.sin(t * 10 + o.x) * 0.15;
           break;
         }
         case 'target':
@@ -688,6 +839,7 @@ export class Renderer3D {
         }
         case 'hill': e.crown.rotation.z = t; e.crown.position.y = Math.sin(t * 2) * 3; break;
         case 'coin': e.root.visible = !s.coinsTaken.has(o.id); e.coin.rotation.z = t * 3; break;
+        case 'rolepad': case 'dimpad': e.ring.rotation.z = t; e.ring.position.y += Math.sin(t * 3) * 0.002; break;
         case 'flip':
           for (const a of e.arrows) {
             const k = ((t * 0.35 + a.userData.i / 8) % 1);
@@ -746,6 +898,24 @@ export class Renderer3D {
       g.rotation.y = (b.f || 1) * 0.25;
       g.userData.mat.opacity = b.ghost ? 0.45 : 1;
       g.userData.mat.depthWrite = !b.ghost;
+      if (b.sword && !g.userData.sword) {
+        const sw = new THREE.Group();
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 0.06), std(0xdfe6f0, { metalness: 0.9, roughness: 0.2 }));
+        const guard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.08), std(0xb8862b, { metalness: 0.8 }));
+        blade.position.y = 0.3; sw.add(blade, guard);
+        sw.position.set(0.42, -0.05, 0.25);
+        sw.rotation.z = -0.5;
+        g.add(sw);
+        g.userData.sword = sw;
+      }
+      if (g.userData.sword) { g.userData.sword.visible = !!b.sword; g.userData.sword.position.x = (b.f || 1) * 0.42; g.userData.sword.rotation.z = -(b.f || 1) * 0.5; }
+      if (b.shield && !g.userData.shieldMesh) {
+        const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 20), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0x9ff3ff, transparent: true, opacity: 0.55 }));
+        sh.rotation.z = Math.PI / 2;
+        g.add(sh);
+        g.userData.shieldMesh = sh;
+      }
+      if (g.userData.shieldMesh) { g.userData.shieldMesh.visible = !!b.shield; g.userData.shieldMesh.position.x = (b.f || 1) * 0.5; }
       const hat = b.hat || 'none';
       if (g.userData.hat !== hat) {
         if (g.userData.hatMesh) g.userData.face.remove(g.userData.hatMesh);
@@ -787,6 +957,27 @@ export class Renderer3D {
     b.glyph.scale.set(6, 7.5, 1);
     b.glyph.visible = false;
     b.add(b.glyph);
+    b.troppaMesh = new THREE.Group();
+    const olive = std(0x4f5f46), darkM = std(0x2c2f36, { metalness: 0.6 });
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(1.7, 2, 1.1), olive);
+    const helm = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), std(0x3b4a3a));
+    helm.position.y = 1.2;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.8, 0.9), olive);
+    head.position.y = 1.4;
+    b.visorMat = glow(0xff3333, { emissiveIntensity: 1.2 });
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.1), b.visorMat);
+    visor.position.set(0, 1.45, 0.48);
+    b.collar = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.12, 8, 24), glow(0xb48cff, { emissiveIntensity: 1.2 }));
+    b.collar.rotation.x = Math.PI / 2;
+    b.collar.position.y = 1.0;
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.6), darkM);
+    pack.position.set(0, 0.1, -0.8);
+    b.flame = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.9, 8), glow(0xff8a3a, { emissiveIntensity: 1.5, transparent: true, opacity: 0.8 }));
+    b.flame.position.set(0, -1.1, -0.8);
+    b.flame.rotation.x = Math.PI;
+    b.troppaMesh.add(torso, head, helm, visor, b.collar, pack, b.flame);
+    b.troppaMesh.visible = false;
+    b.add(b.troppaMesh);
     b.speakers = new THREE.Group();
     const spMat = std(0x2a2f3a, { metalness: 0.7, roughness: 0.3 });
     const coneMat = glow(0x7fe7ff, { emissiveIntensity: 0.8 });
@@ -819,7 +1010,14 @@ export class Renderer3D {
     if (boss.floatter) { b.shell.scale.set(1.3, 0.5, 1); b.shell.visible = boss.stunT <= 0 || Math.floor(s.time * 10) % 2 === 0; }
     b.shards.visible = shattered;
     b.shell.rotation.z = s.time * 1.2;
-    const fl = !!boss.floatter;
+    const tp = !!boss.troppa;
+    b.troppaMesh.visible = tp;
+    if (tp) {
+      b.flame.scale.y = 0.8 + Math.random() * 0.5;
+      b.collar.rotation.z = s.time * 2;
+      b.troppaMesh.rotation.y = Math.sin(s.time * 0.8) * 0.3;
+    }
+    const fl = !!boss.floatter && !tp;
     b.speakers.visible = fl;
     if (fl) {
       b.core.scale.set(1.5, 0.55, 1.5);
@@ -827,21 +1025,22 @@ export class Renderer3D {
     } else b.core.scale.set(1, 1, 1);
     const uni = !!boss.unicoder;
     b.glyph.visible = uni;
-    b.core.visible = !uni;
+    b.core.visible = !uni && !tp;
     b.glyph.material.opacity = 0.75 + Math.sin(s.time * 12) * 0.2;
     b.glyph.material.rotation = Math.sin(s.time * 2) * 0.05;
-    const shellCol = fl ? (boss.stunT > 0 ? '#9feaff' : '#ff5a3a') : uni ? (shattered ? '#ffe23a' : '#39ff88') : boss.spectre ? (boss.helped ? '#ffe23a' : '#ff2244') : exp.color;
+    const ghost = boss.spectre || boss.final;
+    const shellCol = tp ? (boss.stunT > 0 ? '#9feaff' : '#b48cff') : fl ? (boss.stunT > 0 ? '#9feaff' : '#ff5a3a') : boss.final ? (shattered ? '#ffffff' : exp.color) : uni ? (shattered ? '#ffe23a' : '#39ff88') : boss.spectre ? (boss.helped ? '#ffe23a' : '#ff2244') : exp.color;
     b.shellMat.color.set(shellCol);
     b.shellMat.emissive.set(shellCol);
     const eyeCol = boss.spectre || shattered ? '#ff2244' : exp.color;
     b.pupilMat.color.set(eyeCol);
     b.pupilMat.emissive.set(eyeCol);
     // the Spectre is a pale, flickering ghost; it dims once it has been weakened
-    b.core.material.color.set(fl ? '#c9d2e6' : boss.spectre ? '#e9e4ff' : '#1a0b2e');
-    b.core.material.emissive.set(fl ? (boss.stunT > 0 ? '#9feaff' : '#331111') : boss.spectre ? '#b48cff' : '#ff2bd6');
+    b.core.material.color.set(fl ? '#c9d2e6' : ghost ? '#e9e4ff' : '#1a0b2e');
+    b.core.material.emissive.set(fl ? (boss.stunT > 0 ? '#9feaff' : '#331111') : ghost ? '#b48cff' : '#ff2bd6');
     b.core.material.emissiveIntensity = boss.spectre ? (boss.helped ? 0.2 : 0.6 + Math.sin(s.time * 9) * 0.25) : 0.25;
-    b.core.material.transparent = !!boss.spectre;
-    b.core.material.opacity = boss.spectre ? 0.75 : 1;
+    b.core.material.transparent = !!ghost;
+    b.core.material.opacity = ghost ? 0.75 : 1;
     b.scale.setScalar(boss.spectre && !boss.helped ? 1.25 : 1);
     b.shards.children.forEach((sh, i) => {
       const a = i / 12 * Math.PI * 2 + s.time * 2.5;
@@ -872,6 +1071,8 @@ export class Renderer3D {
     mis.rotateZ(-Math.PI / 2);                      // point along +x, then rotate by velocity
     this.missileMesh = inst(mis, glow(0xff5a3a, { emissiveIntensity: 1.2 }), 60);
     this.rocketMesh = inst(new THREE.SphereGeometry(1, 14, 10), glow(0x7fe7ff, { emissiveIntensity: 1.4, flatShading: false }), 60);
+    this.grenadeMesh = inst(new THREE.SphereGeometry(1, 10, 8), glow(0x6a7a3a, { emissiveIntensity: 0.4, flatShading: false }), 40);
+    this.beamMesh = inst(new THREE.BoxGeometry(1, 1, 0.2), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xff2a2a, transparent: true, opacity: 0.75 }), 10);
     this.pcoinMesh = inst(new THREE.CylinderGeometry(0.34, 0.34, 0.1, 20), glow(0xffd23a, { emissiveIntensity: 0.8, metalness: 0.8, roughness: 0.2, flatShading: false }), 30);
     this.ringMesh = inst(new THREE.TorusGeometry(1, 0.05, 6, 40), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0x9ff3ff, transparent: true, opacity: 0.8 }), 40);
     this.boltMesh = inst(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff }), 200, true);
@@ -919,6 +1120,37 @@ export class Renderer3D {
     }
   }
 
+  applyIllusion(s) {
+    const on = !!s.D.illusion && !!s.P;
+    if (!on && !this.illusionOn) return;
+    this.illusionOn = on;
+    const px = on ? X(s.P.x + PW / 2) : 0, py = on ? Y(s.P.y + PH / 2) : 0;
+    const scaleAt = (x, y) => on ? 1 + THREE.MathUtils.clamp((Math.hypot(x - px, y - py) - 3) / 9, 0, 1) * 1.6 : 1;
+    if (this.spikeMesh && this.spikeInfo) {
+      this.spikeInfo.forEach((sp, i) => {
+        const k = scaleAt(sp.x, sp.base);
+        _q.setFromAxisAngle(_v.set(1, 0, 0), sp.flip ? Math.PI : 0);
+        this.spikeMesh.setMatrixAt(i, _m.compose(_p.set(sp.x, sp.base + sp.dir * 0.31 * k, sp.z), _q, _s.set(k, k, k)));
+      });
+      _q.identity();
+      this.spikeMesh.instanceMatrix.needsUpdate = true;
+    }
+    for (const e of this.objs) {
+      if (['bridge', 'door', 'phase', 'crumble', 'mover', 'flip', 'hill'].includes(e.o.type)) continue;
+      e.root.scale.setScalar(scaleAt(e.root.position.x, e.root.position.y));
+    }
+    if (this.decoys) {
+      this.decoys.visible = on;
+      if (on) for (const c of this.decoys.children) {
+        const d = Math.hypot(c.position.x - px, c.position.y - py);
+        c.material.opacity = THREE.MathUtils.clamp((d - 3) / 4, 0, 1);
+        c.scale.setScalar(1 + THREE.MathUtils.clamp((d - 3) / 9, 0, 1) * 1.6);
+      }
+    }
+    if (on) this.persp.fov = 40 + Math.sin(s.time * 0.8) * 3;   // the world gently breathes
+    else this.persp.fov = 40;
+  }
+
   // CSS pixels on screen -> world pixels on the play plane
   unproject(sx, sy) {
     const ndc = new THREE.Vector2(sx / this.w * 2 - 1, -(sy / this.h) * 2 + 1);
@@ -930,7 +1162,7 @@ export class Renderer3D {
   }
 
   updateDynamic(s) {
-    let nb = 0, nw = 0, nm = 0, ns = 0, nr = 0;
+    let nb = 0, nw = 0, nm = 0, ns = 0, nr = 0, ng = 0, nbm = 0;
     _q.identity();
     for (const b of s.bullets) {
       if (b.k === 'o' && nb < 400) {
@@ -945,6 +1177,12 @@ export class Renderer3D {
       } else if (b.k === 's' && ns < 60) {
         const r = (b.r / T) * (1 + Math.sin(s.time * 30) * 0.15);
         this.rocketMesh.setMatrixAt(ns++, _m.compose(_p.set(X(b.x), Y(b.y), 0.3), _q, _s.set(r, r, r)));
+      } else if (b.k === 'gr' && ng < 40) {
+        const r = (b.r / T) * (Math.floor(s.time * 8) % 2 ? 1.15 : 1);
+        this.grenadeMesh.setMatrixAt(ng++, _m.compose(_p.set(X(b.x), Y(b.y), 0.3), _q, _s.set(r, r, r)));
+      } else if (b.k === 'beam' && nbm < 10) {
+        const live = b.life > 1.0;
+        this.beamMesh.setMatrixAt(nbm++, _m.compose(_p.set(this.level ? this.level.W / 2 : X(b.x), Y(b.y), 0.5), _q, _s.set(this.level ? this.level.W : 100, live ? 0.6 : 0.05, 1)));
       } else if (b.k === 'ring' && nr < 40) {
         const r = b.r / T;
         this.ringMesh.setMatrixAt(nr++, _m.compose(_p.set(X(b.x), Y(b.y), 0.2), _q, _s.set(r, r, 1)));
@@ -957,7 +1195,7 @@ export class Renderer3D {
       this.pcoinMesh.setMatrixAt(nc++, _m.compose(_p.set(X(c.x), Y(c.y), 0.3), _q, _s.set(1, 1, 1)));
     }
     _q.identity();
-    for (const [mesh, n] of [[this.missileMesh, nm], [this.rocketMesh, ns], [this.ringMesh, nr], [this.pcoinMesh, nc]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; }
+    for (const [mesh, n] of [[this.missileMesh, nm], [this.rocketMesh, ns], [this.ringMesh, nr], [this.pcoinMesh, nc], [this.grenadeMesh, ng], [this.beamMesh, nbm]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; }
     this.bulletMesh.count = nb; this.bulletMesh.instanceMatrix.needsUpdate = true;
     this.waveMesh.count = nw; this.waveMesh.instanceMatrix.needsUpdate = true;
     let n = 0;
@@ -984,7 +1222,7 @@ export class Renderer3D {
   }
 
   // ---------- camera ----------
-  updateCamera(target, flipX, flipY, dt, flat) {
+  updateCamera(target, flipX, flipY, dt, flat, topdown) {
     const fov = THREE.MathUtils.degToRad(this.persp.fov);
     const aspect = this.persp.aspect;
     const portrait = aspect < 1.15;
@@ -1001,7 +1239,14 @@ export class Renderer3D {
     this.camSnap = false;
     this.camX += (tx - this.camX) * k;
     this.camY += (ty - this.camY) * k;
-    if (flat) {
+    if (topdown) {
+      // Bananaverse: look down on your lane from high above, like the banana game
+      const py = Y(target.y);
+      this.topY = this.topY === undefined || this.camSnap ? py : this.topY + (py - this.topY) * k;
+      this.persp.position.set(this.camX, this.topY + 13, 14);
+      this.persp.lookAt(this.camX, this.topY - 0.5, -1.5);
+      this.cam = this.persp;
+    } else if (flat) {
       const o = this.ortho;
       o.left = -visW / 2; o.right = visW / 2; o.top = visH / 2; o.bottom = -visH / 2;
       o.position.set(this.camX, this.camY, 100);
@@ -1019,7 +1264,7 @@ export class Renderer3D {
     if (flipX) e[0] *= -1;
     if (flipY) e[5] *= -1;
     this.cam.projectionMatrixInverse.copy(this.cam.projectionMatrix).invert();
-    this.decor.position.x = this.camX * 0.75;
+    this.decor.position.x = this.noParallax ? 0 : this.camX * 0.75;
     if (this.seam) this.seam.material.opacity = 0.1 + Math.sin(performance.now() / 500) * 0.04;
   }
 
@@ -1037,6 +1282,7 @@ export class Renderer3D {
       pos.needsUpdate = true;
     }
     if (a.spin) for (const c of a.spin) c.rotation.y += dt * 0.3;
+    if (a.gears) for (const g of a.gears) g.rotation.z += dt * g.userData.spin;
     if (a.glitch && Math.random() < 0.3) {
       const c = a.glitch[Math.floor(Math.random() * a.glitch.length)];
       c.visible = !c.visible;
@@ -1065,7 +1311,8 @@ export class Renderer3D {
     this.updateDynamic(s);
     this.updateCrates(s);
     this.animateDecor(dt, s.time);
-    this.updateCamera(s.camTarget, s.flipX, s.flipY, dt, s.D.flat);
+    this.applyIllusion(s);
+    this.updateCamera(s.camTarget, s.flipX, s.flipY, dt, s.D.flat, s.D.topdown);
     this.r.render(this.scene, this.cam);
   }
 }

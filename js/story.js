@@ -269,3 +269,85 @@ export function playIntro3(friends) {
   })();
   return finished;
 }
+
+// ---------- a reusable cutscene player for story beats ----------
+// friends: [{ name, color }]. beats: [{ text, bg, cast: ['friends','spectre','troppa','unicoder','floatter'], fx, ms }]
+const CAST = {
+  spectre: () => { const s = el('div', 'cut-spectre in'); s.append(el('div', 'cut-eye'), el('div', 'cut-eye')); return s; },
+  floatter: () => { const f = el('div', 'cut-floatter in'); f.append(el('div', 'cut-speaker'), el('div', 'cut-feye'), el('div', 'cut-speaker')); return f; },
+  unicoder: () => { const u = el('div', 'cut-uni-static'); u.textContent = 'Ѫ\n◆Ψ◆\n∆§Ж§∆\n¤ ⌘ ¤\n¥ ¥'; return u; },
+  troppa: () => {
+    const t = el('div', 'cut-troppa');
+    t.append(el('div', 'tp-helmet'), el('div', 'tp-visor'), el('div', 'tp-collar'), el('div', 'tp-body'), el('div', 'tp-pack'));
+    return t;
+  },
+};
+
+export function playStory(friends, beats) {
+  const box = $('cutscene');
+  const stage = $('cut-stage');
+  const caption = $('cut-caption');
+  box.classList.remove('hidden');
+  let skipped = false;
+  let done;
+  const finished = new Promise(r => { done = r; });
+  const end = () => { if (skipped) return; skipped = true; box.classList.add('hidden'); done(); };
+  $('cut-skip').onclick = end;
+  (async () => {
+    for (const b of beats) {
+      if (skipped) return;
+      stage.replaceChildren();
+      stage.className = 'cut-stage ' + (b.bg || 'happy');
+      if (b.fx) stage.classList.add(b.fx);
+      for (const c of b.cast || []) {
+        if (c === 'friends') {
+          const row = el('div', 'cut-row');
+          friends.forEach((f, i) => {
+            const a = el('div', 'cut-friend');
+            const body = el('div', 'cut-body');
+            body.style.background = f.color;
+            body.style.animationDelay = `${(i % 5) * 0.12}s`;
+            a.append(body, el('div', 'cut-name', f.name));
+            row.append(a);
+          });
+          stage.append(row);
+        } else if (CAST[c]) stage.append(CAST[c]());
+      }
+      caption.textContent = b.text;
+      await wait(b.ms || 3600);
+    }
+    end();
+  })();
+  return finished;
+}
+
+export const SCENES = {
+  ch2end: [
+    { text: 'The last letter of the Unicoder flickered… and went dark.', bg: 'code', cast: ['unicoder'], fx: 'fade-out', ms: 3400 },
+    { text: 'The friends could walk again. All of them. Together.', bg: 'happy', cast: ['friends'], ms: 3400 },
+  ],
+  ch3end: [
+    { text: 'The Floatter sputtered, sparked… and fell out of the sky.', bg: 'factory', cast: ['floatter'], fx: 'fall', ms: 3400 },
+    { text: 'Silence, at last, in the space between worlds.', bg: 'dark', cast: ['friends'], ms: 3200 },
+    { text: 'But something was still out there. Watching. Waiting.', bg: 'dark', cast: ['spectre'], fx: 'fade-in', ms: 3400 },
+  ],
+  ch4intro: [
+    { text: 'Chapter 4. Long ago, the Spectre had an army.', bg: 'war', cast: ['spectre'], ms: 3400 },
+    { text: 'When the Spectre faded, one soldier was left behind in the ruins: Troppa.', bg: 'war', cast: ['troppa'], ms: 3800 },
+    { text: 'Troppa hated the Spectre for leaving him. He wanted revenge.', bg: 'war', cast: ['troppa'], fx: 'angry', ms: 3600 },
+    { text: 'But the Spectre\'s collar still holds his mind. It forces him to hunt… the friends.', bg: 'red', cast: ['troppa', 'friends'], fx: 'shake', ms: 4200 },
+    { text: 'Break the collar. Free Troppa. And end the Spectre — for good.', bg: 'war', cast: ['friends'], ms: 3600 },
+  ],
+  troppaFree: [
+    { text: 'CRACK. The collar shatters into dust.', bg: 'red', cast: ['troppa'], fx: 'flash', ms: 3000 },
+    { text: 'Troppa blinks. For the first time in years, his thoughts are his own.', bg: 'war', cast: ['troppa'], fx: 'freed', ms: 3800 },
+    { text: '"It made me hunt you. I\'m sorry. Now… let me fight WITH you."', bg: 'war', cast: ['troppa', 'friends'], fx: 'freed', ms: 4200 },
+    { text: 'The sky tears open. The Spectre is back — and it is angry.', bg: 'dark', cast: ['spectre'], fx: 'shake', ms: 3800 },
+  ],
+  ch4end: [
+    { text: 'With one final blast from Troppa and the friends, the Spectre shatters into light.', bg: 'red', cast: ['spectre'], fx: 'fade-out', ms: 4000 },
+    { text: 'The walls between the dimensions crumble. The worlds become one again.', bg: 'tear', cast: ['friends'], ms: 4000 },
+    { text: 'Troppa salutes. "My war is over." He finally gets to rest.', bg: 'happy', cast: ['troppa', 'friends'], fx: 'freed', ms: 4000 },
+    { text: 'THE END. Thanks for playing Dimensional.', bg: 'happy', cast: ['friends'], ms: 4000 },
+  ],
+};

@@ -28,12 +28,19 @@ auto-fire shoots for you (toggle with AUTO). Choose controls on the main menu
   homing missiles and sound rockets (shockwave rings). Two hits and you're out. Hide under
   cover, shoot its missiles down, stun it — then take it down in the final fight.
   5 levels: Radio Silence, Static Bridges, Echo Chamber, Signal Jam, The Floatter.
+- **Story Chapter 4 — Troppa**: a soldier the Spectre left behind, forced by its collar to hunt
+  you (grenades and laser sweeps). Break the collar to free him, then fight the Spectre's return
+  side by side. Cutscenes between levels and a final ending.
+- **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
+  every dimension, respawning dummies and all the gadgets.
 - **Survival**: 10 waves of crawlers. The team shares its lives. Works solo.
 - **Race**: 4 rounds, every traveler for themselves.
 - **Boss Rush**: three bosses in a row, each tougher.
 - **Crawler Hunt**: 2 minutes, most crawlers shot wins.
 
-**Party games:** 🏃 Tag · 👑 King of the Hill · 🌀 Coin Chaos (dimensions swap every 15s) ·
+**Chapter styles:** Chapter 3 is a sky factory, Chapter 4 a war zone, party games are neon arcade.
+Some levels give everyone a special role (🪂 Glider, 🛡️ Shield, 🥷 Ninja, 🚀 Jetpack, 🎯 Sniper…).
+**Party games:** 💣 Hot Potato · 🏃 Tag · 👑 King of the Hill · 🌀 Coin Chaos (dimensions swap every 15s) ·
 💥 Last One Standing (aimed shots, collapsing floor).
 **📅 Daily Challenge:** one level + one twist per day (low gravity, turbo, lights out, crawler swarm,
 bouncy), today's leaderboard, and a coin streak bonus.
@@ -71,6 +78,8 @@ plates, take turns crossing, climb, collect keystones, shoot, race, build and pu
 | Mushroomverse | ceiling | Bounces constantly (hold down to stop) |
 | Voidverse | ceiling | Near-zero gravity, double jump |
 | Cloudverse | middle | Slow, drifting flight |
+| Bananaverse | floor | Top-down view of the Bananas of the Caribbean village; crawlers are angry bananas; sword slash |
+| Illusionverse | ceiling | Far things look huge, some spikes are fake; get close to see the truth |
 
 ## Roles
 Runner (+20% speed) · Jumper (higher jumps) · Gunner (faster, longer shots) ·

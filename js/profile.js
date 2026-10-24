@@ -1,6 +1,6 @@
 // Your progress on this device: coins, things you bought, stars per level, unlocked dimensions, daily streak.
 const KEY = 'dim-profile';
-export const START_DIMS = ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'mirror'];
+export const START_DIMS = ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'mirror', 'banana', 'illusion'];
 
 export const SHOP = {
   hat: [
@@ -39,7 +39,10 @@ function fresh() {
 function load() {
   try {
     const p = JSON.parse(localStorage.getItem(KEY));
-    if (p && typeof p.coins === 'number') return { ...fresh(), ...p, equip: { ...fresh().equip, ...p.equip }, daily: { ...fresh().daily, ...p.daily } };
+    if (p && typeof p.coins === 'number') {
+      const dims = [...new Set([...(p.dims || []), ...START_DIMS])];   // new free dimensions show up for old saves too
+      return { ...fresh(), ...p, dims, equip: { ...fresh().equip, ...p.equip }, daily: { ...fresh().daily, ...p.daily } };
+    }
   } catch {}
   return fresh();
 }

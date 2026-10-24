@@ -96,8 +96,8 @@ function crossing(n) {
   for (let d = 0; d < n; d++) {
     const owner = (d + 1) % n;
     const li = laneIndex(owner);
-    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 3 + Math.floor(li * 2.5), 1, 2, 1);
-    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 38 + li * 2, 1, 2, 1);
+    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 3 + Math.floor(li * 2.2), 1, 2, 1);
+    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 38 + Math.floor(li * 1.7), 1, 2, 1);
     b.addD('bridge', d, { link: 'br' + d }, 26, 0, 10, 1);
   }
   b.mobs([13], 6);
@@ -244,7 +244,7 @@ function shadows(n) {
   for (let d = 0; d < n; d++) {
     const owner = (d + 1) % n;
     const li = laneIndex(owner);
-    b.addD('plate', owner, { link: 'sa' + d, tdim: d }, 3 + Math.floor(li * 1.8), 1, 2, 1);
+    b.addD('plate', owner, { link: 'sa' + d, tdim: d }, 3 + Math.floor(li * 1.6), 1, 2, 1);
     b.addD('plate', owner, { link: 'sa' + d, tdim: d }, 29 + li * 2, 1, 1, 1);
     b.addD('plate', owner, { link: 'sb' + d, tdim: d }, 30 + li * 2, 1, 1, 1);
     b.addD('plate', owner, { link: 'sb' + d, tdim: d }, 59 + li * 2, 1, 2, 1);
@@ -281,6 +281,7 @@ function floatIsle(n) {
   b.both('exit', {}, 78, 1, 3, 3);
   return b.done({
     name: 'Floating Isle',
+    levelRole: 'jetpack',
     objective: 'An island floats between the worlds. Use gravity fields to land on it (top or underside). Everyone on their island pad at once opens the gate.',
     groups: [0],
     checkpoints: [{ x: 2 }, { x: 70, link: 'res0' }],
@@ -301,6 +302,7 @@ function nest(n, dark = false) {
   b.both('exit', {}, 70, 1, 3, 3);
   return b.done({
     name: dark ? 'Night Nest' : 'Crawler Nest',
+    levelRole: dark ? 'bomber' : 'gunner',
     objective: dark ? 'The nest again — in total darkness. Ping to call out crawlers. Destroy them all to open the gate.'
       : 'A nest of crawlers guards the gate. It only opens once EVERY crawler is destroyed. Shoot with F.',
     nest: true,
@@ -315,7 +317,7 @@ function islands(n, race) {
   b.shell();
   b.box(1, W - 2, 1, 1, '^');
   b.box(1, 8, 1, 2);
-  const tops = [2, 3, 2, 4, 3, 2, 4, 2, 3];
+  const tops = [2, 3, 2, 3, 3, 2, 3, 2, 3];   // never more than one step up between islands
   let x = 12;
   for (const t of tops) {
     b.box(x, x + 3, 1, t);
@@ -335,6 +337,7 @@ function islands(n, race) {
   b.both('exit', {}, W - 6, 3, 3, 3);
   return b.done({
     name: 'Sky Islands',
+    levelRole: 'glider',
     objective: 'Hop across the islands — the floor is spikes! At the end, shoot your friends\' crystals to open their gates.',
   });
 }
@@ -420,7 +423,7 @@ function addCovers(lv, covers) {
   }
   return lv;
 }
-const hunted = (lv, name, objective, covers) => ({ ...addCovers(lv, covers), name, objective, hunter: true, ch3: true });
+const hunted = (lv, name, objective, covers, extra = {}) => ({ ...addCovers(lv, covers), name, objective, hunter: true, ch3: true, theme: 'factory', ...extra });
 
 function radioSilence(n) {
   const b = new Builder(n, 92);
@@ -433,7 +436,7 @@ function radioSilence(n) {
   b.mobs([38], 4, 1.4);
   b.both('exit', {}, 85, 1, 3, 3);
   return hunted(b.done({}), 'Radio Silence',
-    'The Floatter is hunting you! Two hits and you\'re out. Hide behind pillars, shoot missiles down, and reach the portal.', []);
+    'The Floatter is hunting you! Two hits and you\'re out. Hold DOWN to raise your shield, shoot missiles down, and reach the portal.', [], { levelRole: 'shield' });
 }
 
 function floatterBoss(n) {
@@ -447,7 +450,7 @@ function floatterBoss(n) {
   b.box(15, 16, 1, 2);
   b.box(31, 32, 1, 2);
   return b.done({
-    name: 'The Floatter', ch3: true, boss: true, floatter: true,
+    name: 'The Floatter', ch3: true, boss: true, floatter: true, theme: 'factory', levelRole: 'shield',
     objective: 'Face the Floatter! Hold F to fire — your shots home in. Hide behind cover; two hits and you\'re out.',
   });
 }
@@ -471,6 +474,7 @@ function clockwork(n) {
   b.both('exit', {}, 80, 1, 3, 3);
   return b.done({
     name: 'Clockwork',
+    levelRole: 'ninja',
     objective: 'Ride the moving platforms over the spikes, bounce over the wall, sprint across the crumbling bridge and dodge the cannons!',
   });
 }
@@ -505,7 +509,7 @@ export const DAILY_MODS = [
   { id: 'swarm', name: 'Crawler swarm' },
   { id: 'bouncy', name: 'Bouncy everything' },
 ];
-const dailyPool = () => [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), topsy, shadows, clockwork, sprint, riftRush, gauntlet];
+const dailyPool = () => [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), topsy, shadows, clockwork, sprint, riftRush, gauntlet, bounceHouse, cannonAlley, marchingOrders];
 
 export function dailyInfo(key = new Date().toISOString().slice(0, 10)) {
   let h = 2166136261;
@@ -545,6 +549,94 @@ function addCoins(lv) {
     lv.objs.push({ id: 'coin' + i + 't', type: 'coin', dim: null, x, y: H - 1 - r, w: 1, h: 1 });
   });
   return lv;
+}
+
+// ---------- Story chapter 4: Troppa ----------
+// A soldier the Spectre left behind, forced by its collar to hunt you. Trenches and ruins.
+const trooped = (lv, name, objective, covers, extra = {}) => ({ ...addCovers(lv, covers), name, objective, hunter: true, troppa: true, theme: 'war', ...extra });
+
+function marchingOrders(n) {
+  const b = new Builder(n, 98);
+  b.shell();
+  for (const x of [12, 26, 40, 54, 68, 82]) b.box(x, x + 1, 1, 2);     // trench walls to hide behind
+  for (const [a, c] of [[19, 20], [47, 48], [75, 76]]) b.box(a, c, 1, 1, '^');
+  b.both('bounce', {}, 33, 1, 2, 1);
+  b.both('bounce', {}, 61, 1, 2, 1);
+  b.mobs([30, 58], 5, 1.6);
+  b.both('exit', {}, 90, 1, 3, 3);
+  return trooped(b.done({}), 'Marching Orders',
+    'Troppa is hunting you — his grenades burst into shockwaves and his laser sweeps whole rows. Duck behind the trench walls!', [], { levelRole: 'shield' });
+}
+
+function troppaBoss(n) {
+  const b = new Builder(n, 48);
+  b.shell();
+  b.box(6, 10, 4, 4);
+  b.box(37, 41, 4, 4);
+  b.box(14, 15, 1, 2);
+  b.box(32, 33, 1, 2);
+  b.both('bounce', {}, 22, 1, 2, 1);
+  return b.done({
+    name: 'Break the Collar', boss: true, troppa: true, theme: 'war', levelRole: 'tank',
+    objective: 'Troppa can\'t stop himself. Shoot him until the Spectre\'s collar breaks! Watch for the red laser lines.',
+  });
+}
+
+function spectreReturns(n) {
+  const lv = fracture(n, false, 2);
+  return { ...lv, name: 'The Spectre Returns', final: true, ally: 'troppa', theme: 'war', hpMul: 2.2, atkMul: 0.7,
+    objective: 'The final battle! Troppa fights at your side. The shield lets in the glowing dimension — everyone on their pads shatters it.' };
+}
+
+// ---------- Training Grounds: try every role and dimension ----------
+function training(n, roles) {
+  const W = 112;
+  const b = new Builder(n, W);
+  b.shell();
+  roles.forEach((r, i) => b.both('rolepad', { role: r }, 4 + i * 4, 1, 2, 1));
+  const dims = DIMS.filter(d => !d.hidden).map(d => d.key);
+  dims.forEach((k, i) => b.raw('dimpad', { dimKey: k }, 4 + i * 4, MID - 2, 2, 1));
+  b.box(4, 4 + dims.length * 4, MID - 1, MID - 1);   // a shelf in the middle for the dimension pads
+  for (let x = 4; x <= 4 + dims.length * 4; x++) { b.grid[MID - 1][x] = '#'; b.grid[MID][x] = '.'; }
+  b.both('bounce', {}, 76, 1, 2, 1);
+  b.both('mover', { range: 8, freq: 0.14, phase: 0 }, 80, 4, 3, 1);
+  for (let x = 92; x <= 96; x++) b.both('crumble', {}, x, 3, 1, 1);
+  b.both('cannon', { dir: -1, period: 3, offset: 0 }, W - 2, 6, 1, 1);
+  b.mobs([60, 68], 3, 1);
+  b.both('exit', {}, W - 6, 1, 3, 3);
+  return b.done({
+    name: '🧪 Training Grounds', training: true, spread: false,
+    objective: 'Try anything! Floor pads change your ROLE, the shelf above changes your DIMENSION. Dummies respawn. Portal at the end = done.',
+  });
+}
+
+// ---------- more race maps ----------
+function bounceHouse(n) {
+  const b = new Builder(n, 100);
+  b.shell();
+  for (const [a, c] of [[16, 22], [40, 47], [66, 73]]) for (let x = a; x <= c; x++) b.set(x, 0, '.');
+  b.both('bounce', {}, 13, 1, 2, 1);
+  b.both('bounce', {}, 37, 1, 2, 1);
+  b.both('mover', { range: 5, freq: 0.18, phase: 0 }, 66, 0, 3, 1);
+  b.box(52, 53, 1, 6);
+  b.both('bounce', {}, 49, 1, 2, 1);
+  b.box(82, 84, 4, 4);
+  b.both('bounce', {}, 88, 1, 2, 1);
+  b.both('exit', {}, 93, 1, 3, 3);
+  return b.done({ name: 'Bounce House', objective: 'RACE! Bounce pads, pits and a moving platform. First to the portal wins.', race: true, theme: 'arcade' });
+}
+
+function cannonAlley(n) {
+  const b = new Builder(n, 104);
+  b.shell();
+  for (const [x, ly, dir, off] of [[31, 1, -1, 0], [30, 4, -1, 1.2], [61, 1, -1, 0.6], [60, 3, -1, 1.8], [20, 2, 1, 0.3], [50, 2, 1, 1.5]]) {
+    b.both('cannon', { dir, period: 2.4, offset: off }, x, ly, 1, 1);
+    if (ly > 1) b.box(x, x, 1, ly - 1);
+  }
+  for (let x = 70; x <= 78; x++) { b.set(x, 0, '.'); b.both('crumble', {}, x, 0, 1, 1); }
+  b.mobs([86], 3, 2);
+  b.both('exit', {}, 96, 1, 3, 3);
+  return b.done({ name: 'Cannon Alley', objective: 'RACE! Dodge the cannons, then sprint over the crumbling bridge. First to the portal wins.', race: true, theme: 'arcade' });
 }
 
 // ---------- Race mode: every traveler for themselves ----------
@@ -644,12 +736,12 @@ function resonance(n) {
 function fracture(n, spectre = true, round = 0) {
   const b = new Builder(n, 46);
   b.shell();
-  b.both('bounce', {}, 16, 1, 2, 1);                                  // launch pads to dodge the boss
+  b.both('bounce', {}, 18, 1, 2, 1);                                  // launch pads to dodge the boss
   b.both('bounce', {}, 31, 1, 2, 1);
   b.box(7, 11, 4, 4);
   b.box(34, 38, 4, 4);
   b.box(20, 25, 7, 7);
-  for (let d = 0; d < n; d++) b.addD('pad', d, { group: 'shatter' }, 3 + laneIndex(d) * 5, 1, 2, 1);
+  for (let d = 0; d < n; d++) b.addD('pad', d, { group: 'shatter' }, 3 + Math.floor(laneIndex(d) * 4.3), 1, 2, 1);
   return b.done({
     name: spectre ? 'The Spectre' : ['The Fracture', 'The Fracture Returns', 'The Fracture Unbound'][round],
     objective: spectre ? 'The Spectre that tore your world apart. Hold F to fire. Everyone on their pads at once shatters its shield…'
@@ -662,24 +754,40 @@ function fracture(n, spectre = true, round = 0) {
   });
 }
 
+export const TRAIN_ROLES = ['runner', 'jumper', 'gunner', 'tank', 'scout', 'medic', 'ninja', 'jetpack', 'sniper', 'bomber', 'ghost', 'magnet', 'glider', 'shield'];
+
 export const MODES = {
   story: {
     name: 'Story', min: 2,
     levels: [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), clockwork, topsy, shadows, n => nest(n, true), resonance, fracture],
   },
   survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
-  race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), gauntlet], min: 2 },
+  race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet], min: 2 },
   story2: { name: 'Story Ch.2', levels: [lowercase, gapFill, stackOverflow, escapeSeq, unicoderBoss], min: 1 },
   story3: {
     name: 'Story Ch.3', min: 1,
     levels: [
       radioSilence,
-      n => hunted(crossing(n), 'Static Bridges', 'Build each other\'s bridges while the Floatter rains fire. Umbrellas give cover.', [[7, 10, 5], [15, 18, 5], [40, 43, 6], [52, 55, 5]]),
-      n => hunted(resonance(n), 'Echo Chamber', 'Everyone on their pads at once — with the Floatter overhead. Stand under the high roofs when you can.', [[12, 14, 9], [44, 46, 9], [76, 78, 9]]),
-      n => hunted(crystals(n), 'Signal Jam', 'Shoot your friends\' crystals to open their gates. Watch the sky.', [[6, 9, 5], [48, 51, 5]]),
+      n => hunted(crossing(n), 'Static Bridges', 'Build each other\'s bridges while the Floatter rains fire. Everyone is a GLIDER here: hold jump to float.', [[7, 10, 5], [15, 18, 5], [40, 43, 6], [52, 55, 5]], { levelRole: 'glider' }),
+      n => hunted(resonance(n), 'Echo Chamber', 'Everyone on their pads at once — with the Floatter overhead. Jetpacks for everyone!', [[12, 14, 9], [44, 46, 9], [76, 78, 9]], { levelRole: 'jetpack' }),
+      n => hunted(crystals(n), 'Signal Jam', 'Shoot your friends\' crystals to open their gates. Everyone is a SNIPER here.', [[6, 9, 5], [48, 51, 5]], { levelRole: 'sniper' }),
       floatterBoss,
     ],
   },
+  story4: {
+    name: 'Story Ch.4', min: 1,
+    levels: [
+      marchingOrders,
+      n => trooped(crystals(n), 'Collar Codes', 'Troppa guards the crystals. Shoot your friends\' crystals to open their gates — everyone is a SNIPER.', [[6, 9, 5], [48, 51, 5]], { levelRole: 'sniper' }),
+      n => trooped(stairs(n), 'The Barracks', 'Build each other\'s floating stairs under fire. Everyone is a GLIDER: hold jump to float down.', [[10, 13, 6], [42, 45, 6]], { levelRole: 'glider' }),
+      troppaBoss,
+      spectreReturns,
+    ],
+    scenes: { 4: 'troppaFree' },
+  },
+  training: { name: 'Training Grounds', levels: [n => training(n, TRAIN_ROLES)], min: 1 },
+  potato: { name: 'Hot Potato', levels: [n => ({ ...partyArena(n, 'tag'), name: 'Hot Potato', party: 'potato',
+    objective: 'Someone holds the 💣. Touch a friend to pass it! When the fuse runs out, whoever holds it is OUT. Last one standing wins.' })], min: 2, time: 300 },
   bossrush: { name: 'Boss Rush', levels: [0, 1, 2].map(r => n => fracture(n, false, r)), min: 1 },
   hunt: { name: 'Crawler Hunt', levels: [hunt], min: 1, time: 120 },
   tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 2, time: 90 },
@@ -693,8 +801,9 @@ export const LEVELS = MODES.story.levels;
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   let lv = m.levels[idx](n);
-  if (['story', 'story2', 'story3', 'daily'].includes(mode) && !lv.boss) lv = addCoins(lv);
+  if (['story', 'story2', 'story3', 'story4', 'daily'].includes(mode) && !lv.boss) lv = addCoins(lv);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
-    : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : lv.name;
+    : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
+  if (lv.party && !lv.theme) lv.theme = 'arcade';
   return lv;
 }

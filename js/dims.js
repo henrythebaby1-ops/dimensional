@@ -48,6 +48,10 @@ export const ALL_DIMS = [
     gravMul: 0.3, jumpMul: 0.62, jumps: 2, maxFall: 420, desc: 'Deep space, upside down. Almost no gravity and a double jump.' },
   { key: 'cloud', name: 'Cloudverse', grav: 0, color: '#d8ecff', sky: ['#8ec5ff', '#ffffff'], ground: '#ffffff', dirt: '#dfe9f5', edge: '#b8d8ff',
     fly: true, speed: 170, accel: 0.05, desc: 'You drift through the sky between worlds. Floating, but slow to stop.' },
+  { key: 'banana', name: 'Bananaverse', color: '#ffd23a', sky: ['#8fd8ff', '#e8f8ff'], ground: '#c9a35f', dirt: '#a8834a', edge: '#5fbf4a',
+    topdown: true, sword: true, desc: 'From the world of the Bananas of the Caribbean! You see it from above, the crawlers are angry bananas, and you fight with a sword.' },
+  { key: 'illusion', name: 'Illusionverse', grav: -1, color: '#c9a0ff', sky: ['#1a0a30', '#ff9ec7'], ground: '#5a3a8a', dirt: '#3f2866', edge: '#9ff3ff',
+    illusion: true, desc: 'What you see is not what is there. Far things look huge, some spikes are fake — get close to see the truth. Upside down.' },
   // Chapter 2: the Unicoder pulls everyone into one world made of code. Never picked or assigned normally.
   { key: 'unicode', name: 'Unicode', hidden: true, color: '#e8fff0', sky: ['#02060a', '#06261a'], ground: '#0f2a1d', dirt: '#0a1e14', edge: '#39ff88',
     desc: 'The Unicoder\'s world. Everything here is made of letters.' },
@@ -89,4 +93,14 @@ export const ROLES = {
   bomber: { name: 'Bomber', icon: '💣', desc: 'Shots explode and destroy nearby crawlers' },
   ghost: { name: 'Ghost', icon: '👻', desc: 'Crawlers can\'t hurt you' },
   magnet: { name: 'Magnet', icon: '🧲', desc: 'Grab keystones from 3 tiles away' },
+  // only given out by certain levels (and the Training Grounds)
+  glider: { name: 'Glider', icon: '🪂', desc: 'Hold jump while falling to float down slowly', levelOnly: true },
+  shield: { name: 'Shield', icon: '🛡️', desc: 'Hold DOWN to raise a shield that blocks shots in front of you', levelOnly: true },
+};
+
+// Chapter styles: some chapters repaint the world no matter which dimension you are in
+export const THEMES = {
+  factory: { key: 'factory', sky: ['#2a3140', '#8a94a8'], ground: '#5b6270', dirt: '#474d5a', edge: '#ffcc00' },
+  war: { key: 'war', sky: ['#160606', '#6a2414'], ground: '#4a3a2c', dirt: '#33281f', edge: '#a8322a' },
+  arcade: { key: 'arcade', sky: ['#07001a', '#2a0058'], ground: '#140a30', dirt: '#0e0624', edge: '#00f0ff' },
 };
