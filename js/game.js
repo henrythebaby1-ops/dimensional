@@ -2,7 +2,7 @@ import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, setDimOrder, computeOrder
 import { buildLevel, laneIndex, MODES, T, H, MID } from './levels.js';
 const MIDY = MID * T;
 import { Room, fetchLeaderboard, recordClear, fetchGift, giveGift } from './net.js';
-import { playIntro, playIntro2, crashAndRestart, dieScreen } from './story.js';
+import { playIntro, playIntro2, playIntro3, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH } from './render3d.js';
 
 const $ = id => document.getElementById(id);
@@ -10,6 +10,9 @@ const autoTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in w
 let controls = 'auto';
 try { controls = localStorage.getItem('dim-controls') || 'auto'; } catch {}
 let isTouch = controls === 'touch' || (controls === 'auto' && autoTouch);
+// phones shoot automatically at whatever is in front of you (can be turned off)
+let autoFire = true;
+try { autoFire = localStorage.getItem('dim-autofire') !== '0'; } catch {}
 function applyControls() {
   isTouch = controls === 'touch' || (controls === 'auto' && autoTouch);
   document.body.classList.toggle('touch', isTouch);
@@ -131,7 +134,15 @@ function pressAction(a) {
 // Touch: a floating thumb-stick on the left half, buttons on the right.
 {
   const zone = $('stick-zone'), base = $('stick-base'), knob = $('stick-knob');
-  let stickId = null, ox = 0, oy = 0;
+  let stickId = null, ox = 0, oy = 0, swiped = false;
+  // resting spot for the joystick, so you can always see where it is
+  const restStick = () => {
+    const r = zone.getBoundingClientRect();
+    base.style.transform = `translate(${r.left + Math.max(24, r.width * 0.18)}px, ${r.bottom - 160}px)`;
+    knob.style.transform = 'translate(0px, 0px)';
+  };
+  restStick();
+  addEventListener('resize', restStick);
   const setDir = (dx, dy = 0) => {
     for (const k of ['left', 'right', 'up', 'down']) held.delete(k);
     if (dx < -14) held.add('left');
@@ -144,25 +155,58 @@ function pressAction(a) {
     stickId = e.pointerId;
     try { zone.setPointerCapture(e.pointerId); } catch {}
     ox = e.clientX; oy = e.clientY;
-    base.style.transform = `translate(${ox - 60}px, ${oy - 60}px)`;
+    swiped = false;
+    base.style.transform = `translate(${ox - 66}px, ${oy - 66}px)`;
     base.classList.add('on');
     knob.style.transform = 'translate(0px, 0px)';
   });
   zone.addEventListener('pointermove', e => {
     if (e.pointerId !== stickId) return;
-    const dx = clamp(e.clientX - ox, -46, 46), dy = clamp(e.clientY - oy, -46, 46);
+    const dx = clamp(e.clientX - ox, -50, 50), dy = clamp(e.clientY - oy, -50, 50);
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     setDir(dx, dy);
+    // swipe up on the stick to jump (floating dimensions just fly up instead)
+    if (P && !DIMS[P.dim].fly) {
+      if (dy < -34 && !swiped) { swiped = true; pressAction('jump'); held.add('jump'); }
+      else if (dy > -16 && swiped) { swiped = false; held.delete('jump'); }
+    }
   });
   const end = e => {
     if (e.pointerId !== stickId) return;
     stickId = null;
     setDir(0);
+    if (swiped) held.delete('jump');
+    swiped = false;
     base.classList.remove('on');
+    restStick();
   };
   zone.addEventListener('pointerup', end);
   zone.addEventListener('pointercancel', end);
-  for (const btn of document.querySelectorAll('#tbtns button')) {
+  // tap anywhere on the right side to jump
+  const jz = $('jump-zone');
+  const jumping = new Set();
+  jz.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { jz.setPointerCapture(e.pointerId); } catch {}
+    jumping.add(e.pointerId);
+    pressAction('jump');
+    held.add('jump');
+    jz.classList.add('down');
+  });
+  const jEnd = e => {
+    if (!jumping.delete(e.pointerId)) return;
+    if (!jumping.size) { held.delete('jump'); jz.classList.remove('down'); }
+  };
+  jz.addEventListener('pointerup', jEnd);
+  jz.addEventListener('pointercancel', jEnd);
+  $('tb-auto').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    autoFire = !autoFire;
+    try { localStorage.setItem('dim-autofire', autoFire ? '1' : '0'); } catch {}
+    $('tb-auto').classList.toggle('on', autoFire);
+    toast(autoFire ? 'Auto-fire ON' : 'Auto-fire OFF');
+  });
+  for (const btn of document.querySelectorAll('#tbtns button[data-k]')) {
     const k = btn.dataset.k;
     btn.addEventListener('pointerdown', e => {
       e.preventDefault();
@@ -191,6 +235,7 @@ function solid(tx, ty, dim) {
   if (tx < 0 || tx >= level.W) return true;
   if (ty < 0 || ty >= H) return false;
   if (level.grid[ty][tx] === '#') return true;
+  if (dim < 0) return false;
   for (const o of level.solids) {
     if (tx >= o.x && tx < o.x + o.w && ty >= o.y && ty < o.y + o.h && objSolid(o, dim)) return true;
   }
@@ -220,7 +265,8 @@ function touchesSpike(x, y) {
 const overlap = (x, y, w, h, o) => x < (o.x + o.w) * T && x + w > o.x * T && y < (o.y + o.h) * T && y + h > o.y * T;
 const laserOn = o => ((time + o.offset) % o.period) / o.period < o.duty && !(o.link && signals[o.link]);
 const gravOf = p => DIMS[p.dim].grav * (p.gflip ? -1 : 1);
-const maxHp = p => (p?.role === 'tank' ? 5 : 3);
+// Chapter 3: the Floatter's missiles and sound rockets two-shot you (Tanks get one more)
+const maxHp = p => (level?.ch3 ? (p?.role === 'tank' ? 3 : 2) : p?.role === 'tank' ? 5 : 3);
 const seesDark = () => me.role === 'scout' || (P && DIMS[P.dim].flat);
 
 // Crawlers patrol back and forth on a shared level clock, so everyone sees them in the same place.
@@ -358,7 +404,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   if (P && level.ch2) setTimeout(() => P && toast(P.ch2 === 'dragger' ? '🧱 You are a BUILDER — drag the glowing blocks' : P.ch2 === 'walker' ? '🚶 You are a WALKER — push your Builders' : '🧱🚶 You can walk AND build', '#39ff88'), 1200);
   hunt = level.hunt ? { next: 1.5, left: MODES.hunt.time } : null;
   setupBots(ids, idx, n, rot);
-  boss = level.boss ? newBoss(n) : null;
+  boss = level.boss || level.hunter ? newBoss(n) : null;
   setScreen('play');
   const hl = $('hud-level');
   hl.classList.add('open');
@@ -433,6 +479,10 @@ function updateActor(p, inp, dt) {
   }
   if (touchesSpike(p.x, p.y) || p.y > H * T + 80 || p.y < -80 - PH) return die(p);
   if (inp.has('fire') && p.boltCd <= 0 && p.ch2 !== 'dragger') fireBolt(p);
+  else if (local && isTouch && autoFire && p.boltCd <= 0 && p.ch2 !== 'dragger') {
+    const dir = autoTarget(p);
+    if (dir) fireBolt(p, dir);
+  }
   if (local && p.exit && !level.boss) hintText = 'Waiting for everyone at the portal…';
 }
 
@@ -739,7 +789,8 @@ function botGoal(b) {
       if (field && !D.fly) return { x: (field.x + 0.5) * T, y: p.y + PH / 2 };
     }
   }
-  if (boss) {
+  if (boss && !boss.hunter && boss.floatter) return { x: cx, y: p.y + PH / 2, fire: true };
+  if (boss && !boss.hunter) {
     const pad = level.objs.find(o => o.type === 'pad' && o.dim === p.dim);
     if (pad && boss.shatterT <= 0 && boss.exposed !== p.dim) return goTo(pad, { fire: true });
     return { x: cx, y: p.y + PH / 2, fire: true };
@@ -791,6 +842,28 @@ function botGoal(b) {
   return null;
 }
 
+// pick the highest ledge within jumping reach nearby, plus a spot to jump from, as the next waypoint
+function planClimb(b, p, g, cx, cy, toward) {
+  const row = Math.floor(cy / T), col = Math.floor(cx / T);
+  const standable = c => solid(c, row + g, p.dim) && !solid(c, row, p.dim);
+  const clearUp = (c, hgt) => { for (let k = 1; k <= hgt; k++) if (solid(c, row - g * k, p.dim)) return false; return true; };
+  let best = null;
+  for (let c = col - 8; c <= col + 8; c++) for (let hgt = 1; hgt <= 4; hgt++) {
+    const r = row - g * hgt;
+    if (r < 0 || r >= H || solid(c, r, p.dim) || solid(c, r - g, p.dim) || !solid(c, r + g, p.dim)) continue;
+    // somewhere on my level, next to that ledge, with nothing over my head
+    let launch = null;
+    for (const L of [c - 1, c + 1, c - 2, c + 2].sort((a, z) => Math.abs(a - col) - Math.abs(z - col))) {
+      if (standable(L) && clearUp(L, hgt + 1) && !solid(L + Math.sign(c - L), row, p.dim)) { launch = L; break; }
+    }
+    if (launch === null) continue;
+    const score = hgt * 10 - Math.abs(c - col) * 0.5 + (Math.sign(c - col) === toward ? 1 : 0);
+    if (!best || score > best.score) best = { score, c, r, launch };
+  }
+  if (best) b.way = { x: (best.c + 0.5) * T, y: (best.r + 0.5) * T, row: best.r, t: 5, launch: (best.launch + 0.5) * T, launched: false };
+  else b.climbT = 0;
+}
+
 function botThink(b, dt) {
   if (level.ch2) return botThinkCh2(b, dt);
   const p = b.p, D = DIMS[p.dim], inp = b.inp;
@@ -806,7 +879,10 @@ function botThink(b, dt) {
     b.way.t -= dt;
     const onIt = p.onGround && Math.abs(b.way.x - cx) < T * 0.7 && Math.floor(cy / T) === b.way.row;
     if (onIt || b.way.t <= 0) b.way = null;
-    else goal = { ...goal, x: b.way.x, y: b.way.y, o: null, shootAt: undefined };
+    else if (b.way.launch !== undefined && !b.way.launched) {
+      goal = { ...goal, x: b.way.launch, y: cy, o: null, shootAt: undefined };
+      if (p.onGround && Math.abs(b.way.launch - cx) < T * 0.35) { b.way.launched = true; p.jumpBuf = 0.14; b.jumpHold = 0.45; }
+    } else goal = { ...goal, x: b.way.x, y: b.way.y, o: null, shootAt: undefined };
   }
   // a goal in the other lane needs flipped gravity first: route through a gravity field
   if (!D.fly && goal.o && needGrav(goal.o) !== g && goal.o.type !== 'exit') {
@@ -816,8 +892,11 @@ function botThink(b, dt) {
   const dx = goal.x - cx;
   let dir = Math.abs(dx) > 8 ? Math.sign(dx) : 0;
 
-  // shooting: crawlers in my lane ahead, crystals, the boss
+  // shooting: crawlers in my lane ahead, crystals, the boss, incoming missiles
   const aim = goal.shootAt;
+  for (const k of bullets) {
+    if ((k.k === 'm' || k.k === 's') && Math.abs(k.y - cy) < T * 1.2 && Math.abs(k.x - cx) < T * 7) { p.face = Math.sign(k.x - cx) || p.face; inp.add('fire'); }
+  }
   if (aim !== undefined && Math.abs(dx) < T * 2) { p.face = Math.sign(aim - cx) || 1; dir = 0; inp.add('fire'); }
   if (goal.fire) inp.add('fire');
   for (const o of level.mobs) {
@@ -873,19 +952,14 @@ function botThink(b, dt) {
       let tall = 0;
       if (wall) for (let k = 0; k < 6 && solid(col + dir, row - g * k, p.dim); k++) tall++;
       if (tall >= 4) b.climbT = 6;              // keep stepping up ledge by ledge for a while
-      if (b.climbT > 0) {
-        let best = null;
-        for (let c = col - 8; c <= col + 3; c++) for (let hgt = 1; hgt <= 4; hgt++) {
-          const r = row - g * hgt;
-          if (r < 0 || r >= H || solid(c, r, p.dim) || solid(c, r - g, p.dim) || !solid(c, r + g, p.dim)) continue;
-          const score = hgt * 10 - Math.abs(c - col) * 0.5;
-          if (!best || score > best.score) best = { score, c, r };
-        }
-        if (best) b.way = { x: (best.c + 0.5) * T, y: (best.r + 0.5) * T, row: best.r, t: 4 };
-        else b.climbT = 0;
-      }
+      if (b.climbT > 0) planClimb(b, p, g, cx, cy, dir || 1);
     }
     if (!p.onGround && p.vy * g > 0 && (wall || gap) && p.airJumps > 0 && D.jumps > 1) p.jumpBuf = 0.14;
+  }
+  // goal right overhead (a pad up on a ledge): climb toward it ledge by ledge
+  if (!D.fly && !D.climb && p.onGround && !b.way && Math.abs(dx) < T * 2.5) {
+    const up = g > 0 ? goal.y < p.y - T * 1.5 : goal.y > p.y + PH + T * 1.5;
+    if (up) { b.climbT = Math.max(b.climbT || 0, 3); planClimb(b, p, g, cx, cy, Math.sign(dx) || 1); }
   }
   if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
   if (dir) {
@@ -1308,12 +1382,14 @@ function newBoss(n) {
   const hp = Math.round(45 * n * (level.hpMul || 1));
   return { x: level.W * T / 2, y: H * T / 2, tx: level.W * T / 2, ty: H * T / 2, hp, max: hp,
     exposed: 0, exposeT: 5, shatterT: 0, shatterCd: 0, atkT: 3, atkN: 0, t: 0, sendT: 0,
-    spectre: !!level.spectre, helped: false, offerT: 18, unicoder: !!level.unicoder };
+    spectre: !!level.spectre, helped: false, offerT: 18, unicoder: !!level.unicoder,
+    floatter: !!(level.floatter || level.hunter), hunter: !!level.hunter, stunT: 0 };
 }
 
 function hostBoss(dt) {
   const b = boss, n = level.n;
   b.t += dt;
+  if (b.floatter) return hostFloatter(dt);
   b.x = level.W * T / 2 + Math.sin(b.t * 0.45) * level.W * T * 0.3;
   b.y = H * T / 2 + Math.sin(b.t * 1.1) * T * 1.2;
   b.exposeT -= dt;
@@ -1345,11 +1421,85 @@ function hostBoss(dt) {
   }
 }
 
+// ---------- the Floatter ----------
+let bulletSeq = 0;
+function hostFloatter(dt) {
+  const b = boss;
+  const alive = allActors().filter(a => !a.dead);
+  if (b.hunter) {
+    // hunting: drift ahead of the leading traveler, high in the space between the worlds
+    const lead = alive.length ? Math.max(...alive.map(a => a.x)) : b.x;
+    const tx = clamp(lead + T * 4, T * 6, level.W * T - T * 6);
+    b.x += (tx - b.x) * Math.min(1, dt * 0.7);
+    b.y = MIDY + Math.sin(b.t * 1.3) * T * 1.5;
+  } else {
+    b.x = level.W * T / 2 + Math.sin(b.t * 0.5) * level.W * T * 0.32;
+    b.y = MIDY + Math.sin(b.t * 1.7) * T * 2;
+  }
+  b.stunT = Math.max(0, b.stunT - dt);
+  b.atkT -= dt;
+  if (b.atkT <= 0 && b.stunT <= 0 && alive.length) {
+    const phase2 = !b.hunter && b.hp < b.max / 2;
+    b.atkT = b.hunter ? 2.6 : phase2 ? 1.3 : 1.9;
+    const list = [];
+    const pick = () => alive[Math.floor(Math.random() * alive.length)];
+    const kind = b.atkN++ % 2;
+    const volley = b.hunter ? 1 : phase2 ? 3 : 2;
+    for (let i = 0; i < volley; i++) {
+      const tgt = pick();
+      const tid = actorId(tgt);
+      if (kind === 0) {
+        // homing missile: launched upward/downward toward the target's lane, then steers in
+        const a = Math.atan2(tgt.y - b.y, tgt.x - b.x) + (i - (volley - 1) / 2) * 0.5;
+        list.push([b.x, b.y, Math.cos(a) * 170, Math.sin(a) * 170, 8, 'm', 0, 0, 'b' + bulletSeq++, tid]);
+      } else {
+        // sound rocket: flies straight at where you are, then bursts into a shockwave ring
+        const a = Math.atan2(tgt.y + PH / 2 - b.y, tgt.x + PW / 2 - b.x) + (i - (volley - 1) / 2) * 0.2;
+        list.push([b.x, b.y, Math.cos(a) * 280, Math.sin(a) * 280, 11, 's', 0, 0, 'b' + bulletSeq++, tid]);
+      }
+    }
+    send('atk', { b: list });
+    addBullets(list);
+  }
+  b.sendT -= dt;
+  if (b.sendT <= 0) {
+    b.sendT = 0.1;
+    send('boss', { x: b.x, y: b.y, hp: b.hp, max: b.max, e: 0, et: 0, s: 0, t: b.t, a: b.atkT, n: b.atkN, st: b.stunT });
+  }
+}
+
+function actorId(a) {
+  if (a === P) return me.id;
+  for (const [id, b] of botActors) if (b.p === a) return id;
+  for (const [id, r] of remotes) if (r.x === a.x && r.y === a.y) return id;
+  return null;
+}
+
+// where a missile's target is on this screen
+function targetPos(id) {
+  if (id === me.id && P && P.dead <= 0) return P;
+  const b = botActors.get(id);
+  if (b && b.p.dead <= 0) return b.p;
+  const r = remotes.get(id);
+  if (r && !r.dead) return { x: r.sx, y: r.sy };
+  return null;
+}
+
+function stunFloatter() {
+  if (!boss?.hunter) return;
+  if (boss.stunT <= 0) {
+    const m = 'The Floatter is stunned!';
+    send('toast', { m });
+    toast(m, '#9feaff');
+  }
+  boss.stunT = 2.2;
+}
+
 function onBossMsg(m) {
   if (!boss) return;
   const wasShattered = boss.shatterT > 0;
   boss.tx = m.x; boss.ty = m.y;
-  Object.assign(boss, { hp: m.hp, max: m.max, exposed: m.e, exposeT: m.et, shatterT: m.s, t: m.t, atkT: m.a, atkN: m.n, helped: !!m.hp2 });
+  Object.assign(boss, { hp: m.hp, max: m.max, exposed: m.e, exposeT: m.et, shatterT: m.s, t: m.t, atkT: m.a, atkN: m.n, helped: !!m.hp2, stunT: +m.st || 0 });
   if (!wasShattered && m.s > 0) onShatter();
 }
 
@@ -1386,28 +1536,95 @@ function spawnAttack() {
 }
 
 function addBullets(list) {
-  for (const [x, y, vx, vy, r, k, w, h] of list) bullets.push({ x, y, vx, vy, r, k, w, h, life: 0 });
+  for (const [x, y, vx, vy, r, k, w, h, id, tgt] of list) bullets.push({ x, y, vx, vy, r, k, w, h, id, tgt, life: 0, hits: new Set() });
 }
 
 function updateBullets(dt) {
   const actors = [...(P ? [P] : []), ...[...botActors.values()].map(b => b.p)];
+  const born = [];
   for (const b of bullets) {
-    b.x += b.vx * dt; b.y += b.vy * dt; b.life += dt;
+    if (b.k === 'm') {                       // homing missile
+      const t = targetPos(b.tgt);
+      if (t) {
+        const dx = t.x + PW / 2 - b.x, dy = t.y + PH / 2 - b.y, d = Math.hypot(dx, dy) || 1;
+        const k = Math.min(1, dt * 1.6);
+        b.vx += (dx / d * 240 - b.vx) * k;
+        b.vy += (dy / d * 240 - b.vy) * k;
+      }
+    }
+    if (b.k === 'ring') { b.r += dt * T * 7; if (b.r > T * 4.5) b.life = 99; }
+    else { b.x += b.vx * dt; b.y += b.vy * dt; }
+    b.life += dt;
+    // Floatter shots blow up on walls and covers
+    if ((b.k === 'm' || b.k === 's') && (solid(Math.floor(b.x / T), Math.floor(b.y / T), -1) || b.life > 6)) {
+      b.life = 99;
+      burst(b.x, b.y, b.k === 'm' ? '#ff5a3a' : '#7fe7ff', 18, 220);
+      if (b.k === 's') born.push({ x: b.x, y: b.y, k: 'ring', r: 6, life: 0, hits: new Set() });
+      continue;
+    }
     for (const p of actors) {
       if (p.dead > 0 || p.inv > 0) continue;
+      if (b.k === 'ring') {                  // the shockwave hits once, when its edge passes you
+        const d = Math.hypot(p.x + PW / 2 - b.x, p.y + PH / 2 - b.y);
+        if (Math.abs(d - b.r) < 16 && !b.hits.has(p)) { b.hits.add(p); hurt(p); }
+        continue;
+      }
+      if (b.k === 'm' || b.k === 's') {
+        const cx = clamp(b.x, p.x, p.x + PW), cy = clamp(b.y, p.y, p.y + PH);
+        if (Math.hypot(b.x - cx, b.y - cy) < b.r) {
+          hurt(p);
+          b.life = 99;
+          burst(b.x, b.y, '#ff5a3a', 20, 240);
+          if (b.k === 's') born.push({ x: b.x, y: b.y, k: 'ring', r: 6, life: 0, hits: new Set([p]) });
+        }
+        continue;
+      }
       if (b.k === 'o') {
         const cx = clamp(b.x, p.x, p.x + PW), cy = clamp(b.y, p.y, p.y + PH);
         if (Math.hypot(b.x - cx, b.y - cy) < b.r) { hurt(p); b.life = 99; }
       } else if (p.x < b.x + b.w / 2 && p.x + PW > b.x - b.w / 2 && p.y < b.y + b.h && p.y + PH > b.y) hurt(p);
     }
   }
-  bullets = bullets.filter(b => b.life < 7 && b.x > -100 && b.x < level.W * T + 100 && b.y > -100 && b.y < H * T + 100);
+  bullets = bullets.filter(b => b.life < 7 && b.x > -100 && b.x < level.W * T + 100 && b.y > -100 && b.y < H * T + 100).concat(born);
 }
 
-function fireBolt(p) {
+// my shots can knock the Floatter's missiles and rockets out of the air
+function shootDown(b) {
+  for (const k of bullets) {
+    if ((k.k === 'm' || k.k === 's') && k.life < 99 && Math.hypot(k.x - b.x, k.y - b.y) < 22) {
+      k.life = 99;
+      burst(k.x, k.y, '#ffe23a', 14, 200);
+      send('bdown', { id: k.id });
+      return true;
+    }
+  }
+  return false;
+}
+
+// auto-fire: which way to shoot, if anything worth shooting is in front of (or right behind) you
+function autoTarget(p) {
+  const cx = p.x + PW / 2, cy = p.y + PH / 2;
+  if (boss && !boss.hunter) return p.face || 1;             // boss fights: shots home in anyway
+  const near = (x, y, rx, ry) => Math.abs(y - cy) < ry && Math.abs(x - cx) < rx;
+  for (const o of level.mobs) {
+    if (killed.has(o.id)) continue;
+    const m = mobPos(o);
+    if (near(m.x + MW / 2, m.y + MH / 2, T * 9, T)) return Math.sign(m.x + MW / 2 - cx) || 1;
+  }
+  for (const k of bullets) if ((k.k === 'm' || k.k === 's') && near(k.x, k.y, T * 7, T * 1.3)) return Math.sign(k.x - cx) || 1;
+  for (const o of level.targets) {
+    if (latched.has(o.link) || (o.dim === p.dim && !DIMS[p.dim].flat)) continue;
+    if (Math.abs((o.x + 0.5) * T - cx) < T * 9) return Math.sign((o.x + 0.5) * T - cx) || 1;
+  }
+  if (boss?.hunter && near(boss.x, boss.y, T * 8, T * 1.5)) return Math.sign(boss.x - cx) || 1;
+  return 0;
+}
+
+function fireBolt(p, aimDir) {
   const r = p.role;
+  if (aimDir) p.face = aimDir;
   p.boltCd = (boss ? 0.28 : 0.22) * (r === 'gunner' ? 0.55 : r === 'sniper' ? 1.6 : 1);
-  const g = gravOf(p), homing = !!boss;
+  const g = gravOf(p), homing = !!boss && !boss.hunter;
   const b = { x: p.x + PW / 2 + p.face * 10, y: p.y + PH / 2, vx: p.face * (homing ? 300 : r === 'sniper' ? 1000 : 720), vy: homing ? -g * 320 : 0,
     d: p.dim, mine: true, life: 0, h: homing,
     range: r === 'sniper' ? 2.6 : r === 'gunner' ? 2.4 : 1.6, pierce: r === 'sniper', bomb: r === 'bomber', by: p.id };
@@ -1436,6 +1653,13 @@ function updateBolts(dt) {
       continue;
     }
     b.x += b.vx * dt; b.y += b.vy * dt;
+    if (bullets.length && shootDown(b)) { b.life = 99; continue; }
+    if (boss?.hunter && b.mine && Math.hypot(boss.x - b.x, boss.y - b.y) < 56) {
+      b.life = 99;
+      burst(b.x, b.y, '#9feaff', 10, 160);
+      if (isHost()) stunFloatter(); else send('hit', { d: 0 });
+      continue;
+    }
     if (b.life > (b.range || 1.6) || solid(Math.floor(b.x / T), Math.floor(b.y / T), b.d)) {
       b.life = 99;
       burst(b.x, b.y, DIMS[b.d]?.color || '#fff', 5, 90);
@@ -1489,6 +1713,7 @@ function killMob(id, by) {
 let immuneToastT = 0;
 function applyHit(d) {
   if (!boss || transitioning) return;
+  if (boss.hunter) return stunFloatter();     // can't be beaten here — only stunned
   if (boss.spectre && !boss.helped) {         // impossible to hurt without help
     if (performance.now() - immuneToastT > 4000) {
       immuneToastT = performance.now();
@@ -1501,7 +1726,7 @@ function applyHit(d) {
   boss.hp = Math.max(0, boss.hp - clamp(Number(d) || 0, 0, 2) * (boss.helped ? 2 : 1));
   if (boss.hp <= 0) {
     transitioning = true;
-    const m = boss.spectre ? 'THE SPECTRE FADES…' : boss.unicoder ? 'THE UNICODER IS DELETED!' : 'THE BOSS IS BROKEN!';
+    const m = boss.spectre ? 'THE SPECTRE FADES…' : boss.unicoder ? 'THE UNICODER IS DELETED!' : boss.floatter ? 'THE FLOATTER FALLS SILENT!' : 'THE BOSS IS BROKEN!';
     send('toast', { m });
     toast(m, '#ffe23a');
     burst(boss.x, boss.y, '#ffffff', 120, 600);
@@ -1585,6 +1810,7 @@ function onMsg(t, d) {
     case 'help': if (mode === 'play' && isHost()) onHelp(); break;
     case 'intro': if (Array.isArray(d.f) && mode !== 'play') playIntro(d.f.slice(0, MAX_PLAYERS)); break;
     case 'intro2': if (Array.isArray(d.f) && mode !== 'play') playIntro2(d.f.slice(0, MAX_PLAYERS)); break;
+    case 'intro3': if (Array.isArray(d.f) && mode !== 'play') playIntro3(d.f.slice(0, MAX_PLAYERS)); break;
     case 'heal':
       if (mode === 'play' && P && P.dead <= 0) {
         P.hp = Math.min(maxHp(P), P.hp + 1);
@@ -1601,8 +1827,9 @@ function onMsg(t, d) {
       break;
     case 'grab': if (mode === 'play' && level.keyList?.includes(d.k)) grabKey(d.k, false); break;
     case 'boss': if (mode === 'play' && !isHost()) onBossMsg(d); break;
-    case 'atk': if (mode === 'play' && boss && Array.isArray(d.b)) addBullets(d.b.slice(0, 80)); break;
+    case 'atk': if (mode === 'play' && boss && Array.isArray(d.b)) addBullets(d.b.slice(0, 80).map(x => Array.isArray(x) ? x.slice(0, 10) : []).filter(x => x.length >= 6)); break;
     case 'hit': if (mode === 'play' && isHost()) applyHit(d.d); break;
+    case 'bdown': if (mode === 'play') { const k = bullets.find(x => x.id === d.id); if (k) { k.life = 99; burst(k.x, k.y, '#ffe23a', 14, 200); } } break;
     case 'bolt': if (mode === 'play') bolts.push({ x: +d.x, y: +d.y, vx: +d.vx || 0, vy: +d.vy || 0, d: d.d | 0, mine: false, life: 0, h: !!d.h }); break;
     case 'kill': if (mode === 'play' && typeof d.id === 'string') killMob(d.id, d.by); break;
     case 'ping': if (mode === 'play') addPing({ x: +d.x, y: +d.y, id: String(d.id) }); break;
@@ -1682,6 +1909,8 @@ function setScreen(m) {
   $('hud').classList.toggle('hidden', m !== 'play');
   $('touch').classList.toggle('hidden', m !== 'play' || !isTouch);
   document.body.classList.toggle('playing', m === 'play');
+  $('tb-auto').classList.toggle('on', autoFire);
+  if (m === 'play') setTimeout(() => dispatchEvent(new Event('resize')), 60);   // place the joystick now that it's visible
   if (m === 'menu') { loadBoard($('board-menu'), 'story'); loadBoard($('board-surv'), 'survival'); showSave(); }
   if (m === 'play' && gameMode === 'story' && !gift) fetchGift().then(g => { gift = g; });
   if (m === 'lobby') renderLobby();
@@ -1795,6 +2024,12 @@ async function showVictory() {
     big.textContent = fmtTime(ms);
     return;
   }
+  if (gameMode === 'story3') {
+    title.textContent = 'CHAPTER 3 COMPLETE';
+    text.textContent = 'The Floatter crashes out of the sky. For the first time in forever, the space between the worlds is quiet.';
+    big.textContent = fmtTime(ms);
+    return;
+  }
   if (gameMode === 'bossrush') {
     title.textContent = 'BOSS RUSH CLEARED';
     text.textContent = 'All three Fractures defeated back to back.';
@@ -1868,7 +2103,7 @@ function updateHud(dt) {
   $('hint').textContent = hintText;
   $('tb-dash').classList.toggle('hidden', !(P && (DIMS[P.dim].dash || P.role === 'ninja')));
   // Builders drag with their finger, so the movement controls get out of the way
-  $('touch').classList.toggle('hidden', !isTouch || (P && level.ch2 && P.ch2 === 'dragger'));
+  $('touch').classList.toggle('hidden', !isTouch || !!(P && level.ch2 && P.ch2 === 'dragger'));
 }
 
 // ---------- rendering ----------
@@ -1963,10 +2198,15 @@ function drawBossBar() {
   const w = Math.min(520, VW * 0.42), x = (VW - w) / 2, y = isTouch ? 30 : VH - 46;
   ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x - 8, y - 24, w + 16, 44);
   ctx.fillStyle = '#3a1030'; ctx.fillRect(x, y, w, 12);
-  ctx.fillStyle = '#ff3d8b'; ctx.fillRect(x, y, w * boss.hp / boss.max, 12);
+  ctx.fillStyle = boss.hunter ? '#5a2a2a' : '#ff3d8b'; ctx.fillRect(x, y, boss.hunter ? w : w * boss.hp / boss.max, 12);
   ctx.textAlign = 'left'; ctx.font = `900 ${isTouch ? 11 : 14}px Orbitron, sans-serif`; ctx.fillStyle = '#fff';
-  ctx.fillText(boss.spectre ? 'THE SPECTRE' : boss.unicoder ? 'THE UNICODER' : 'THE FRACTURE', x, y - 7);
+  ctx.fillText(boss.spectre ? 'THE SPECTRE' : boss.unicoder ? 'THE UNICODER' : boss.floatter ? 'THE FLOATTER' : 'THE FRACTURE', x, y - 7);
   ctx.textAlign = 'right';
+  if (boss.hunter) {
+    ctx.fillStyle = boss.stunT > 0 ? '#9feaff' : '#ff5a3a';
+    ctx.fillText(boss.stunT > 0 ? 'STUNNED' : 'HUNTING YOU', x + w, y - 7);
+    return;
+  }
   if (boss.unicoder) { ctx.fillStyle = boss.shatterT > 0 ? '#ffe23a' : '#39ff88'; ctx.fillText(boss.shatterT > 0 ? 'EXPOSED — FIRE!' : 'GUARDED', x + w, y - 7); return; }
   if (boss.spectre && !boss.helped) { ctx.fillStyle = '#ff2244'; ctx.fillText('INVULNERABLE', x + w, y - 7); }
   else if (boss.spectre) { ctx.fillStyle = '#ffe23a'; ctx.fillText('WEAKENED', x + w, y - 7); }
@@ -2093,6 +2333,15 @@ $('start').onclick = async () => {
     send('intro', { f: friends });
     await playIntro(friends);
   }
+  if (gameMode === 'story3') {
+    const order = computeOrder(players());
+    const friends = players().map((p, i) => {
+      const d = ALL_DIMS.find(x => x.key === order[i]);
+      return { name: p.name, color: d.color, dimName: d.name, dimColor: d.color === '#111111' ? '#ffffff' : d.color };
+    });
+    send('intro3', { f: friends });
+    await playIntro3(friends);
+  }
   if (gameMode === 'story2') {
     const roles = assignCh2Roles(players().map(p => p.id));
     const friends = players().map((p, i) => ({ name: p.name, color: CH2_COLORS[i % CH2_COLORS.length], role: roles.get(p.id) }));
@@ -2186,6 +2435,7 @@ if (location.hostname === 'localhost') window.__dim = { get P() { return P; }, g
   autopilot(on = true) { autoMe = on ? { p: P, inp: held, stuck: 0, lastX: 0, jumpHold: 0, think: 0 } : null; },
   get levelIdx() { return levelIdx; },
   get crates() { return crates; },
+  get bullets() { return bullets.map(b => b.k); },
   get autoCarry() { return autoMe && autoMe.carry && { ...autoMe.carry, slot: [autoMe.carry.slot.x / T, autoMe.carry.slot.y / T] }; },
   crateBelow(i) { const c = crates[i]; const y = c.y + 2; return { tiles: collides(c.x, y, 0, T, T, { x: -1e9, y: -1e9 }) && !crates.some(k => k !== c && c.x < k.x + T && c.x + T > k.x && y < k.y + T && y + T > k.y), hit: crateHits(c, c.x, y), others: crates.filter(k => k !== c && c.x < k.x + T && c.x + T > k.x && y < k.y + T && y + T > k.y).map(k => [k.id, k.x, k.y]), c: [c.x, c.y, c.held] }; },
   grab: (x, y) => grabAt(x, y), dragTo(x, y) { if (dragState) { dragState.cx = x; dragState.cy = y; } }, drop: () => dropCrate(),

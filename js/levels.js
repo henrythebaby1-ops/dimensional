@@ -392,6 +392,43 @@ function unicoderBoss(n) {
   });
 }
 
+// ---------- Story chapter 3: the Floatter ----------
+// The Floatter hovers between the worlds and hunts you with missiles and sound rockets.
+// Covers (umbrella platforms and pillars) block its shots.
+function addCovers(lv, covers) {
+  for (const [x0, x1, ly0, ly1] of covers) for (let x = x0; x <= x1; x++) for (let ly = ly0; ly <= (ly1 ?? ly0); ly++) {
+    lv.grid[H - 1 - ly][x] = '#';
+    lv.grid[ly][x] = '#';
+  }
+  return lv;
+}
+const hunted = (lv, name, objective, covers) => ({ ...addCovers(lv, covers), name, objective, hunter: true, ch3: true });
+
+function radioSilence(n) {
+  const b = new Builder(n, 92);
+  b.shell();
+  for (const x of [14, 30, 46, 62, 76]) b.box(x, x + 1, 1, 3);
+  for (const x of [22, 54, 70]) b.box(x, x + 1, 1, 1, '^');
+  b.mobs([38], 4, 1.4);
+  b.both('exit', {}, 85, 1, 3, 3);
+  return hunted(b.done({}), 'Radio Silence',
+    'The Floatter is hunting you! Two hits and you\'re out. Hide behind pillars, shoot missiles down, and reach the portal.', []);
+}
+
+function floatterBoss(n) {
+  const b = new Builder(n, 48);
+  b.shell();
+  b.box(6, 10, 4, 4);
+  b.box(37, 41, 4, 4);
+  b.box(20, 27, 6, 6);
+  b.box(15, 16, 1, 2);
+  b.box(31, 32, 1, 2);
+  return b.done({
+    name: 'The Floatter', ch3: true, boss: true, floatter: true,
+    objective: 'Face the Floatter! Hold F to fire — your shots home in. Hide behind cover; two hits and you\'re out.',
+  });
+}
+
 // ---------- Race mode: every traveler for themselves ----------
 function sprint(n) {
   const b = new Builder(n, 110);
@@ -504,6 +541,16 @@ export const MODES = {
   survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
   race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), gauntlet], min: 2 },
   story2: { name: 'Story Ch.2', levels: [lowercase, gapFill, stackOverflow, escapeSeq, unicoderBoss], min: 1 },
+  story3: {
+    name: 'Story Ch.3', min: 1,
+    levels: [
+      radioSilence,
+      n => hunted(crossing(n), 'Static Bridges', 'Build each other\'s bridges while the Floatter rains fire. Umbrellas give cover.', [[7, 10, 5], [15, 18, 5], [40, 43, 6], [52, 55, 5]]),
+      n => hunted(resonance(n), 'Echo Chamber', 'Everyone on their pads at once — with the Floatter overhead. Stand under the high roofs when you can.', [[12, 14, 9], [44, 46, 9], [76, 78, 9]]),
+      n => hunted(crystals(n), 'Signal Jam', 'Shoot your friends\' crystals to open their gates. Watch the sky.', [[6, 9, 5], [48, 51, 5]]),
+      floatterBoss,
+    ],
+  },
   bossrush: { name: 'Boss Rush', levels: [0, 1, 2].map(r => n => fracture(n, false, r)), min: 1 },
   hunt: { name: 'Crawler Hunt', levels: [hunt], min: 1, time: 120 },
 };
@@ -513,6 +560,6 @@ export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   const lv = m.levels[idx](n);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
-    : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : lv.name;
+    : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : lv.name;
   return lv;
 }

@@ -189,3 +189,83 @@ export function playIntro2(friends) {
   })();
   return finished;
 }
+
+// Chapter 3: something floats down from the space between the worlds.
+// friends: [{ name, color, dimName, dimColor }]
+export function playIntro3(friends) {
+  const box = $('cutscene');
+  const stage = $('cut-stage');
+  const caption = $('cut-caption');
+  box.classList.remove('hidden');
+  stage.replaceChildren();
+  stage.className = 'cut-stage tear';
+  let skipped = false;
+  let done;
+  const finished = new Promise(r => { done = r; });
+  const end = () => { if (skipped) return; skipped = true; box.classList.add('hidden'); done(); };
+  $('cut-skip').onclick = end;
+
+  const row = el('div', 'cut-row');
+  const avatars = friends.map((f, i) => {
+    const a = el('div', 'cut-friend split');
+    a.style.setProperty('--dx', `${(i - (friends.length - 1) / 2) * 60}px`);
+    a.style.setProperty('--dy', `${(i % 2 ? -1 : 1) * 24}px`);
+    const body = el('div', 'cut-body');
+    body.style.background = f.color;
+    const tag = el('div', 'cut-dim', f.dimName);
+    tag.style.color = f.dimColor;
+    a.append(body, el('div', 'cut-name', f.name), tag);
+    row.append(a);
+    return a;
+  });
+  stage.append(row);
+  const fl = el('div', 'cut-floatter');
+  fl.append(el('div', 'cut-speaker'), el('div', 'cut-feye'), el('div', 'cut-speaker'));
+  stage.append(fl);
+
+  const fire = n => {
+    for (let i = 0; i < n; i++) {
+      const m = el('div', i % 2 ? 'cut-rocket' : 'cut-missile');
+      m.style.setProperty('--tx', `${(Math.random() - 0.5) * 520}px`);
+      m.style.animationDelay = `${i * 0.18}s`;
+      stage.append(m);
+      setTimeout(() => m.remove(), 2200 + i * 180);
+    }
+  };
+
+  const scenes = [
+    async () => {
+      caption.textContent = 'Chapter 3. Back in their own dimensions, the friends had learned to work together.';
+      await wait(3600);
+    },
+    async () => {
+      fl.classList.add('in');
+      caption.textContent = 'Then a hum came from the space between the worlds. The Floatter.';
+      await wait(3400);
+    },
+    async () => {
+      stage.classList.add('dark');
+      caption.textContent = 'It never lands. It just floats above you… and fires.';
+      fire(6);
+      avatars.forEach(a => a.classList.add('shake'));
+      await wait(3200);
+    },
+    async () => {
+      caption.textContent = 'Homing missiles that follow you. Sound rockets that shake the ground. Two hits and you\'re gone.';
+      fire(8);
+      await wait(4200);
+    },
+    async () => {
+      caption.textContent = 'Stay under cover. Shoot its missiles down. Stun it if you can — and make it fall.';
+      await wait(3400);
+    },
+  ];
+  (async () => {
+    for (const sc of scenes) {
+      if (skipped) return;
+      await sc();
+    }
+    end();
+  })();
+  return finished;
+}

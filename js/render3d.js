@@ -668,6 +668,19 @@ export class Renderer3D {
     b.glyph.scale.set(6, 7.5, 1);
     b.glyph.visible = false;
     b.add(b.glyph);
+    b.speakers = new THREE.Group();
+    const spMat = std(0x2a2f3a, { metalness: 0.7, roughness: 0.3 });
+    const coneMat = glow(0x7fe7ff, { emissiveIntensity: 0.8 });
+    for (const sx of [-1.6, 1.6]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.14, 8, 24), spMat);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.4, 20, 1, true), coneMat);
+      cone.rotation.x = Math.PI / 2;
+      ring.position.set(sx, -0.1, 0.9);
+      cone.position.set(sx, -0.1, 0.95);
+      b.speakers.add(ring, cone);
+    }
+    b.speakers.visible = false;
+    b.add(b.speakers);
     b.visible = false;
     this.boss = b;
     this.scene.add(b);
@@ -684,22 +697,29 @@ export class Renderer3D {
     const exp = DIMS[boss.exposed] || DIMS[0];
     b.shell.visible = !shattered;
     b.shell.scale.setScalar(boss.unicoder ? 1.5 : 1);
+    if (boss.floatter) { b.shell.scale.set(1.3, 0.5, 1); b.shell.visible = boss.stunT <= 0 || Math.floor(s.time * 10) % 2 === 0; }
     b.shards.visible = shattered;
     b.shell.rotation.z = s.time * 1.2;
+    const fl = !!boss.floatter;
+    b.speakers.visible = fl;
+    if (fl) {
+      b.core.scale.set(1.5, 0.55, 1.5);
+      b.speakers.children.forEach((c, i) => { if (i % 2) c.scale.setScalar(1 + Math.max(0, Math.sin(s.time * 14)) * 0.3); });
+    } else b.core.scale.set(1, 1, 1);
     const uni = !!boss.unicoder;
     b.glyph.visible = uni;
     b.core.visible = !uni;
     b.glyph.material.opacity = 0.75 + Math.sin(s.time * 12) * 0.2;
     b.glyph.material.rotation = Math.sin(s.time * 2) * 0.05;
-    const shellCol = uni ? (shattered ? '#ffe23a' : '#39ff88') : boss.spectre ? (boss.helped ? '#ffe23a' : '#ff2244') : exp.color;
+    const shellCol = fl ? (boss.stunT > 0 ? '#9feaff' : '#ff5a3a') : uni ? (shattered ? '#ffe23a' : '#39ff88') : boss.spectre ? (boss.helped ? '#ffe23a' : '#ff2244') : exp.color;
     b.shellMat.color.set(shellCol);
     b.shellMat.emissive.set(shellCol);
     const eyeCol = boss.spectre || shattered ? '#ff2244' : exp.color;
     b.pupilMat.color.set(eyeCol);
     b.pupilMat.emissive.set(eyeCol);
     // the Spectre is a pale, flickering ghost; it dims once it has been weakened
-    b.core.material.color.set(boss.spectre ? '#e9e4ff' : '#1a0b2e');
-    b.core.material.emissive.set(boss.spectre ? '#b48cff' : '#ff2bd6');
+    b.core.material.color.set(fl ? '#c9d2e6' : boss.spectre ? '#e9e4ff' : '#1a0b2e');
+    b.core.material.emissive.set(fl ? (boss.stunT > 0 ? '#9feaff' : '#331111') : boss.spectre ? '#b48cff' : '#ff2bd6');
     b.core.material.emissiveIntensity = boss.spectre ? (boss.helped ? 0.2 : 0.6 + Math.sin(s.time * 9) * 0.25) : 0.25;
     b.core.material.transparent = !!boss.spectre;
     b.core.material.opacity = boss.spectre ? 0.75 : 1;
@@ -728,6 +748,12 @@ export class Renderer3D {
     };
     this.bulletMesh = inst(new THREE.SphereGeometry(1, 12, 8), glow(0xff3d8b, { emissiveIntensity: 1.3, flatShading: false }), 400);
     this.waveMesh = inst(new THREE.BoxGeometry(1, 1, DEPTH * 0.9), glow(0xff8c28, { emissiveIntensity: 1, transparent: true, opacity: 0.85 }), 32);
+    // the Floatter's weapons: finned homing missiles, sound rockets, and the shockwave rings they leave
+    const mis = new THREE.ConeGeometry(0.16, 0.7, 6);
+    mis.rotateZ(-Math.PI / 2);                      // point along +x, then rotate by velocity
+    this.missileMesh = inst(mis, glow(0xff5a3a, { emissiveIntensity: 1.2 }), 60);
+    this.rocketMesh = inst(new THREE.SphereGeometry(1, 14, 10), glow(0x7fe7ff, { emissiveIntensity: 1.4, flatShading: false }), 60);
+    this.ringMesh = inst(new THREE.TorusGeometry(1, 0.05, 6, 40), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0x9ff3ff, transparent: true, opacity: 0.8 }), 40);
     this.boltMesh = inst(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff }), 200, true);
     this.partMesh = inst(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff }), 700, true);
     // chapter 2: draggable code-blocks, outlines where they belong, and the Builder's cursor
@@ -784,7 +810,7 @@ export class Renderer3D {
   }
 
   updateDynamic(s) {
-    let nb = 0, nw = 0;
+    let nb = 0, nw = 0, nm = 0, ns = 0, nr = 0;
     _q.identity();
     for (const b of s.bullets) {
       if (b.k === 'o' && nb < 400) {
@@ -792,8 +818,19 @@ export class Renderer3D {
         this.bulletMesh.setMatrixAt(nb++, _m.compose(_p.set(X(b.x), Y(b.y), 0), _q, _s.set(r, r, r)));
       } else if (b.k === 'w' && nw < 32) {
         this.waveMesh.setMatrixAt(nw++, _m.compose(_p.set(X(b.x), Y(b.y + b.h / 2), 0), _q, _s.set(b.w / T, b.h / T, 1)));
+      } else if (b.k === 'm' && nm < 60) {
+        _q.setFromAxisAngle(_v.set(0, 0, 1), Math.atan2(-b.vy, b.vx));
+        this.missileMesh.setMatrixAt(nm++, _m.compose(_p.set(X(b.x), Y(b.y), 0.3), _q, _s.set(1, 1, 1)));
+        _q.identity();
+      } else if (b.k === 's' && ns < 60) {
+        const r = (b.r / T) * (1 + Math.sin(s.time * 30) * 0.15);
+        this.rocketMesh.setMatrixAt(ns++, _m.compose(_p.set(X(b.x), Y(b.y), 0.3), _q, _s.set(r, r, r)));
+      } else if (b.k === 'ring' && nr < 40) {
+        const r = b.r / T;
+        this.ringMesh.setMatrixAt(nr++, _m.compose(_p.set(X(b.x), Y(b.y), 0.2), _q, _s.set(r, r, 1)));
       }
     }
+    for (const [mesh, n] of [[this.missileMesh, nm], [this.rocketMesh, ns], [this.ringMesh, nr]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; }
     this.bulletMesh.count = nb; this.bulletMesh.instanceMatrix.needsUpdate = true;
     this.waveMesh.count = nw; this.waveMesh.instanceMatrix.needsUpdate = true;
     let n = 0;

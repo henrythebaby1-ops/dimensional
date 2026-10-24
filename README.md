@@ -11,7 +11,8 @@ Create a room and share the 4-letter code or invite link. In the lobby, pick a
 **game mode**, a **role**, and (optionally) your **dimension**.
 
 **Keyboard:** A/D or ←/→ move · W/Space/↑ jump (fly up) · S/↓ fly down · F fire · Shift dash · E ping
-**Phone:** drag on the left side to move, buttons on the right. Choose controls on the main menu
+**Phone:** joystick on the left (swipe up to jump), tap anywhere on the right to jump,
+auto-fire shoots for you (toggle with AUTO). Choose controls on the main menu
 (Automatic / Phone / Computer).
 
 ## Game modes
@@ -23,6 +24,10 @@ Create a room and share the 4-letter code or invite link. In the lobby, pick a
   made of Unicode letters) split the team: **Builders** can't walk but drag blocks;
   **Walkers** walk and push Builders. 5 levels: Lowercase, Gap Fill, Stack Overflow,
   Escape Sequence, The Unicoder.
+- **Story Chapter 3 — The Floatter**: it floats between the worlds and hunts you with
+  homing missiles and sound rockets (shockwave rings). Two hits and you're out. Hide under
+  cover, shoot its missiles down, stun it — then take it down in the final fight.
+  5 levels: Radio Silence, Static Bridges, Echo Chamber, Signal Jam, The Floatter.
 - **Survival**: 10 waves of crawlers. The team shares its lives. Works solo.
 - **Race**: 4 rounds, every traveler for themselves.
 - **Boss Rush**: three bosses in a row, each tougher.

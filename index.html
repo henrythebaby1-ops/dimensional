@@ -75,6 +75,7 @@
       <div id="modes" class="modes">
         <button class="mode" data-mode="story"><b>Story Ch.1</b><span>The Spectre — 13 co-op levels</span></button>
         <button class="mode" data-mode="story2"><b>Story Ch.2</b><span>The Unicoder — Builders &amp; Walkers</span></button>
+        <button class="mode" data-mode="story3"><b>Story Ch.3</b><span>The Floatter — missiles &amp; sound rockets</span></button>
         <button class="mode" data-mode="survival"><b>Survival</b><span>10 waves of crawlers</span></button>
         <button class="mode" data-mode="race"><b>Race</b><span>4 rounds, every traveler for themselves</span></button>
         <button class="mode" data-mode="bossrush"><b>Boss Rush</b><span>3 bosses in a row, each tougher</span></button>
@@ -198,12 +199,16 @@ Restarting…</pre>
   <div id="net" class="hidden">Connection lost — reconnecting…</div>
 
   <div id="touch" class="hidden">
-    <div id="stick-zone"><div id="stick-base"><div id="stick-knob"></div></div><span class="stick-tip">drag to move</span></div>
+    <div id="stick-zone">
+      <div id="stick-base"><div id="stick-knob"></div></div>
+      <span class="stick-tip">drag to move · swipe up to jump</span>
+    </div>
+    <div id="jump-zone"><div class="jump-hint">⤒<small>TAP TO JUMP</small></div></div>
     <div id="tbtns">
-      <button data-k="ping" class="tb small" aria-label="Ping">!</button>
-      <button data-k="fire" class="tb" id="tb-fire" aria-label="Fire">✦</button>
-      <button data-k="jump" class="tb big" aria-label="Jump">⤒</button>
-      <button data-k="dash" class="tb small hidden" id="tb-dash" aria-label="Dash">⇥</button>
+      <button data-k="ping" class="tb small" aria-label="Ping">!<small>PING</small></button>
+      <button data-k="dash" class="tb small hidden" id="tb-dash" aria-label="Dash">⇥<small>DASH</small></button>
+      <button id="tb-auto" class="tb small chip" aria-label="Auto-fire">AUTO</button>
+      <button data-k="fire" class="tb" id="tb-fire" aria-label="Fire">✦<small>FIRE</small></button>
     </div>
   </div>
 
