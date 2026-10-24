@@ -2931,10 +2931,10 @@ function bodiesForFrame() {
     const r = remotes.get(id);
     if (!r || r.l !== levelIdx) continue;
     list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) || (Array.isArray(r.co) ? skinColor(r.co[3], time) : undefined),
-      hat: Array.isArray(r.co) ? r.co[0] : 'none', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
+      hat: Array.isArray(r.co) ? r.co[0] : 'none', skin: Array.isArray(r.co) ? r.co[3] : 'default', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
   }
   if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.face, vx: P.vx, ghost: false,
-    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), hat: profile.equip.hat, trail: profile.equip.trail,
+    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), skin: profile.equip.skin, hat: profile.equip.hat, trail: profile.equip.trail,
     sword: !!DIMS[P.dim].sword, shield: !!P.shielding });
   for (const [id, b] of botActors) { const e = list.find(x => x.id === id); if (e) { e.shield = !!b.p.shielding; } }
   if (level.ally && boss) { const ap = allyPos(); list.push({ id: 'ally', x: ap.x - PW / 2, y: ap.y - PH / 2, d: 0, nd: 0, g: 1, f: 1, vx: 0, ghost: false, visible: true, color: '#4f6f46', hat: 'helmet', trail: 'none' }); }
@@ -3437,14 +3437,21 @@ function renderShop() {
     }
     return;
   }
-  for (const it of SHOP[shopTab]) {
-    const have = owns(shopTab, it.id), eq = profile.equip[shopTab] === it.id;
+  const cat = shopTab === 'banana' ? 'skin' : shopTab;
+  if (shopTab === 'banana') {
+    const note = document.createElement('p');
+    note.className = 'muted small shop-note';
+    note.textContent = '🍌 Special outfits from the Bananas of the Caribbean. In the Bananaverse you wear the full costume; everywhere else you get its color.';
+    grid.append(note);
+  }
+  for (const it of SHOP[cat].filter(i => cat !== 'skin' || !!i.banana === (shopTab === 'banana') || i.id === 'default')) {
+    const have = owns(cat, it.id), eq = profile.equip[cat] === it.id;
     const state = eq ? 'Equipped' : have ? 'Equip' : profile.coins >= it.price ? `Buy ${it.price} 🪙` : `🔒 ${it.price} 🪙`;
     card(it.icon, it.name, state, () => {
-      if (have) equip(shopTab, it.id);
-      else if (buy(shopTab, it.id)) { sfx('buy'); toast(`${it.icon} ${it.name}!`, '#ffd23a'); }
+      if (have) equip(cat, it.id);
+      else if (buy(cat, it.id)) { sfx('buy'); toast(`${it.icon} ${it.name}!`, '#ffd23a'); }
       renderShop();
-    }, eq, it.swatch || (it.color && it.color !== 'rainbow' ? it.color : null));
+    }, eq, shopTab === 'banana' && it.id !== 'default' ? null : it.swatch || (it.color && it.color !== 'rainbow' ? it.color : null));
   }
 }
 for (const t of document.querySelectorAll('#shop-tabs .tab')) t.onclick = () => { shopTab = t.dataset.tab; sfx('click'); renderShop(); };

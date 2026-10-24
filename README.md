@@ -67,6 +67,9 @@ missiles, grenades, laser sweeps and solar flares (Shield bots block with their 
 (`OLLAMA_ORIGINS=* ollama serve`), the host can tick "Bot chat with Ollama AI" in the lobby and bots say
 real AI-written lines. Their moves still come from their built-in brain.
 **Skins:** 31 body colors in the 🛍️ Shop (Skins tab), including animated ones: Lava, Ocean Wave, Galaxy, Disco, Rainbow and Ghost.
+**🍌 Banana outfits:** special Shop tab with costumes from the Bananas of the Caribbean (Pirate, Captain, Banana Suit,
+Half Peeled, Islander, Parrot Pal, Skeleton Pirate, Rotten Banana, Banana King). You wear the full costume in the
+Bananaverse and get its color everywhere else.
 
 ## Dimensions (verses)
 | Dimension | Lane | Twist |

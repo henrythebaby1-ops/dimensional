@@ -255,6 +255,7 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 .ollama summary { cursor: pointer; opacity: .85; }
 .ollama .check { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
 .ollama code { background: rgba(255,255,255,.1); padding: 1px 4px; border-radius: 4px; }
+.shop-note { grid-column: 1 / -1; margin: 0 0 4px; }
 .solo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
 .solo-list h3 { grid-column: 1 / -1; margin: 10px 0 0; font-size: 14px; opacity: .8; }
 .solo-list .mode { text-align: left; }

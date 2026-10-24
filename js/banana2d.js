@@ -32,19 +32,119 @@ function banana(ctx, x, y, s, face, alpha = 1) {
   ctx.restore();
 }
 
-function person(ctx, x, y, s, color, face, ghost, sword, hat) {
+// a banana shape centred at (x, y): the crescent the whole Bananaverse is built on
+function bananaShape(ctx, x, y, s, fill, spots) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.ellipse(x, y, s * 0.42, s * 0.62, 0.35, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#5a3a14';
+  ctx.beginPath(); ctx.arc(x + s * 0.22, y - s * 0.56, s * 0.07, 0, 7); ctx.fill();   // stem
+  if (spots) { ctx.fillStyle = spots; for (const [a, b] of [[-0.15, 0.1], [0.12, 0.3], [0.05, -0.2], [-0.2, 0.35]]) { ctx.beginPath(); ctx.arc(x + a * s, y + b * s, s * 0.05, 0, 7); ctx.fill(); } }
+}
+
+function eyes(ctx, x, y, s, face, col = '#111') {
+  ctx.fillStyle = col;
+  ctx.fillRect(x + face * s * 0.08 - s * 0.1, y, s * 0.06, s * 0.08);
+  ctx.fillRect(x + face * s * 0.08 + s * 0.04, y, s * 0.06, s * 0.08);
+}
+
+function tricorn(ctx, x, y, s, col, trim) {
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.moveTo(x - s * 0.42, y); ctx.quadraticCurveTo(x, y - s * 0.45, x + s * 0.42, y); ctx.quadraticCurveTo(x, y - s * 0.12, x - s * 0.42, y); ctx.fill();
+  if (trim) { ctx.strokeStyle = trim; ctx.lineWidth = s * 0.04; ctx.stroke(); }
+}
+
+export function person(ctx, x, y, s, color, face, ghost, sword, hat, skin, t = 0) {
   ctx.save();
   ctx.globalAlpha = ghost ? 0.5 : 1;
-  // body seen from above: a round character with a little tunic
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.roundRect(x - s * 0.35, y - s * 0.2, s * 0.7, s * 0.65, s * 0.18); ctx.fill();
-  ctx.fillStyle = '#f2c79a';
-  ctx.beginPath(); ctx.arc(x, y - s * 0.35, s * 0.3, 0, 7); ctx.fill();
-  ctx.fillStyle = hat === 'none' || !hat ? '#4a2f1a' : hat === 'crown' ? '#ffd23a' : hat === 'halo' ? '#fff3a0' : '#2f6bff';
-  ctx.beginPath(); ctx.arc(x, y - s * 0.45, s * 0.28, Math.PI, 0); ctx.fill();
-  ctx.fillStyle = '#111';
-  ctx.fillRect(x + face * s * 0.08 - s * 0.1, y - s * 0.38, s * 0.06, s * 0.08);
-  ctx.fillRect(x + face * s * 0.08 + s * 0.04, y - s * 0.38, s * 0.06, s * 0.08);
+  const head = () => { ctx.fillStyle = '#f2c79a'; ctx.beginPath(); ctx.arc(x, y - s * 0.35, s * 0.3, 0, 7); ctx.fill(); };
+  switch (skin) {
+    case 'b-suit': case 'b-rotten': case 'b-king': case 'b-peeled': {
+      // a whole banana costume with a face peeking out
+      const fill = skin === 'b-rotten' ? '#8a7a2a' : skin === 'b-king' ? color : '#ffe23a';
+      if (skin === 'b-peeled') {      // peel flaps hanging down, white banana on top
+        ctx.fillStyle = '#ffe23a';
+        for (const d of [-1, 0, 1]) { ctx.beginPath(); ctx.ellipse(x + d * s * 0.28, y + s * 0.25, s * 0.14, s * 0.32, d * 0.5, 0, 7); ctx.fill(); }
+        bananaShape(ctx, x, y - s * 0.12, s * 0.85, '#fff3c0');
+      } else bananaShape(ctx, x, y - s * 0.05, s, fill, skin === 'b-rotten' ? '#3a2a0a' : skin === 'b-suit' ? '#c8a02a' : null);
+      ctx.fillStyle = '#f2c79a';
+      ctx.beginPath(); ctx.arc(x, y - s * 0.18, s * 0.17, 0, 7); ctx.fill();
+      eyes(ctx, x, y - s * 0.22, s, face);
+      if (skin === 'b-rotten') { ctx.fillStyle = 'rgba(120,160,40,.7)'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x - s * 0.3 + i * s * 0.3, y - s * 0.75 - Math.sin(t * 3 + i) * s * 0.08, s * 0.06, 0, 7); ctx.fill(); } }
+      if (skin === 'b-king') {        // crown and a sparkle
+        ctx.fillStyle = '#ffd23a';
+        ctx.beginPath(); ctx.moveTo(x - s * 0.22, y - s * 0.6); ctx.lineTo(x - s * 0.22, y - s * 0.8); ctx.lineTo(x - s * 0.11, y - s * 0.68); ctx.lineTo(x, y - s * 0.86); ctx.lineTo(x + s * 0.11, y - s * 0.68); ctx.lineTo(x + s * 0.22, y - s * 0.8); ctx.lineTo(x + s * 0.22, y - s * 0.6); ctx.fill();
+        ctx.fillStyle = '#e0115f'; ctx.beginPath(); ctx.arc(x, y - s * 0.66, s * 0.04, 0, 7); ctx.fill();
+        const a = t * 4; ctx.fillStyle = '#fff'; ctx.fillRect(x + Math.cos(a) * s * 0.5, y + Math.sin(a) * s * 0.4, s * 0.06, s * 0.06);
+      }
+      break;
+    }
+    case 'b-pirate': case 'b-skeleton': case 'b-captain': {
+      // striped shirt (or a long coat), then a pirate head
+      if (skin === 'b-captain') {
+        ctx.fillStyle = '#1f3a8a';
+        ctx.beginPath(); ctx.roundRect(x - s * 0.38, y - s * 0.2, s * 0.76, s * 0.72, s * 0.14); ctx.fill();
+        ctx.fillStyle = '#ffd23a';
+        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x, y - s * 0.05 + i * s * 0.17, s * 0.04, 0, 7); ctx.fill(); }
+      } else {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.roundRect(x - s * 0.35, y - s * 0.2, s * 0.7, s * 0.65, s * 0.18); ctx.fill();
+        ctx.fillStyle = skin === 'b-skeleton' ? '#222' : '#c8283a';
+        for (let i = 0; i < 3; i++) ctx.fillRect(x - s * 0.35, y - s * 0.12 + i * s * 0.2, s * 0.7, s * 0.08);
+      }
+      if (skin === 'b-skeleton') {
+        ctx.fillStyle = '#f0f0e8'; ctx.beginPath(); ctx.arc(x, y - s * 0.35, s * 0.3, 0, 7); ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(x + face * s * 0.05 - s * 0.1, y - s * 0.35, s * 0.07, 0, 7); ctx.arc(x + face * s * 0.05 + s * 0.1, y - s * 0.35, s * 0.07, 0, 7); ctx.fill();
+        for (let i = -2; i <= 2; i++) ctx.fillRect(x + i * s * 0.05 - s * 0.015, y - s * 0.2, s * 0.03, s * 0.07);
+      } else {
+        head();
+        eyes(ctx, x, y - s * 0.38, s, face);
+        if (skin === 'b-pirate') {     // eyepatch
+          ctx.fillStyle = '#111';
+          ctx.beginPath(); ctx.arc(x + face * s * 0.12, y - s * 0.34, s * 0.07, 0, 7); ctx.fill();
+          ctx.strokeStyle = '#111'; ctx.lineWidth = s * 0.03;
+          ctx.beginPath(); ctx.moveTo(x - s * 0.28, y - s * 0.44); ctx.lineTo(x + s * 0.28, y - s * 0.3); ctx.stroke();
+        } else {                       // captain's beard
+          ctx.fillStyle = '#6b3a1f';
+          ctx.beginPath(); ctx.arc(x, y - s * 0.2, s * 0.16, 0, Math.PI); ctx.fill();
+        }
+      }
+      tricorn(ctx, x, y - s * 0.5, s * (skin === 'b-captain' ? 1.25 : 1), skin === 'b-captain' ? '#14204a' : '#1a1a1a', skin === 'b-captain' ? '#ffd23a' : skin === 'b-skeleton' ? '#888' : null);
+      if (skin !== 'b-captain') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y - s * 0.62, s * 0.05, 0, 7); ctx.fill(); }   // skull badge
+      break;
+    }
+    case 'b-island': {
+      // grass skirt, flower necklace, flower in the hair
+      ctx.fillStyle = '#c8a24a';
+      for (let i = -3; i <= 3; i++) ctx.fillRect(x + i * s * 0.1 - s * 0.03, y + s * 0.05, s * 0.06, s * 0.42 + Math.sin(t * 6 + i) * s * 0.03);
+      ctx.fillStyle = '#d89a6a';
+      ctx.beginPath(); ctx.roundRect(x - s * 0.3, y - s * 0.2, s * 0.6, s * 0.3, s * 0.12); ctx.fill();
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = ['#ff4a8a', '#ffe23a', '#ff8a3a'][i % 3]; ctx.beginPath(); ctx.arc(x - s * 0.25 + i * s * 0.1, y - s * 0.12 + Math.abs(i - 2.5) * -s * 0.02, s * 0.05, 0, 7); ctx.fill(); }
+      head();
+      ctx.fillStyle = '#2a1a0a'; ctx.beginPath(); ctx.arc(x, y - s * 0.45, s * 0.28, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#ff4a8a'; ctx.beginPath(); ctx.arc(x - face * s * 0.2, y - s * 0.55, s * 0.09, 0, 7); ctx.fill();
+      eyes(ctx, x, y - s * 0.38, s, face);
+      break;
+    }
+    default: {
+      // body seen from above: a round character with a little tunic
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x - s * 0.35, y - s * 0.2, s * 0.7, s * 0.65, s * 0.18); ctx.fill();
+      head();
+      ctx.fillStyle = hat === 'none' || !hat ? '#4a2f1a' : hat === 'crown' ? '#ffd23a' : hat === 'halo' ? '#fff3a0' : '#2f6bff';
+      ctx.beginPath(); ctx.arc(x, y - s * 0.45, s * 0.28, Math.PI, 0); ctx.fill();
+      eyes(ctx, x, y - s * 0.38, s, face);
+    }
+  }
+  if (skin === 'b-parrot' || skin === 'b-captain') {   // a parrot friend on the shoulder
+    const px = x - face * s * 0.4, py = y - s * 0.15 + Math.sin(t * 5) * s * 0.03;
+    ctx.fillStyle = '#e0283a'; ctx.beginPath(); ctx.ellipse(px, py, s * 0.11, s * 0.16, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2a7aff'; ctx.beginPath(); ctx.ellipse(px - face * s * 0.05, py + s * 0.05, s * 0.06, s * 0.12, 0.3, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffd23a'; ctx.beginPath(); ctx.moveTo(px - face * s * 0.08, py - s * 0.1); ctx.lineTo(px - face * s * 0.2, py - s * 0.06); ctx.lineTo(px - face * s * 0.08, py - s * 0.03); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.fillRect(px - face * s * 0.04, py - s * 0.1, s * 0.03, s * 0.03);
+  }
   if (sword) {
     ctx.strokeStyle = '#dfe6f0'; ctx.lineWidth = s * 0.08; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x + face * s * 0.35, y + s * 0.1); ctx.lineTo(x + face * s * 0.85, y - s * 0.35); ctx.stroke();
@@ -187,7 +287,7 @@ export function drawBanana2D(ctx, VW, VH, s) {
     const x = sx(b.x + PW / 2), feet = sy(b.y + PH);
     ctx.fillStyle = 'rgba(0,0,0,.22)';
     ctx.beginPath(); ctx.ellipse(x, Math.max(feet, sy(groundY - T * 0.1)) + 4, ts * 0.32, ts * 0.12, 0, 0, 7); ctx.fill();
-    person(ctx, x, feet - ts * 0.35, ts * 0.9, b.color || DIMS[b.nd]?.color || '#fff', b.f || 1, b.ghost, b.sword, b.hat);
+    person(ctx, x, feet - ts * 0.35, ts * 0.9, b.color || DIMS[b.nd]?.color || '#fff', b.f || 1, b.ghost, b.sword, b.hat, b.skin, s.time);
     ctx.font = `700 ${Math.round(ts * 0.32)}px Rubik, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(0,0,0,.55)';

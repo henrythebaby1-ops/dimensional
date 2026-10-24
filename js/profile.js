@@ -47,6 +47,16 @@ export const SHOP = {
     { id: 'emerald', name: 'Emerald', icon: '💚', price: 160, color: '#00c878' },
     { id: 'diamond', name: 'Diamond', icon: '💎', price: 200, color: '#b9f2ff' },
     { id: 'gold', name: 'Gold', icon: '🏆', price: 220, color: '#ffc92a' },
+    // Bananaverse outfits: a full costume in the Bananaverse, just the color everywhere else
+    { id: 'b-pirate', banana: true, name: 'Pirate', icon: '🏴‍☠️', price: 150, color: '#c8283a' },
+    { id: 'b-captain', banana: true, name: 'Captain', icon: '⚓', price: 250, color: '#1f3a8a' },
+    { id: 'b-suit', banana: true, name: 'Banana Suit', icon: '🍌', price: 200, color: '#ffe23a' },
+    { id: 'b-peeled', banana: true, name: 'Half Peeled', icon: '🥴', price: 180, color: '#fff3c0' },
+    { id: 'b-island', banana: true, name: 'Islander', icon: '🌺', price: 160, color: '#2fbf6a' },
+    { id: 'b-parrot', banana: true, name: 'Parrot Pal', icon: '🦜', price: 220, color: '#3a8a3a' },
+    { id: 'b-skeleton', banana: true, name: 'Skeleton Pirate', icon: '💀', price: 300, color: '#e8e8e0' },
+    { id: 'b-rotten', banana: true, name: 'Rotten Banana', icon: '🤢', price: 120, color: '#6b5a1f' },
+    { id: 'b-king', banana: true, name: 'Banana King', icon: '👑', price: 500, anim: t => `hsl(${48 + Math.sin(t * 3) * 6}, 100%, ${55 + Math.sin(t * 5) * 8}%)`, swatch: 'linear-gradient(135deg,#ffe23a,#ffb000)' },
     // animated skins: the color changes while you play
     { id: 'lava', name: 'Lava', icon: '🌋', price: 300, anim: t => `hsl(${10 + Math.sin(t * 3) * 14}, 100%, ${50 + Math.sin(t * 5) * 8}%)`, swatch: 'linear-gradient(135deg,#ff2a00,#ffb000)' },
     { id: 'ocean-wave', name: 'Ocean Wave', icon: '🐳', price: 300, anim: t => `hsl(${195 + Math.sin(t * 2) * 25}, 90%, 55%)`, swatch: 'linear-gradient(135deg,#00a2ff,#00ffd0)' },
