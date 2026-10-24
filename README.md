@@ -1,49 +1,70 @@
 # Dimensional
 
-A co-op browser game for **2–10 players**. Each player is stuck in a different
-dimension (grassy, upside-down, icy, low-gravity, mirrored, dark, underwater…),
-but everyone can still see each other. Nobody can win alone.
+A 3D co-op browser game for **2–20 players**. Each player is stuck in a different
+dimension (grassy, upside-down, icy, floating, flat 2D, dark, underwater…), but
+everyone can still see each other. Nobody can win alone.
 
-## Play
-Open the site, create a room, and share the 4-letter code or invite link.
+Play: https://henrythebaby1-ops.github.io/dimensional/
 
-**Controls:** A/D or ←/→ move · W/Space/↑ jump · F fire · E ping
+## How to play
+Create a room and share the 4-letter code or invite link. In the lobby, pick a
+**game mode**, a **role**, and (optionally) your **dimension**.
 
-## Levels
-1. **The Crossing**: plates in one dimension build bridges in another.
-2. **Dimension Hop**: rifts shift you into the next dimension. Keystones can only be taken by visitors.
-3. **Resonance**: gates open only when every player stands on their own pad at the same time.
-4. **The Fracture**: a boss whose shield lets in only one dimension at a time. Everyone on their pads at once shatters it.
+**Keyboard:** A/D or ←/→ move · W/Space/↑ jump (fly up) · S/↓ fly down · F fire · Shift dash · E ping
+**Phone:** drag on the left side to move, buttons on the right. Choose controls on the main menu
+(Automatic / Phone / Computer).
 
-## Dimensions
-| # | Dimension | Twist |
-|---|-----------|-------|
-| 1 | Verdant | Normal grassy world |
-| 2 | Inverted | Gravity flipped, view flipped |
-| 3 | Frost | Slippery ice |
-| 4 | Lunar | Upside down, low gravity |
-| 5 | Inferno | Extra fast |
-| 6 | Mirror | Upside down and mirrored left/right |
-| 7 | Shadow | Can only see nearby |
-| 8 | Tidal | Upside down, swim with repeated jumps |
-| 9 | Neon | Double jump |
-| 10 | Crystal | Upside down, double jump |
+## Game modes
+- **Story**: 13 co-op levels, ending with the boss.
+  1. The Crossing · 2. Phase Stairs · 3. Crawler Nest · 4. Dimension Hop · 5. Crystal Hunt ·
+  6. Laser Relay · 7. Floating Isle · 8. Sky Islands · 9. Topsy-Turvy · 10. Shadow Bridge ·
+  11. Night Nest · 12. Resonance · 13. The Fracture (boss)
+- **Survival**: 10 waves of crawlers. The team shares its lives. Works solo.
+- **Race**: 4 rounds, every traveler for themselves. Spike Sprint, Rift Rush, Island Hop, Laser Gauntlet.
 
-Dimensions rotate between players each level.
+## Dimensions (verses)
+| Dimension | Lane | Twist |
+|-----------|------|-------|
+| Verdant | floor | Normal grassy world |
+| Inverted | ceiling | Gravity and view flipped |
+| Frost | floor | Slippery ice |
+| Lunar | ceiling | Low gravity |
+| Inferno | floor | Extra fast |
+| Mirror | ceiling | Flipped and mirrored |
+| Middleverse | middle | Floats between the worlds, flies freely |
+| 2Dverse | floor | Seen in flat 2D. Double jump, dash, sees in the dark, breaks any crystal |
+| Shadow | floor | Can only see nearby |
+| Tidal | ceiling | Swim with repeated jumps |
+| Neon | floor | Double jump |
+| Crystal | ceiling | Double jump |
+| Desert | floor | Slow in sand, high jumps |
+| Candy | ceiling | Bouncy, extra-high jumps |
+| Storm | floor | Wind pushes you around |
+| Glitch | middle | Fast flying, jitters |
+| Jungleverse | floor | Climbs walls |
+| Mushroomverse | ceiling | Bounces constantly (hold down to stop) |
+| Voidverse | ceiling | Near-zero gravity, double jump |
+| Cloudverse | middle | Slow, drifting flight |
+
+## Roles
+Runner (+20% speed) · Jumper (higher jumps) · Gunner (faster, longer shots) ·
+Tank (5 hearts) · Scout (sees through darkness) · Medic (ping heals the team).
 
 ## Tech
-- Static HTML/JS, hosted on **GitHub Pages** (no build step).
-- **Supabase Realtime** (broadcast + presence) for rooms and multiplayer sync.
-  The first player in the room acts as host for the boss and gates.
-- **Supabase Postgres** table `dim_clears` for the leaderboard (`supabase/schema.sql`).
+- Static HTML/JS with **Three.js** for 3D, hosted on **GitHub Pages** (no build step).
+- **Supabase Realtime** (broadcast + presence) for rooms. The first player in the room
+  hosts gates, waves and the boss, and sends a full snapshot every 2 seconds so
+  dropped messages and reconnects catch up. Rooms rejoin automatically if the connection drops.
+  Players who join mid-level watch until the next level.
+- **Supabase Postgres** table `dim_clears` for leaderboards (`supabase/schema.sql`).
 
 To use a different Supabase project, run `supabase/schema.sql` in its SQL editor
 and put its URL and publishable key in `config.js`.
 
 ## Adding levels
-Levels are small functions in `js/levels.js` that place shared tiles and
-objects bound to a dimension (plates, bridges, doors, pads, rifts, keys,
-lasers, phase blocks). Add one to `LEVELS` and it shows up in the game.
+Levels are small functions in `js/levels.js` that place shared tiles and objects
+bound to a dimension (plates, bridges, doors, pads, rifts, keys, lasers, crystals,
+gravity fields, crawlers). Add one to a mode's list in `MODES` and it shows up in the game.
 
 ## Run locally
 ```

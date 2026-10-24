@@ -2,6 +2,7 @@ import { DIMS } from './dims.js';
 
 // The world is one grid shared by every dimension. Rows 13..25 are the floor
 // lane (normal gravity), rows 0..12 are the ceiling lane (flipped gravity).
+// Floating dimensions (grav 0) get their objects in the middle band.
 // Shared geometry is always mirrored, so both lanes play the same.
 export const T = 32;
 export const H = 26;
@@ -36,6 +37,7 @@ class Builder {
     this.box(this.W - 1, this.W - 1, 0, MID - 1);
   }
   rect(g, x, ly, w, h) {
+    if (g === 0) return { x, y: Math.max(1, MID - h - Math.max(0, ly - 1)), w, h };
     return { x, y: g > 0 ? H - ly - h : ly, w, h };
   }
   add(type, props, g, x, ly, w, h) {
@@ -50,6 +52,25 @@ class Builder {
   // shared object, one copy per lane
   both(type, props, x, ly, w, h) {
     return [1, -1].map(g => this.add(type, props, g, x, ly, w, h));
+  }
+  // rift crawlers: one per lane at each x, cycling through that lane's dimensions
+  mobs(xs, range = 6, speed = 1.6) {
+    const lanes = [[], []];
+    for (let d = 0; d < this.n; d++) if (DIMS[d].grav) lanes[DIMS[d].grav > 0 ? 0 : 1].push(d);
+    xs.forEach((x, i) => lanes.forEach((ds, li) => {
+      if (!ds.length) return;
+      this.addD('mob', ds[(i + li) % ds.length], { range, speed, phase: (i * 0.37 + li * 0.5) % 2 }, x, 1, 1, 1);
+    }));
+  }
+  // solid tiles in the middle band, between the two lanes
+  mid(x0, x1) {
+    for (let x = x0; x <= x1; x++) { this.grid[MID - 1][x] = '#'; this.grid[MID][x] = '#'; }
+  }
+  // object at exact grid coordinates
+  raw(type, props, x, y, w, h) {
+    const o = { id: type + this.seq++, type, dim: null, ...props, x, y, w, h };
+    this.objs.push(o);
+    return o;
   }
   done(meta) {
     return { W: this.W, grid: this.grid, objs: this.objs, n: this.n, checkpoints: [{ x: 2 }], ...meta };
@@ -68,14 +89,16 @@ function crossing(n) {
   for (let d = 0; d < n; d++) {
     const owner = (d + 1) % n;
     const li = laneIndex(owner);
-    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 4 + li * 4, 1, 2, 1);
-    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 39 + li * 3, 1, 2, 1);
+    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 3 + Math.floor(li * 2.5), 1, 2, 1);
+    b.addD('plate', owner, { link: 'br' + d, tdim: d }, 38 + li * 2, 1, 2, 1);
     b.addD('bridge', d, { link: 'br' + d }, 26, 0, 10, 1);
   }
+  b.mobs([13], 6);
+  b.mobs([44], 8);
   b.both('exit', {}, 64, 1, 3, 3);
   return b.done({
-    name: '1 · The Crossing',
-    objective: 'Stand on plates to build bridges for each other. Everyone must reach the portal.',
+    name: 'The Crossing',
+    objective: 'Stand on plates to build bridges for each other. Shoot crawlers with F. Everyone must reach the portal.',
   });
 }
 
@@ -100,12 +123,251 @@ function hop(n) {
   for (const sx of [20, 31, 44, 54, 66]) {
     if (!blocked(sx) && !blocked(sx + 1)) b.box(sx, sx + 1, 1, 1, '^');
   }
+  b.mobs([41, 63], 5, 1.4);
   b.both('exit', {}, 78, 1, 3, 3);
   return b.done({
-    name: '2 · Dimension Hop',
+    name: 'Dimension Hop',
     objective: 'Jump into rifts to shift into the next dimension. Keystones can only be taken by VISITORS. Collect them all to open the gate.',
     keyList,
   });
+}
+
+function stairs(n) {
+  const b = new Builder(n, 70);
+  b.shell();
+  b.box(32, 33, 1, 9);
+  b.box(54, 55, 1, 1, '^');
+  // Stairs for dimension d only exist while the next dimension stands on a plate.
+  for (let d = 0; d < n; d++) {
+    const owner = (d + 1) % n;
+    const li = laneIndex(owner);
+    b.addD('plate', owner, { link: 'st' + d, tdim: d }, 3 + li * 3, 1, 2, 1);
+    b.addD('plate', owner, { link: 'st' + d, tdim: d }, 38 + li * 2, 1, 2, 1);
+    [[22, 2], [25, 4], [28, 6], [30, 8]].forEach(([x, ly]) => b.addD('bridge', d, { link: 'st' + d }, x, ly, 2, 1));
+  }
+  b.mobs([12], 7);
+  b.mobs([40], 6);
+  b.both('exit', {}, 62, 1, 3, 3);
+  return b.done({
+    name: 'Phase Stairs',
+    objective: 'A teammate\'s plate makes your floating stairs appear. Climb the wall, then hold a plate for the next traveler.',
+  });
+}
+
+function relay(n) {
+  const b = new Builder(n, 92);
+  b.shell();
+  b.box(30, 31, 1, 1, '^');
+  b.box(58, 59, 1, 1, '^');
+  // Your lasers are nearly always on, unless the next dimension holds your relay plate.
+  for (let d = 0; d < n; d++) {
+    const owner = (d + 1) % n;
+    const li = laneIndex(owner);
+    b.addD('plate', owner, { link: 'lz' + d, tdim: d }, 3 + li * 2, 1, 2, 1);
+    b.addD('plate', owner, { link: 'lz' + d, tdim: d }, 68 + li * 2, 1, 2, 1);
+    for (const [i, x] of [22, 38, 46, 54, 64].entries()) {
+      b.addD('laser', d, { period: 2.4, offset: i * 0.37 + d * 0.5, duty: 0.82, link: 'lz' + d }, x, 1, 1, 11);
+    }
+  }
+  b.both('exit', {}, 85, 1, 3, 3);
+  return b.done({
+    name: 'Laser Relay',
+    objective: 'Your lasers barely ever switch off. A friend in another dimension can hold your relay plate to shut them down.',
+  });
+}
+
+function topsy(n) {
+  const b = new Builder(n, 84);
+  b.shell();
+  for (const x of [9, 47]) b.both('flip', {}, x, 1, 2, 12);
+  b.box(16, 18, 4, 4);
+  b.box(56, 58, 4, 4);
+  // Every pad sits in the OTHER lane: you must flip gravity to reach your own.
+  for (let s = 0; s < 2; s++) {
+    const x0 = s * 38;
+    b.both('door', { link: 'res' + s }, x0 + 36, 1, 1, 12);
+    for (let d = 0; d < n; d++) {
+      const px = x0 + 14 + ((d * 5 + s * 3) % 18);
+      b.add('pad', { dim: d, group: s }, -DIMS[d].grav, px, 1, 1, 1);
+    }
+  }
+  b.mobs([21, 59], 8, 1.8);
+  b.both('exit', {}, 77, 1, 3, 3);
+  return b.done({
+    name: 'Topsy-Turvy',
+    objective: 'Gravity fields flip you into the other world. Your pad is on the opposite side — everyone must stand on theirs at once.',
+    groups: [0, 1],
+    checkpoints: [{ x: 2 }, { x: 38, link: 'res0' }],
+  });
+}
+
+function crystals(n) {
+  const b = new Builder(n, 80);
+  b.shell();
+  b.box(10, 12, 4, 4);
+  b.box(64, 66, 4, 4);
+  // Each dimension's gate is locked by a crystal its owner cannot break.
+  for (let d = 0; d < n; d++) {
+    b.add('target', { dim: d, link: 'cr' + d }, 1, 16 + Math.floor(d * 2.5), 1, 1, H - 2);
+    b.addD('door', d, { link: 'cr' + d }, 58, 1, 1, 12);
+  }
+  b.mobs([46], 6);
+  b.both('exit', {}, 72, 1, 3, 3);
+  return b.done({
+    name: 'Crystal Hunt',
+    objective: 'Your gate is locked by a crystal of your color, and you can\'t break your own. Shoot your friends\' crystals (F) to free them.',
+  });
+}
+
+function shadows(n) {
+  const b = new Builder(n, 84);
+  b.shell();
+  for (let x = 20; x <= 27; x++) b.set(x, 0, '.');
+  for (let x = 50; x <= 57; x++) b.set(x, 0, '.');
+  for (let d = 0; d < n; d++) {
+    const owner = (d + 1) % n;
+    const li = laneIndex(owner);
+    b.addD('plate', owner, { link: 'sa' + d, tdim: d }, 3 + Math.floor(li * 1.8), 1, 2, 1);
+    b.addD('plate', owner, { link: 'sa' + d, tdim: d }, 29 + li * 2, 1, 1, 1);
+    b.addD('plate', owner, { link: 'sb' + d, tdim: d }, 30 + li * 2, 1, 1, 1);
+    b.addD('plate', owner, { link: 'sb' + d, tdim: d }, 59 + li * 2, 1, 2, 1);
+    b.addD('bridge', d, { link: 'sa' + d }, 20, 0, 8, 1);
+    b.addD('bridge', d, { link: 'sb' + d }, 50, 0, 8, 1);
+  }
+  b.mobs([33], 4, 1.2);
+  b.both('exit', {}, 76, 1, 3, 3);
+  return b.done({
+    name: 'Shadow Bridge',
+    objective: 'Total darkness. Ping (E or !) to show friends where you are, and hold plates to bridge two chasms.',
+    dark: true,
+  });
+}
+
+function floatIsle(n) {
+  const b = new Builder(n, 86);
+  b.shell();
+  b.mid(30, 52);
+  [32, 50].forEach(x => b.both('flip', {}, x, 1, 1, 12));
+  b.both('flip', {}, 64, 1, 1, 12);
+  // Everyone's pad is on the floating island: under it, on top of it, or hovering beside it.
+  const lanes = { 1: 0, '-1': 0, 0: 0 };
+  for (let d = 0; d < n; d++) {
+    const g = DIMS[d].grav, i = lanes[g]++;
+    if (g > 0) b.raw('pad', { dim: d, group: 0 }, 35 + i * 2, MID + 1, 1, 1);
+    else if (g < 0) b.raw('pad', { dim: d, group: 0 }, 35 + i * 2, MID - 2, 1, 1);
+    else b.raw('pad', { dim: d, group: 0 }, 54 + i, MID - 1, 1, 2);
+  }
+  b.both('door', { link: 'res0' }, 68, 1, 1, 12);
+  b.mobs([10, 74], 6);
+  b.both('exit', {}, 78, 1, 3, 3);
+  return b.done({
+    name: 'Floating Isle',
+    objective: 'An island floats between the worlds. Use gravity fields to land on it (top or underside). Everyone on their island pad at once opens the gate.',
+    groups: [0],
+    checkpoints: [{ x: 2 }, { x: 70, link: 'res0' }],
+  });
+}
+
+function nest(n, dark = false) {
+  const b = new Builder(n, 80);
+  b.shell();
+  b.box(14, 17, 4, 4);
+  b.box(30, 33, 6, 6);
+  b.box(44, 47, 4, 4);
+  b.both('door', { link: 'nest' }, 58, 1, 1, 12);
+  b.mobs([8, 20, 32, 44], 5, 1.8);
+  b.mobs([14, 38], 7, 2.3);
+  b.both('exit', {}, 70, 1, 3, 3);
+  return b.done({
+    name: dark ? 'Night Nest' : 'Crawler Nest',
+    objective: dark ? 'The nest again — in total darkness. Ping to call out crawlers. Destroy them all to open the gate.'
+      : 'A nest of crawlers guards the gate. It only opens once EVERY crawler is destroyed. Shoot with F.',
+    nest: true,
+    dark,
+  });
+}
+
+// Small islands over a spike floor. Story version ends with a crystal gate.
+function islands(n, race) {
+  const W = race ? 88 : 96;
+  const b = new Builder(n, W);
+  b.shell();
+  b.box(1, W - 2, 1, 1, '^');
+  b.box(1, 8, 1, 2);
+  const tops = [2, 3, 2, 4, 3, 2, 4, 2, 3];
+  let x = 12;
+  for (const t of tops) {
+    b.box(x, x + 3, 1, t);
+    x += 7;
+  }
+  b.box(x, W - 2, 1, 2);
+  if (race) {
+    b.both('exit', {}, W - 7, 3, 3, 3);
+    return b.done({ name: 'Island Hop', objective: 'RACE! Hop the islands, don\'t touch the spikes. First to the portal wins.', race: true });
+  }
+  for (let d = 0; d < n; d++) {
+    b.add('target', { dim: d, link: 'is' + d }, 1, x + 2 + Math.floor(d / 2), 1, 1, H - 2);
+    b.addD('door', d, { link: 'is' + d }, W - 9, 3, 1, 10);
+  }
+  b.both('exit', {}, W - 6, 3, 3, 3);
+  return b.done({
+    name: 'Sky Islands',
+    objective: 'Hop across the islands — the floor is spikes! At the end, shoot your friends\' crystals to open their gates.',
+  });
+}
+
+// ---------- Race mode: every traveler for themselves ----------
+function sprint(n) {
+  const b = new Builder(n, 110);
+  b.shell();
+  for (const [a, c] of [[14, 15], [24, 26], [40, 41], [55, 57], [70, 71], [86, 88]]) b.box(a, c, 1, 1, '^');
+  b.box(30, 32, 3, 3);
+  b.box(34, 36, 5, 5);
+  b.box(62, 63, 1, 3);
+  b.box(78, 80, 4, 4);
+  b.mobs([44, 92], 5, 2);
+  b.both('exit', {}, 104, 1, 3, 3);
+  return b.done({ name: 'Spike Sprint', objective: 'RACE! First traveler into the portal wins the round.', race: true });
+}
+
+function riftRush(n) {
+  const b = new Builder(n, 100);
+  b.shell();
+  [20, 50, 75].forEach(x => b.both('rift', {}, x, 1, 2, 3));
+  [35, 63].forEach(x => b.both('flip', {}, x, 1, 1, 12));
+  for (const [a, c] of [[27, 28], [44, 45], [57, 58], [84, 86]]) b.box(a, c, 1, 1, '^');
+  b.box(40, 42, 4, 4);
+  b.box(68, 70, 4, 4);
+  b.mobs([88], 3, 1.5);
+  b.both('exit', {}, 93, 1, 3, 3);
+  return b.done({ name: 'Rift Rush', objective: 'RACE! Rifts scramble your dimension and gravity fields flip you. First to the portal wins.', race: true });
+}
+
+function gauntlet(n) {
+  const b = new Builder(n, 96);
+  b.shell();
+  for (const x of [16, 28, 40, 52, 64, 76]) {
+    for (let d = 0; d < n; d++) b.addD('laser', d, { period: 2, offset: (x * 0.13 + d * 0.31) % 2, duty: 0.5 }, x, 1, 1, 11);
+  }
+  b.box(21, 23, 4, 4);
+  b.box(45, 47, 4, 4);
+  b.box(69, 71, 4, 4);
+  b.box(33, 34, 1, 1, '^');
+  b.box(58, 59, 1, 1, '^');
+  b.mobs([82], 4, 2);
+  b.both('exit', {}, 90, 1, 3, 3);
+  return b.done({ name: 'Laser Gauntlet', objective: 'RACE! Time your runs through your lasers. First to the portal wins.', race: true });
+}
+
+// ---------- Survival mode ----------
+function arena(n) {
+  const b = new Builder(n, 56);
+  b.shell();
+  b.box(8, 12, 4, 4);
+  b.box(43, 47, 4, 4);
+  b.box(24, 31, 7, 7);
+  [18, 37].forEach(x => b.both('flip', {}, x, 1, 1, 12));
+  return b.done({ name: 'Crawler Arena', objective: 'Survive 10 waves of crawlers. Shoot with F. The whole team shares its lives.', survival: true });
 }
 
 function resonance(n) {
@@ -124,9 +386,10 @@ function resonance(n) {
       if (Math.abs(lx - px) > 3) b.addD('laser', d, { period: 3, offset: d * 0.7 + s, duty: 0.45 }, lx, 1, 1, 11);
     }
   }
+  b.mobs([8, 40, 72], 14, 2);
   b.both('exit', {}, 96, 1, 3, 3);
   return b.done({
-    name: '3 · Resonance',
+    name: 'Resonance',
     objective: 'Every gate opens only when ALL players stand on their own pads at the same time. Dodge your lasers!',
     groups: [0, 1, 2],
     checkpoints: [{ x: 2 }, { x: 33, link: 'res0' }, { x: 65, link: 'res1' }],
@@ -139,17 +402,28 @@ function fracture(n) {
   b.box(7, 11, 4, 4);
   b.box(34, 38, 4, 4);
   b.box(20, 25, 7, 7);
-  for (let d = 0; d < n; d++) b.addD('pad', d, { group: 'shatter' }, 4 + laneIndex(d) * 9, 1, 2, 1);
+  for (let d = 0; d < n; d++) b.addD('pad', d, { group: 'shatter' }, 3 + laneIndex(d) * 5, 1, 2, 1);
   return b.done({
-    name: '4 · The Fracture',
+    name: 'The Fracture',
     objective: 'Hold F to fire. The shield only lets in the glowing dimension. Everyone on their pads at once SHATTERS it!',
     boss: true,
     checkpoints: [{ x: 3 }],
   });
 }
 
-export const LEVELS = [crossing, hop, resonance, fracture];
+export const MODES = {
+  story: {
+    name: 'Story', min: 2,
+    levels: [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), topsy, shadows, n => nest(n, true), resonance, fracture],
+  },
+  survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
+  race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), gauntlet], min: 2 },
+};
+export const LEVELS = MODES.story.levels;
 
-export function buildLevel(idx, n) {
-  return LEVELS[idx](n);
+export function buildLevel(mode, idx, n) {
+  const m = MODES[mode] || MODES.story;
+  const lv = m.levels[idx](n);
+  lv.name = mode === 'race' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}` : lv.name;
+  return lv;
 }

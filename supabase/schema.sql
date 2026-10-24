@@ -22,3 +22,16 @@ create policy "anyone can record a clear" on public.dim_clears
     array_length(players, 1) = player_count
     and (select bool_and(char_length(p) between 1 and 14) from unnest(players) p)
   );
+
+-- v2: game modes (story / survival / race) and survival scores; solo survival allowed
+alter table public.dim_clears
+  add column if not exists mode text not null default 'story' check (mode in ('story', 'survival', 'race')),
+  add column if not exists score int check (score between 0 and 1000);
+alter table public.dim_clears drop constraint if exists dim_clears_players_check;
+alter table public.dim_clears drop constraint if exists dim_clears_player_count_check;
+alter table public.dim_clears drop constraint if exists dim_clears_time_ms_check;
+alter table public.dim_clears
+  add constraint dim_clears_players_check check (array_length(players, 1) between 1 and 10),
+  add constraint dim_clears_player_count_check check (player_count between 1 and 10),
+  add constraint dim_clears_time_ms_check check (time_ms between 1000 and 86400000);
+create index if not exists dim_clears_mode_idx on public.dim_clears (mode, score desc, time_ms);
