@@ -15,6 +15,16 @@ Create a room and share the 4-letter code or invite link. In the lobby, pick a
 auto-fire shoots for you (toggle with AUTO). Choose controls on the main menu
 (Automatic / Phone / Computer).
 
+## Main menu
+⚡ **Quick Play** drops you into a public room (or makes one others can find). 🎮 Solo, 👥 Create room,
+🌍 Public rooms (browse and join; hosts can tick "Public room" in the lobby) or join with a 4-letter code.
+👤 **Accounts**: sign up with a username and password to save your coins, stars and items in the cloud and
+log in on any device.
+🛠️ **Level maker**: paint ground and spikes, drop gadgets and a portal, test it, then 🌐 publish it.
+🌐 **Player levels**: play and like levels other players made.
+🎲 **Mini games**: ☄️ Meteor Shower, 🎨 Paint the Floor, 🚦 Red Light Green Light, plus Tag, King of the Hill,
+Coin Chaos, Last One Standing and Hot Potato.
+
 ## Game modes
 - **Story Chapter 1 — The Spectre**: 13 co-op levels. An intro cutscene shows how the
   Spectre tore the friends apart. The Spectre can't be beaten... unless you accept help.

@@ -126,17 +126,28 @@ function fresh() {
     stars: {}, dims: [...START_DIMS], daily: { last: '', streak: 0 } };
 }
 
+function normalize(p) {
+  if (!p || typeof p.coins !== 'number') return null;
+  const dims = [...new Set([...(p.dims || []), ...START_DIMS])];   // new free dimensions show up for old saves too
+  const owned = [...new Set([...(p.owned || []), 'skin:default', 'acc:none'])];
+  return { ...fresh(), ...p, dims, owned, equip: { ...fresh().equip, ...p.equip }, daily: { ...fresh().daily, ...p.daily } };
+}
+
 function load() {
-  try {
-    const p = JSON.parse(localStorage.getItem(KEY));
-    if (p && typeof p.coins === 'number') {
-      const dims = [...new Set([...(p.dims || []), ...START_DIMS])];   // new free dimensions show up for old saves too
-      const owned = [...new Set([...(p.owned || []), 'skin:default', 'acc:none'])];
-      return { ...fresh(), ...p, dims, owned, equip: { ...fresh().equip, ...p.equip }, daily: { ...fresh().daily, ...p.daily } };
-    }
-  } catch {}
+  try { return normalize(JSON.parse(localStorage.getItem(KEY))) || fresh(); } catch {}
   return fresh();
 }
+
+// an account's cloud save replaces this device's progress (keeping whichever has more coins+stars if asked)
+export function replaceProfile(p) {
+  const n = normalize(p);
+  if (!n) return false;
+  for (const k of Object.keys(profile)) delete profile[k];
+  Object.assign(profile, n);
+  save();
+  return true;
+}
+export const profileScore = p => (p?.coins || 0) + Object.values(p?.stars || {}).reduce((a, s) => a + (s.stars || 0) * 50, 0) + (p?.owned?.length || 0) * 40;
 
 export const profile = load();
 const listeners = [];

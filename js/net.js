@@ -117,3 +117,67 @@ export async function giveGift(name, level) {
   const { error } = await sb.from('dim_gifts').insert({ name: String(name).slice(0, 14) || 'Traveler', level: Math.max(0, Math.min(100, level | 0)) });
   if (error) console.warn('gift failed', error);
 }
+
+// Public rooms: hosts of public rooms announce them on one shared channel (presence only),
+// so Quick Play and the room browser can find a game without any database.
+export class PublicBoard {
+  constructor(onChange) {
+    this.onChange = onChange;
+    this.ready = false;
+    this.ch = sb.channel('dimensional:public', { config: { presence: { key: 'b' + Math.random().toString(36).slice(2, 10) } } });
+    this.ch.on('presence', { event: 'sync' }, () => { this.ready = true; this.onChange?.(this.list()); })
+      .subscribe(status => { if (status === 'SUBSCRIBED') { this.subscribed = true; this.ch.track(this.pending || { viewer: true }); } });   // you only get the list once you're present yourself
+  }
+  list() {
+    const out = [];
+    for (const metas of Object.values(this.ch.presenceState())) {
+      const m = metas[metas.length - 1];
+      if (!m || typeof m.code !== 'string' || !/^[A-Z]{4}$/.test(m.code)) continue;
+      out.push({ code: m.code, host: String(m.host || '?').slice(0, 14), mode: String(m.mode || ''), count: Math.max(0, m.count | 0), max: Math.max(1, m.max | 0), playing: !!m.playing });
+    }
+    return out.sort((a, b) => b.count - a.count);
+  }
+  // wait until the first presence sync (or give up after a moment) and return the rooms
+  async rooms(timeout = 2500) {
+    const t0 = Date.now();
+    while (!this.ready && Date.now() - t0 < timeout) await new Promise(r => setTimeout(r, 100));
+    return this.list();
+  }
+  async advertise(info) {
+    this.pending = info;
+    if (this.subscribed) await this.ch.track(info);
+  }
+  async stop() {
+    this.pending = null;
+    if (this.subscribed) await this.ch.track({ viewer: true });
+  }
+  close() { sb.removeChannel(this.ch); }
+}
+
+// ---------- accounts: username + password, progress saved in the cloud ----------
+const rpc = async (fn, args) => {
+  const { data, error } = await sb.rpc(fn, args);
+  if (error) throw new Error(error.message.replace(/^.*?: /, ''));
+  return data;
+};
+export const signUp = (user, pass, save) => rpc('dim_signup', { p_user: user, p_pass: pass, p_save: save });
+export const logIn = (user, pass) => rpc('dim_login', { p_user: user, p_pass: pass });
+export const whoAmI = token => rpc('dim_me', { p_token: token });
+export const cloudSave = (token, save) => rpc('dim_save', { p_token: token, p_save: save });
+export const logOut = token => rpc('dim_logout', { p_token: token });
+
+// ---------- player-made levels ----------
+export const publishLevel = (token, name, data) => rpc('dim_publish_level', { p_token: token, p_name: name, p_data: data });
+export async function browseLevels(sort = 'new') {
+  const { data, error } = await sb.from('dim_levels').select('id,name,author,data,plays,likes,created_at')
+    .order(sort === 'top' ? 'likes' : sort === 'played' ? 'plays' : 'created_at', { ascending: false }).limit(40);
+  if (error) throw error;
+  return data;
+}
+export async function getLevel(id) {
+  const { data, error } = await sb.from('dim_levels').select('id,name,author,data,plays,likes').eq('id', id).single();
+  if (error) throw error;
+  return data;
+}
+export const levelPlayed = id => rpc('dim_level_played', { p_id: id }).catch(() => {});
+export const likeLevel = id => rpc('dim_level_like', { p_id: id });

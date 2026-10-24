@@ -1,12 +1,13 @@
 import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, THEMES, setDimOrder, computeOrder } from './dims.js';
-import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo, TRAIN_ROLES } from './levels.js';
+import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo, TRAIN_ROLES, customLevel, setCustom, getCustom } from './levels.js';
+import { makeMaker } from './maker.js';
 const MIDY = MID * T;
-import { Room, fetchLeaderboard, recordClear, fetchGift, giveGift } from './net.js';
+import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH } from './render3d.js';
 import { drawBanana2D } from './banana2d.js';
 import { unlockAudio, sfx, playMusic, isMuted, setMuted } from './audio.js';
-import { profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
+import { replaceProfile, profileScore, profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
 
 const $ = id => document.getElementById(id);
 const autoTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -539,7 +540,8 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   if (P && level.ch2) setTimeout(() => P && toast(P.ch2 === 'dragger' ? '🧱 You are a BUILDER — drag the glowing blocks' : P.ch2 === 'walker' ? '🚶 You are a WALKER — push your Builders' : '🧱🚶 You can walk AND build', '#39ff88'), 1200);
   hunt = level.hunt ? { next: 1.5, left: MODES.hunt.time } : null;
   flareT = 4; swapT = level.swapEvery || 20; holeT = 3;
-  party = level.party ? { kind: level.party, left: MODES[gameMode].time, it: null, itCd: 0, scoreT: 1, swapT: 15, collapseT: 10, collapseK: 0, coinT: 0, sendT: 0 } : null;
+  party = level.party ? { kind: level.party, left: MODES[gameMode].time, it: null, itCd: 0, scoreT: 1, swapT: 15, collapseT: 10, collapseK: 0, coinT: 0, sendT: 0, light: true, lightT: 4, meteorT: 2 } : null;
+  paintMap.clear();
   partyCoins = new Map();
   if (party && P) P.slot = myIdx;
   setupBots(ids, idx, n, rot);
@@ -693,6 +695,11 @@ function updateActor(p, inp, dt) {
   // conveyor belts carry you; fans blow you up (or down, in an upside-down lane)
   if (convey && p.onGround && !collides(p.x + convey * 150 * dt, p.y, p.dim)) p.x += convey * 150 * dt;
   p.inFan = inFan;
+  if (party?.kind === 'redlight' && !party.light && levelT - (party.redAt || 0) > 0.45 && (local || isBot(p.id)) && Math.abs(p.vx) > 45) {
+    burst(p.x + PW / 2, p.y + PH / 2, '#ff3355', 16, 200);
+    Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0 });
+    if (local) { toast('🔴 You moved on RED — back to the start!', '#ff3355'); sfx('hit'); }
+  }
   if (local && p.pow && !hintText) hintText = `${POWER_TEXT[p.pow.kind].split(' (')[0]} ${Math.ceil(p.pow.t)}s`;
   if (inRift && !p.inRift) shiftDimension(p);
   p.inRift = inRift;
@@ -1206,6 +1213,7 @@ function botThink(b, dt) {
   if (b.think <= 0 || !b.goal) { b.goal = botGoal(b); b.think = 0.25; }
   let goal = b.goal;
   if (!goal) return;
+  if (goal.stop) { if (D.bounce) inp.add('down'); return; }   // Red Light: freeze
   const cx = p.x + PW / 2, cy = p.y + PH / 2;
   // climbing: follow a ledge waypoint until standing on it
   if (b.way?.bounce && !p.onGround && Math.abs(p.vy) > 500) b.way = null;   // launched: now steer toward the real goal
@@ -1645,7 +1653,8 @@ function carryStep(b, dt) {
 // ---------- party mini-games: Tag, King of the Hill, Coin Chaos, Last One Standing ----------
 let party = null;                  // { kind, left, it, itCd, scoreT, swapT, collapseT, collapseK, coinT, sendT }
 let partyCoins = new Map();        // id -> { x, y } (Coin Chaos)
-const SCORED = ['race', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato'];
+const SCORED = ['race', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato', 'meteor', 'paint', 'redlight'];
+const paintMap = new Map();          // Paint the Floor: "x,row" -> who painted it
 
 function partyActors() {
   const list = [];
@@ -1669,7 +1678,13 @@ function lineOfSight(a, b) {
 const touching = (a, b, m = 2) => a.x < b.x + PW + m && a.x + PW + m > b.x && a.y < b.y + PH + m && a.y + PH + m > b.y;
 
 function sendParty() {
-  send('pt', { left: party.left, it: party.it, sc: scores, fu: party.fuse });
+  send('pt', { left: party.left, it: party.it, sc: scores, fu: party.fuse, lt: party.light });
+}
+function setLight(on) {
+  if (!party) return;
+  party.light = on;
+  party.redAt = levelT;
+  if (!on) sfx('tag'); else sfx('ping');
 }
 
 function hostParty(dt) {
@@ -1763,6 +1778,53 @@ function hostParty(dt) {
       send('swap', { m });
       applySwap(m);
     }
+  } else if (pt.kind === 'meteor') {
+    pt.meteorT -= dt;
+    if (pt.meteorT <= 0) {                    // more and more rocks as time goes on
+      pt.meteorT = Math.max(0.18, 0.6 - (MODES.meteor.time - pt.left) * 0.006);
+      const list = [];
+      for (const g of [1, -1]) {
+        const x = (2 + Math.random() * (level.W - 4)) * T;
+        list.push([x, g > 0 ? MID * T : MID * T, (Math.random() - 0.5) * 60, g * (240 + Math.random() * 160), 12, 'o']);
+      }
+      send('atk', { b: list });
+      addBullets(list);
+    }
+    pt.scoreT -= dt;
+    if (pt.scoreT <= 0) { pt.scoreT = 1; for (const a of alive) scores[a.id] = (scores[a.id] || 0) + 1; }
+  } else if (pt.kind === 'paint') {
+    pt.scoreT -= dt;
+    if (pt.scoreT <= 0) {
+      pt.scoreT = 0.2;
+      const changed = [];
+      for (const a of alive) {
+        const ref = a.ref, g = ref ? gravOf(ref) : (remotes.get(a.id)?.g ?? 1);
+        const row = g > 0 ? Math.floor((a.y + PH + 3) / T) : Math.floor((a.y - 3) / T);
+        for (const c of [Math.floor((a.x + 3) / T), Math.floor((a.x + PW - 3) / T)]) {
+          if (level.grid[row]?.[c] !== '#') continue;
+          const k = c + ',' + row;
+          if (paintMap.get(k) !== a.id) { paintMap.set(k, a.id); changed.push([k, a.id]); }
+        }
+      }
+      if (changed.length) send('paint', { c: changed });
+      scores = {};
+      for (const id of paintMap.values()) scores[id] = (scores[id] || 0) + 1;
+    }
+  } else if (pt.kind === 'redlight') {
+    pt.lightT -= dt;
+    if (pt.lightT <= 0) {
+      setLight(!pt.light);
+      pt.lightT = pt.light ? 2 + Math.random() * 3 : 1.5 + Math.random() * 2;
+      send('light', { on: pt.light });
+    }
+    const atExit = acts.find(a => !a.dead && level.objs.some(o => o.type === 'exit' && overlap(a.x, a.y, PW, PH, o)));
+    if (atExit) {
+      transitioning = true;
+      scores = { [atExit.id]: 1 };
+      const m = `${nameOf(atExit.id)} reached the portal first!`;
+      send('toast', { m }); toast(m, '#ffe23a'); sendParty();
+      setTimeout(() => mode === 'play' && goto(1), 1600);
+    }
   } else if (pt.kind === 'lms') {
     pt.collapseT -= dt;
     if (pt.collapseT <= 0 && (pt.collapseK + 1) * 3 < level.W / 2 - 8) {
@@ -1842,6 +1904,23 @@ function partyGoal(b) {
     const field = level.objs.filter(o => o.type === 'flip').sort((a, c) => Math.abs(a.x * T - cx) - Math.abs(c.x * T - cx))[0];
     return field ? { x: (p.inFlip ? field.x - 1.5 : field.x + field.w / 2) * T, y: cy } : null;
   }
+  if (party.kind === 'redlight') {
+    if (!party.light || (party.lightT !== undefined && party.light && party.lightT < 0.35)) return { x: cx, y: cy, stop: true };   // freeze (and stop a bit early)
+    const ex = level.objs.find(o => o.type === 'exit');
+    return ex ? { x: (ex.x + 1.5) * T, y: cy, o: ex } : null;
+  }
+  if (party.kind === 'paint') {
+    // head for the nearest stretch of floor that isn't mine yet
+    const g = gravOf(p) || 1, row = g > 0 ? Math.floor((p.y + PH + 3) / T) : Math.floor((p.y - 3) / T);
+    let best = null, bd = 1e9;
+    for (let c = 1; c < level.W - 1; c++) {
+      if (level.grid[row]?.[c] !== '#' || paintMap.get(c + ',' + row) === p.id) continue;
+      const d = Math.abs(c * T - cx);
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best !== null ? { x: (best + 0.5) * T, y: cy } : { x: cx + (Math.random() - 0.5) * T * 20, y: cy };
+  }
+  if (party.kind === 'meteor') return { x: cx + Math.sin(levelT * 0.7 + p.x * 0.01) * T * 6, y: cy };   // keep moving; the dodge code does the rest
   if (party.kind === 'lms' && nearest) {
     // clear shot: strafe and fire; blocked by cover: move to get a better angle
     if (lineOfSight(p, nearest)) return { x: cx + Math.sin(levelT * 0.9 + p.x) * T * 3, y: cy, fire: true };
@@ -2730,7 +2809,7 @@ function onMsg(t, d) {
       if (Array.isArray(d.bots)) setBots(d.bots);
       if (Array.isArray(d.r) && Number.isInteger(d.l)) startLevel(d.l, d.r.map(String).slice(0, MAX_PLAYERS), Number(d.rs) || Date.now(), d.m, d.sc, d.res, d.dk, d.rot !== false);
       break;
-    case 'mode': if (MODES[d.m] && mode !== 'play') { gameMode = d.m; renderLobby(); } break;
+    case 'mode': if (MODES[d.m] && mode !== 'play') { gameMode = d.m; if (typeof d.pub === 'boolean') isPublic = d.pub; renderLobby(); } break;
     case 'bots': if (!isHost()) { setBots(d.list); renderLobby(); } break;
     case 'wave': if (mode === 'play' && surv && Array.isArray(d.mobs)) { applyWave(d.w | 0, d.mobs.slice(0, 30)); surv.lives = d.lives | 0; } break;
     case 'mobs':
@@ -2742,7 +2821,9 @@ function onMsg(t, d) {
       break;
     case 'surv': if (mode === 'play' && surv) { surv.wave = d.w | 0; surv.lives = d.lives | 0; } break;
     case 'died': if (mode === 'play' && isHost()) loseLife(); break;
-    case 'pt': if (mode === 'play' && party) { party.left = +d.left || 0; if (d.fu !== undefined) party.fuse = +d.fu; if (d.it && d.it !== party.it) onTagged(String(d.it)); if (d.sc && typeof d.sc === 'object') scores = d.sc; } break;
+    case 'paint': if (mode === 'play' && party?.kind === 'paint' && Array.isArray(d.c)) for (const [k, id] of d.c.slice(0, 400)) if (typeof k === 'string' && typeof id === 'string') paintMap.set(k, id); break;
+    case 'light': if (mode === 'play' && party?.kind === 'redlight') setLight(!!d.on); break;
+    case 'pt': if (mode === 'play' && party) { if (party.kind === 'redlight' && d.lt !== undefined && !!d.lt !== party.light) setLight(!!d.lt); party.left = +d.left || 0; if (d.fu !== undefined) party.fuse = +d.fu; if (d.it && d.it !== party.it) onTagged(String(d.it)); if (d.sc && typeof d.sc === 'object') scores = d.sc; } break;
     case 'it': if (mode === 'play' && party && typeof d.id === 'string') onTagged(d.id); break;
     case 'pcoin': if (mode === 'play' && party && typeof d.id === 'string') partyCoins.set(d.id, { x: +d.x, y: +d.y }); break;
     case 'pgot': if (mode === 'play' && party && typeof d.id === 'string') takePartyCoin(d.id, String(d.by)); break;
@@ -2754,6 +2835,7 @@ function onMsg(t, d) {
         else if (isHost() && botActors.has(d.id)) hurt(botActors.get(d.id).p);
       }
       break;
+    case 'custom': if (d.d && typeof d.d === 'object' && Array.isArray(d.d.rows) && JSON.stringify(d.d).length < 60000) setCustom(d.d); break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
     case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
     case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
@@ -2804,7 +2886,9 @@ function onPresence(list) {
   const ids = new Set(list.map(p => p.id));
   for (const id of remotes.keys()) if (!ids.has(id) && !isBot(id)) remotes.delete(id);
   renderLobby();
-  if (mode === 'lobby' && isHost()) { send('mode', { m: gameMode }); send('bots', { list: bots }); }
+  if (isHost() && gameMode === 'custom' && getCustom()) send('custom', { d: getCustom() });
+  if (mode === 'lobby' && isHost()) { send('mode', { m: gameMode, pub: isPublic }); send('bots', { list: bots }); }
+  advertiseRoom();
   if (isHost() && pendingBots > 0) { while (pendingBots > 0) { pendingBots--; addBot(); } }
   if (isHost() && pendingStart && mode === 'lobby') { pendingStart = false; setTimeout(() => mode === 'lobby' && !$('start').disabled && $('start').click(), 400); }
   if (mode === 'play' && isHost()) {
@@ -2853,6 +2937,8 @@ function enterRoom(code) {
 }
 
 function leaveRoom() {
+  isPublic = false;
+  board?.stop();
   bots = [];
   botActors.clear();
   $('net').classList.add('hidden');
@@ -2871,6 +2957,7 @@ function setScreen(m) {
   $('victory').classList.toggle('hidden', m !== 'victory');
   $('hud').classList.toggle('hidden', m !== 'play');
   $('chat').classList.toggle('hidden', m !== 'play' && m !== 'lobby');
+  if (m === 'play' || m === 'lobby') advertiseRoom();
   $('chat-btn').classList.toggle('hidden', !((m === 'play' || m === 'lobby') && isTouch));
   $('touch').classList.toggle('hidden', m !== 'play' || !isTouch);
   document.body.classList.toggle('playing', m === 'play');
@@ -2882,6 +2969,10 @@ function setScreen(m) {
 }
 
 function renderLobby() {
+  $('public-row').classList.toggle('hidden', !isHost() && !isPublic);
+  $('public-on').checked = isPublic;
+  $('public-on').disabled = !isHost();
+  advertiseRoom();
   const ul = $('players');
   ul.replaceChildren();
   const order = computeOrder(players());
@@ -2980,7 +3071,7 @@ async function showVictory() {
     const iWon = ranked.some(r => r[2] === me.id && r[1] === top);
     addCoins(iWon ? 40 : 10);
     sfx(iWon ? 'win' : 'click');
-    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO' }[gameMode];
+    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO', meteor: 'METEOR SHOWER', paint: 'PAINT THE FLOOR', redlight: 'RED LIGHT, GREEN LIGHT' }[gameMode];
     $('win-coins').textContent = iWon ? '🏆 You won! +40 🪙' : '+10 🪙 for playing';
     big.textContent = winners.join(' & ');
     text.textContent = ranked.map(([n, p]) => `${n}: ${p}`).join(' · ');
@@ -3034,6 +3125,15 @@ async function showVictory() {
     title.textContent = 'ACROSS THE WORLDS';
     text.textContent = 'From Earth to the black hole — and out the other side. You crossed the whole universe together!';
     big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
+  if (gameMode === 'custom') {
+    const c = getCustom();
+    title.textContent = 'LEVEL CLEARED';
+    text.textContent = `"${c?.name || 'Player level'}" by ${c?.author || 'a player'}. Make your own with 🛠️ Level maker!`;
+    big.textContent = fmtTime(ms);
+    addCoins(15);
     sfx('win');
     return;
   }
@@ -3242,6 +3342,28 @@ function drawOverlay(D) {
     gr.addColorStop(1, 'rgba(0,0,0,.96)');
     ctx.fillStyle = gr;
     ctx.fillRect(0, 0, VW, VH);
+  }
+  if (party?.kind === 'paint' && paintMap.size) {          // painted floor tiles
+    ctx.globalAlpha = 0.75;
+    for (const [k, id] of paintMap) {
+      const [c, r] = k.split(',').map(Number);
+      const top = r >= MID ? r * T : (r + 1) * T - 8;
+      const a = renderer.project(c * T, top), b = renderer.project((c + 1) * T, top + 8);
+      if (Math.max(a.x, b.x) < 0 || Math.min(a.x, b.x) > VW) continue;
+      ctx.fillStyle = chatColor(id);
+      ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x) + 1, Math.max(4, Math.abs(b.y - a.y)));
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (party?.kind === 'redlight') {                         // the big traffic light
+    const on = party.light;
+    ctx.textAlign = 'center';
+    ctx.font = `900 ${isTouch ? 26 : 40}px Orbitron, sans-serif`;
+    ctx.fillStyle = on ? '#39ff88' : '#ff3355';
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 20;
+    ctx.fillText(on ? '🟢 GO!' : '🔴 STOP!', VW / 2, isTouch ? 90 : 110);
+    ctx.shadowBlur = 0;
+    if (!on) { ctx.fillStyle = 'rgba(255,0,40,.08)'; ctx.fillRect(0, 0, VW, VH); }
   }
   drawLabels();
   if (boss) drawBossBar();
@@ -3518,6 +3640,7 @@ $('join').onclick = () => enterRoom($('code').value);
 $('code').addEventListener('keydown', e => { if (e.key === 'Enter') enterRoom($('code').value); });
 $('start').onclick = async () => {
   if (!isHost() || players().length < MODES[gameMode].min) return;
+  if (gameMode === 'custom') { if (!getCustom()) return; send('custom', { d: getCustom() }); }
   runStart = 0; levelIdx = -1; scores = {};
   let first = 0;
   if (startAt > 0) { first = Math.min(startAt, modeLevels().length - 1); startAt = 0; goto(first); return; }   // picked in the level gallery
@@ -3583,7 +3706,7 @@ for (const b of document.querySelectorAll('#modes .mode')) {
   b.onclick = () => {
     if (!isHost()) return;
     gameMode = b.dataset.mode;
-    send('mode', { m: gameMode });
+    send('mode', { m: gameMode, pub: isPublic });
     renderLobby();
   };
 }
@@ -3610,22 +3733,244 @@ $('bot-add').onclick = addBot;
 }
 $('bot-remove').onclick = removeBot;
 let pendingBots = 0;
+// ---------- accounts: log in anywhere, progress saved in the cloud ----------
+let account = null;                     // { username, token }
+function setAccount(a) {
+  account = a;
+  try { a ? localStorage.setItem('dim-token', a.token) : localStorage.removeItem('dim-token'); } catch {}
+  $('account-name').textContent = a ? a.username : 'Log in';
+  $('name-field').classList.toggle('hidden', !!a);
+  if (a) { $('name').value = a.username; me.name = a.username; }
+  $('acc-out').classList.toggle('hidden', !!a);
+  $('acc-in').classList.toggle('hidden', !a);
+  $('acc-who').textContent = a?.username || '';
+}
+// pick which progress to keep when a device and an account disagree
+function adoptSave(cloud) {
+  const hasCloud = cloud && typeof cloud.coins === 'number';
+  if (!hasCloud) return pushSave(true);
+  if (profileScore(profile) > profileScore(cloud) + 100 && confirm('This device has more progress than your account. Keep THIS device\'s progress? (Cancel = use the account\'s)')) return pushSave(true);
+  replaceProfile(cloud);
+  showCoins?.();
+  fillDimPicker?.();
+}
+let saveT = 0;
+function pushSave(now) {
+  if (!account) return;
+  clearTimeout(saveT);
+  saveT = setTimeout(() => cloudSave(account.token, profile).then(ok => { if (ok === false) { setAccount(null); toast('Logged out — please log in again', '#ff8a3a'); } }).catch(() => {}), now ? 0 : 2500);
+}
+onProfile(() => pushSave());
+{
+  let tab = 'login';
+  for (const t of document.querySelectorAll('#acc-tabs .tab')) t.onclick = () => {
+    tab = t.dataset.t;
+    for (const k of document.querySelectorAll('#acc-tabs .tab')) k.classList.toggle('sel', k === t);
+    $('acc-go').textContent = tab === 'login' ? 'Log in' : 'Create account';
+    $('acc-pass').autocomplete = tab === 'login' ? 'current-password' : 'new-password';
+    $('acc-err').textContent = '';
+  };
+  $('acc-form').onsubmit = async e => {
+    e.preventDefault();
+    const user = $('acc-user').value.trim(), pass = $('acc-pass').value;
+    $('acc-err').textContent = '';
+    if (!/^[A-Za-z0-9_]{3,14}$/.test(user)) { $('acc-err').textContent = 'Usernames are 3–14 letters, numbers or _'; return; }
+    if (pass.length < 4) { $('acc-err').textContent = 'Passwords need at least 4 characters'; return; }
+    $('acc-go').disabled = true;
+    try {
+      const r = tab === 'login' ? await logIn(user, pass) : await signUp(user, pass, profile);
+      setAccount({ username: r.username, token: r.token });
+      if (tab === 'login') adoptSave(r.save);
+      $('acc-pass').value = '';
+      $('account').classList.add('hidden');
+      sfx('buy');
+      toast(tab === 'login' ? `Welcome back, ${r.username}!` : `Account created — welcome, ${r.username}!`, '#39ff88');
+    } catch (err) {
+      $('acc-err').textContent = err.message || 'Something went wrong';
+    } finally { $('acc-go').disabled = false; }
+  };
+  $('acc-logout').onclick = async () => {
+    const t = account?.token;
+    setAccount(null);
+    if (t) logOut(t).catch(() => {});
+    toast('Logged out. Your progress stays saved in your account.', '#9feaff');
+  };
+  $('account-btn').onclick = () => { $('account').classList.remove('hidden'); $('acc-err').textContent = ''; if (!account) $('acc-user').focus(); };
+  $('account-close').onclick = () => $('account').classList.add('hidden');
+  let tok = null;
+  try { tok = localStorage.getItem('dim-token'); } catch {}
+  if (tok) whoAmI(tok).then(r => { if (r?.username) { setAccount({ username: r.username, token: tok }); adoptSave(r.save); } else setAccount(null); }).catch(() => {});
+}
+$('open-boards').onclick = () => $('boards-wrap').classList.toggle('hidden');
+
+// ---------- level maker and player-made levels ----------
+let customId = null;
+function playCustom(d, id = null) {
+  setCustom(d);
+  customId = id;
+  if (id) levelPlayed(id);
+  for (const s of ['maker', 'community', 'gallery']) $(s).classList.add('hidden');
+  gameMode = 'custom';
+  startAt = 0;
+  pendingBots = 0;
+  pendingStart = true;
+  $('create').click();
+}
+let maker = null;
+$('open-maker').onclick = () => {
+  $('maker').classList.remove('hidden');
+  maker ??= makeMaker($('maker-root'), {
+    onTest: d => playCustom({ ...d, author: account?.username || me.name }),
+    onPublish: async d => {
+      if (!account) { toast('Log in (or sign up) to publish levels', '#ff8a3a'); $('account').classList.remove('hidden'); return; }
+      if (!d.objs.some(o => o.t === 'exit')) { toast('Add a 🌀 portal first!', '#ff8a3a'); return; }
+      try {
+        const id = await publishLevel(account.token, (d.name || 'My level').slice(0, 30), d);
+        sfx('win');
+        toast(`🌐 Published! Level #${id} — find it in Player levels`, '#39ff88');
+      } catch (err) { toast(err.message || 'Could not publish', '#ff3355'); }
+    },
+    onClose: () => $('maker').classList.add('hidden'),
+  });
+  requestAnimationFrame(() => maker.show());
+};
+let communitySort = 'new';
+async function renderCommunity() {
+  const grid = $('community-grid');
+  grid.innerHTML = '<p class="muted">Loading…</p>';
+  let list = [];
+  try { list = await browseLevels(communitySort); } catch { grid.innerHTML = '<p class="muted">Could not load levels.</p>'; return; }
+  grid.replaceChildren();
+  if (!list.length) { grid.innerHTML = '<p class="muted">No player levels yet — be the first! 🛠️</p>'; return; }
+  let liked = [];
+  try { liked = JSON.parse(localStorage.getItem('dim-liked') || '[]'); } catch {}
+  for (const L of list) {
+    const d = { ...L.data, name: L.name, author: L.author };
+    let lv;
+    try { lv = customLevel(d, 2); } catch { continue; }
+    const card = document.createElement('div');
+    card.className = 'lvl-card';
+    const cv = document.createElement('canvas');
+    drawThumb(cv, lv);
+    const nm = document.createElement('b');
+    nm.textContent = L.name;
+    const meta = document.createElement('span');
+    meta.className = 'lvl-meta';
+    meta.textContent = `by ${L.author} · ▶ ${L.plays} · 👍 ${L.likes}`;
+    const btns = document.createElement('div');
+    btns.className = 'lvl-btns';
+    const play = document.createElement('button');
+    play.className = 'btn primary small-btn';
+    play.textContent = '▶ Play';
+    play.onclick = () => playCustom(d, L.id);
+    const like = document.createElement('button');
+    like.className = 'btn small-btn';
+    like.textContent = liked.includes(L.id) ? '👍 Liked' : '👍 Like';
+    like.disabled = liked.includes(L.id);
+    like.onclick = async () => {
+      like.disabled = true;
+      try { await likeLevel(L.id); liked.push(L.id); localStorage.setItem('dim-liked', JSON.stringify(liked)); like.textContent = '👍 Liked'; meta.textContent = `by ${L.author} · ▶ ${L.plays} · 👍 ${L.likes + 1}`; } catch { like.disabled = false; }
+    };
+    btns.append(play, like);
+    card.append(cv, nm, meta, btns);
+    grid.append(card);
+  }
+}
+for (const t of document.querySelectorAll('#community-tabs .tab[data-s]')) t.onclick = () => {
+  communitySort = t.dataset.s;
+  for (const k of document.querySelectorAll('#community-tabs .tab')) k.classList.toggle('sel', k === t);
+  renderCommunity();
+};
+$('community-make').onclick = () => { $('community').classList.add('hidden'); $('open-maker').click(); };
+$('open-community').onclick = () => { $('community').classList.remove('hidden'); renderCommunity(); };
+$('community-close').onclick = () => $('community').classList.add('hidden');
+
+// ---------- public rooms and Quick Play ----------
+let isPublic = false, board = null;
+const getBoard = () => (board ??= new PublicBoard(list => { if (!$('rooms').classList.contains('hidden')) showRooms(list); }));
+// the host keeps the public listing up to date (players, mode, playing or not)
+let advT = 0;
+function advertiseRoom() {
+  if (!room) return;
+  if (!isPublic || !isHost()) { if (board && isHost()) board.stop(); return; }
+  clearTimeout(advT);
+  advT = setTimeout(() => getBoard().advertise({ code: room.code, host: me.name, mode: MODES[gameMode].name, count: players().length, max: MAX_PLAYERS, playing: mode === 'play' }), 300);
+}
+function showRooms(list) {
+  const box = $('rooms-list');
+  box.replaceChildren();
+  if (!list.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'No public rooms right now. Make one!'; box.append(p); return; }
+  for (const r of list) {
+    const row = document.createElement('div');
+    row.className = 'room-row';
+    const info = document.createElement('div');
+    info.className = 'info';
+    const b = document.createElement('b');
+    b.textContent = `${r.host}'s room · ${r.mode}`;
+    const sm = document.createElement('small');
+    sm.textContent = `${r.count}/${r.max} players · ${r.playing ? 'playing (you join next level)' : 'in the lobby'} · ${r.code}`;
+    info.append(b, sm);
+    const join = document.createElement('button');
+    join.className = 'btn primary small-btn';
+    join.textContent = 'Join';
+    join.disabled = r.count >= r.max;
+    join.onclick = () => { $('rooms').classList.add('hidden'); enterRoom(r.code); };
+    row.append(info, join);
+    box.append(row);
+  }
+}
+function makePublicRoom(m) {
+  if (m) gameMode = m;
+  isPublic = true;
+  $('create').click();
+}
+$('browse').onclick = async () => {
+  $('rooms').classList.remove('hidden');
+  showRooms(await getBoard().rooms());
+};
+$('rooms-close').onclick = () => $('rooms').classList.add('hidden');
+$('rooms-make').onclick = () => { $('rooms').classList.add('hidden'); makePublicRoom(); };
+$('quick').onclick = async () => {
+  $('quick').disabled = true;
+  $('quick').textContent = '⚡ Finding a game…';
+  try {
+    const list = (await getBoard().rooms()).filter(r => r.count < r.max);
+    // prefer rooms still in the lobby, then the busiest
+    list.sort((a, b) => (a.playing - b.playing) || (b.count - a.count));
+    if (list.length) enterRoom(list[0].code);
+    else { makePublicRoom('chaos'); toast('No public games yet — you made one! Others can join with Quick Play.', '#9feaff'); }
+  } finally {
+    $('quick').disabled = false;
+    $('quick').textContent = '⚡ Quick Play';
+  }
+};
+$('public-on').onchange = () => {
+  if (!isHost()) return;
+  isPublic = $('public-on').checked;
+  send('mode', { m: gameMode, pub: isPublic });
+  advertiseRoom();
+  toast(isPublic ? '🌍 Your room is public' : 'Your room is private', '#9feaff');
+};
+
 // Solo: pick any mode, bots fill in the team it needs, and it starts right away
 let pendingStart = false, startAt = 0;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['New mini games', [['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
+  const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');
   h.textContent = head;
+  if (!mg) h.classList.add('not-mg');
   $('solo-list').append(h);
   for (const [m, name, desc] of list) {
     const b = document.createElement('button');
-    b.className = 'mode';
+    b.className = 'mode' + (mg ? '' : ' not-mg');
     b.innerHTML = `<b>${name}</b><span>${desc}</span>`;
     b.onclick = () => {
       $('solo-pick').classList.add('hidden');
@@ -3637,7 +3982,8 @@ for (const [head, list] of SOLO) {
     $('solo-list').append(b);
   }
 }
-$('solo').onclick = () => $('solo-pick').classList.remove('hidden');
+$('solo').onclick = () => { $('solo-list').classList.remove('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎮 Solo'; $('solo-pick').classList.remove('hidden'); };
+$('open-minigames').onclick = () => { $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
 
 // ---------- level gallery: a picture of every level, and play any of them ----------
 const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'],
@@ -3685,7 +4031,7 @@ function renderGallery() {
   }
   const grid = $('gallery-grid');
   grid.replaceChildren();
-  const list = galleryMode === 'tag' ? ['tag', 'koth', 'chaos', 'lms', 'potato', 'hunt'].map(m => [m, 0]) : MODES[galleryMode].levels.map((_, i) => [galleryMode, i]);
+  const list = galleryMode === 'tag' ? ['tag', 'koth', 'chaos', 'lms', 'potato', 'hunt', 'meteor', 'paint', 'redlight'].map(m => [m, 0]) : MODES[galleryMode].levels.map((_, i) => [galleryMode, i]);
   for (const [m, i] of list) {
     let lv;
     try { lv = buildLevel(m, i, 2); } catch { continue; }

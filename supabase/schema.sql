@@ -52,3 +52,10 @@ create index if not exists dim_gifts_recent_idx on public.dim_gifts (created_at 
 alter table public.dim_clears drop constraint if exists dim_clears_mode_check;
 alter table public.dim_clears add constraint dim_clears_mode_check check (mode in ('story', 'survival', 'race', 'daily'));
 create index if not exists dim_clears_daily_idx on public.dim_clears (mode, created_at desc, time_ms);
+
+-- v5: accounts (username + password, hashed with bcrypt; only reachable through these functions)
+-- and player-made levels. Full definitions were applied as migrations dim_accounts and dim_levels:
+--   tables dim_accounts, dim_sessions (RLS on, no policies), dim_levels (public read)
+--   rpc dim_signup(user, pass, save) / dim_login(user, pass) -> { token, username, save }
+--   rpc dim_me(token), dim_save(token, save), dim_logout(token)
+--   rpc dim_publish_level(token, name, data) (logged in, 10/hour), dim_level_played(id), dim_level_like(id)

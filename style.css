@@ -257,6 +257,11 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 .ollama .check { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
 .ollama code { background: rgba(255,255,255,.1); padding: 1px 4px; border-radius: 4px; }
 .shop-note { grid-column: 1 / -1; margin: 0 0 4px; }
+.public-check { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 14px; }
+.rooms-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; max-height: 50vh; overflow-y: auto; }
+.room-row { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.room-row .info { flex: 1; }
+.room-row .info small { display: block; opacity: .7; }
 .solo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
 .solo-list h3 { grid-column: 1 / -1; margin: 10px 0 0; font-size: 14px; opacity: .8; }
 .solo-list .mode { text-align: left; }
@@ -330,3 +335,40 @@ body:not(.playing) #chat { bottom: 12px; }
 @keyframes clockback { from { transform: rotate(180deg); } to { transform: rotate(-180deg); } }
 .cut-waves { position: absolute; left: 0; right: 0; bottom: 0; height: 45%; background: repeating-linear-gradient(170deg, #1a7ad8 0 18px, #2a9aff 18px 36px); opacity: .75; z-index: 1; animation: waves 3s ease-in-out infinite alternate; }
 @keyframes waves { from { transform: translateY(6px); } to { transform: translateY(-6px); } }
+/* cleaner main menu */
+.menu-panel { width: min(560px, 100%); }
+.menu-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.menu-bar .coins { margin-left: auto; }
+.chip-btn { border: 1px solid var(--line); background: rgba(255,255,255,.08); color: #fff; border-radius: 999px; padding: 6px 12px; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
+.chip-btn:hover { background: rgba(255,255,255,.16); }
+.big-play { width: 100%; font-size: 20px; padding: 16px; margin: 4px 0 10px; }
+.play-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 12px 6px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.07); color: #fff; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; min-height: 74px; }
+.tile i { font-style: normal; font-size: 24px; }
+.tile:hover { background: rgba(255,255,255,.14); }
+.join-tile { cursor: default; gap: 6px; }
+.join-tile .code-input { width: 100%; text-align: center; padding: 6px; font-size: 15px; }
+.join-tile .btn { width: 100%; }
+.more-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0 10px; }
+.mini-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); color: #fff; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.mini-tile i { font-style: normal; font-size: 20px; }
+.mini-tile:hover { background: rgba(255,255,255,.12); }
+.name-field.hidden { display: none; }
+@media (max-width: 520px) { .play-grid, .more-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* level maker */
+.maker-panel { width: min(1100px, 100%); }
+.maker-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.maker-name { flex: 1; min-width: 140px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.3); color: #fff; font: inherit; font-weight: 700; }
+.maker-pal { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.maker-tool { display: flex; flex-direction: column; align-items: center; width: 64px; padding: 4px 2px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: #fff; cursor: pointer; font: inherit; }
+.maker-tool i { font-style: normal; font-size: 18px; }
+.maker-tool small { font-size: 9px; opacity: .8; white-space: nowrap; overflow: hidden; max-width: 60px; }
+.maker-tool.sel { background: rgba(138,61,255,.55); border-color: #c9a0ff; }
+.maker-canvas { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); touch-action: none; }
+.maker-canvas canvas { display: block; cursor: crosshair; touch-action: none; }
+.lvl-meta { font-size: 11px; opacity: .75; }
+.lvl-btns { display: flex; gap: 6px; }
+.lvl-btns .btn { flex: 1; }
+
+.mg-only .not-mg { display: none; }

@@ -7,6 +7,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <title>Dimensional</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <meta name="theme-color" content="#14042a">
   <meta name="description" content="A co-op game for 2-10 players, each stuck in a different dimension.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
@@ -17,40 +20,46 @@
   <canvas id="ui"></canvas>
 
   <section id="menu" class="panel-screen">
-    <div class="panel">
-      <h1 class="logo">DIMENSIONAL</h1>
-      <p class="tag">2–20 players. Every one of you in a different dimension. Work together anyway.</p>
-      <p id="save-line" class="save-line"></p>
-      <div class="menu-top">
+    <div class="panel menu-panel">
+      <div class="menu-bar">
+        <button id="account-btn" class="chip-btn">👤 <span id="account-name">Log in</span></button>
         <span id="menu-coins" class="coins">🪙 0</span>
-        <button id="open-shop" class="btn small-btn">🛍️ Shop</button>
-        <button id="open-records" class="btn small-btn">⭐ Records</button>
-        <button id="open-training" class="btn small-btn">🧪 Training</button>
-        <button id="open-gallery" class="btn small-btn">🗺️ Levels</button>
-        <button id="mute-menu" class="btn small-btn" aria-label="Sound">🔊</button>
+        <button id="mute-menu" class="chip-btn" aria-label="Sound">🔊</button>
       </div>
-      <button id="daily-btn" class="btn daily-btn">📅 <b>Daily Challenge</b> <span id="daily-desc"></span></button>
-      <label class="field">Your name
+      <h1 class="logo">DIMENSIONAL</h1>
+      <p class="tag">Every player in a different dimension. Work together anyway.</p>
+      <p id="save-line" class="save-line"></p>
+      <label class="field name-field" id="name-field">Your name
         <input id="name" maxlength="14" placeholder="Traveler" autocomplete="off">
       </label>
-      <div class="row">
-        <button id="create" class="btn primary">Create room</button>
-        <button id="solo" class="btn">🎮 Solo</button>
-      </div>
-      <div class="row">
-        <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" class="code-input">
-        <button id="join" class="btn">Join</button>
+      <button id="quick" class="btn primary big-play">⚡ Quick Play</button>
+      <div class="play-grid">
+        <button id="solo" class="tile"><i>🎮</i>Solo</button>
+        <button id="create" class="tile"><i>👥</i>Create room</button>
+        <button id="browse" class="tile"><i>🌍</i>Public rooms</button>
+        <div class="tile join-tile"><input id="code" maxlength="4" placeholder="CODE" autocomplete="off" class="code-input"><button id="join" class="btn small-btn">Join</button></div>
       </div>
       <p id="menu-err" class="err"></p>
-      <label class="field">Controls
-        <select id="controls">
-          <option value="auto">Automatic (detect my device)</option>
-          <option value="touch">📱 Phone / tablet (touch buttons)</option>
-          <option value="keys">⌨️ Computer (keyboard)</option>
-        </select>
-      </label>
+      <button id="daily-btn" class="btn daily-btn">📅 <b>Daily Challenge</b> <span id="daily-desc"></span></button>
+      <div class="more-grid">
+        <button id="open-minigames" class="mini-tile"><i>🎲</i>Mini games</button>
+        <button id="open-gallery" class="mini-tile"><i>🗺️</i>All levels</button>
+        <button id="open-maker" class="mini-tile"><i>🛠️</i>Level maker</button>
+        <button id="open-community" class="mini-tile"><i>🌐</i>Player levels</button>
+        <button id="open-shop" class="mini-tile"><i>🛍️</i>Shop</button>
+        <button id="open-records" class="mini-tile"><i>⭐</i>Records</button>
+        <button id="open-training" class="mini-tile"><i>🧪</i>Training</button>
+        <button id="open-boards" class="mini-tile"><i>🏆</i>Leaderboards</button>
+      </div>
       <details class="how">
-        <summary>How to play</summary>
+        <summary>⚙️ Controls & how to play</summary>
+        <label class="field">Controls
+          <select id="controls">
+            <option value="auto">Automatic (detect my device)</option>
+            <option value="touch">📱 Phone / tablet (touch buttons)</option>
+            <option value="keys">⌨️ Computer (keyboard)</option>
+          </select>
+        </label>
         <ul>
           <li><b>A/D</b> or <b>←/→</b> move · <b>W</b>/<b>Space</b>/<b>↑</b> jump · <b>F</b> fire · <b>E</b> ping</li>
           <li>On a phone: drag on the left side to move, tap the buttons on the right. Play sideways! You can switch controls below.</li>
@@ -63,7 +72,7 @@
           <li>Plates, pads, rifts and keystones link dimensions together. Nobody can win alone.</li>
         </ul>
       </details>
-      <div class="boards">
+      <div id="boards-wrap" class="boards hidden">
         <div class="board">
           <h3>Fastest story clears</h3>
           <ol id="board-menu"><li class="muted">Loading…</li></ol>
@@ -77,6 +86,41 @@
           <ol id="board-daily"><li class="muted">Loading…</li></ol>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="maker" class="panel-screen hidden">
+    <div class="panel maker-panel">
+      <h2>🛠️ Level maker</h2>
+      <div id="maker-root"></div>
+    </div>
+  </section>
+
+  <section id="community" class="panel-screen hidden">
+    <div class="panel shop-panel gallery-panel">
+      <div class="shop-head"><h2>🌐 Player levels</h2><button id="community-close" class="btn small-btn">✕</button></div>
+      <div class="tabs" id="community-tabs"><button class="tab sel" data-s="new">🆕 Newest</button><button class="tab" data-s="top">👍 Most liked</button><button class="tab" data-s="played">🔥 Most played</button><button class="tab" id="community-make">🛠️ Make one</button></div>
+      <div id="community-grid" class="gallery-grid"><p class="muted">Loading…</p></div>
+    </div>
+  </section>
+
+  <section id="account" class="panel-screen hidden">
+    <div class="panel">
+      <div class="shop-head"><h2>👤 Account</h2><button id="account-close" class="btn small-btn">✕</button></div>
+      <div id="acc-out">
+        <div class="tabs" id="acc-tabs"><button class="tab sel" data-t="login">Log in</button><button class="tab" data-t="signup">Sign up</button></div>
+        <form id="acc-form" autocomplete="on">
+          <label class="field">Username<input id="acc-user" maxlength="14" autocomplete="username" placeholder="3–14 letters or numbers"></label>
+          <label class="field">Password<input id="acc-pass" type="password" maxlength="72" autocomplete="current-password" placeholder="at least 4 characters"></label>
+          <button id="acc-go" class="btn primary" type="submit">Log in</button>
+        </form>
+        <p class="muted small">An account saves your coins, stars, skins and everything you bought — log in on any device to keep playing. Don't use a password from another site.</p>
+      </div>
+      <div id="acc-in" class="hidden">
+        <p>Logged in as <b id="acc-who"></b> ☁️ Your progress saves to the cloud automatically.</p>
+        <button id="acc-logout" class="btn">Log out</button>
+      </div>
+      <p id="acc-err" class="err"></p>
     </div>
   </section>
 
@@ -105,6 +149,9 @@
         <button class="mode" data-mode="space"><b>🪐 Across the Worlds</b><span>Earth → Venus → Mars → Sun → Saturn → Jupiter → Pluto → Everything → Black Hole</span></button>
         <button class="mode" data-mode="time"><b>⏳ Through Time</b><span>Dinosaurs → Egypt → Castle → Pirates → Wild West → Today → Future → End of Time</span></button>
         <button class="mode" data-mode="sea"><b>🌊 Deep Sea</b><span>Beach → Coral Reef → Shipwreck → Kelp Forest → Abyss → the Kraken (swim!)</span></button>
+        <button class="mode" data-mode="meteor"><b>☄️ Meteor Shower</b><span>Dodge falling rocks</span></button>
+        <button class="mode" data-mode="paint"><b>🎨 Paint the Floor</b><span>Paint the most tiles</span></button>
+        <button class="mode" data-mode="redlight"><b>🚦 Red Light, Green Light</b><span>Freeze on red!</span></button>
         <button class="mode" data-mode="bossrush"><b>Boss Rush</b><span>3 bosses in a row, each tougher</span></button>
         <button class="mode" data-mode="hunt"><b>Crawler Hunt</b><span>2 minutes — most crawlers shot wins</span></button>
       </div>
@@ -125,6 +172,7 @@
       <p id="pick-info" class="muted small"></p>
       <h3>Travelers <span id="count" class="muted"></span></h3>
       <ul id="players" class="players"></ul>
+      <label id="public-row" class="check public-check hidden"><input type="checkbox" id="public-on"> 🌍 Public room — anyone can find it with Quick Play</label>
       <div id="bot-row" class="row hidden">
         <button id="bot-add" class="btn small-btn">🤖 Add bot</button>
         <button id="bot-remove" class="btn small-btn">Remove bot</button>
@@ -213,6 +261,14 @@
       <div class="shop-head"><h2>🗺️ All levels</h2><button id="gallery-close" class="btn small-btn">✕</button></div>
       <div class="tabs" id="gallery-tabs"></div>
       <div id="gallery-grid" class="gallery-grid"></div>
+    </div>
+  </section>
+
+  <section id="rooms" class="panel-screen hidden">
+    <div class="panel shop-panel">
+      <div class="shop-head"><h2>🌍 Public rooms</h2><button id="rooms-close" class="btn small-btn">✕</button></div>
+      <div id="rooms-list" class="rooms-list"><p class="muted">Looking for rooms…</p></div>
+      <div class="row"><button id="rooms-make" class="btn primary">Make a public room</button></div>
     </div>
   </section>
 

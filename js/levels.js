@@ -496,6 +496,8 @@ function partyArena(n, kind) {
     koth: ['King of the Hill', 'Stand inside the golden column to score. Push your luck — everyone wants it.'],
     chaos: ['Coin Chaos', 'Grab the most coins! Every 15 seconds everyone gets thrown into a new dimension.'],
     lms: ['Last One Standing', 'Shoot each other! 3 hearts, no respawns, and the floor is falling away. Last traveler wins.'],
+    meteor: ['Meteor Shower', 'Rocks rain from the sky! Score a point every second you stay alive. Watch the shadows.'],
+    paint: ['Paint the Floor', 'Run over the floor to paint it your color. Most tiles painted when time runs out wins!'],
   }[kind];
   if (kind === 'koth') b.raw('hill', {}, 30, 1, 4, H - 2);
   return b.done({ name: info[0], objective: info[1], party: kind, spread: true });
@@ -663,6 +665,45 @@ function gadgetLab(n) {
   b.both('exit', {}, 105, 1, 3, 3);
   return b.done({ name: 'Gadget Lab', objective: 'NEW gadgets! ⏩ boost pads, conveyor belts, 🌀 fans that blow you up, 🟣 teleporters and 💎 power-ups.' });
 }
+
+// ---------- player-made levels ----------
+// A design is the floor lane only: rows[ly] is a string of tiles ('#' ground, '^' spikes, '.' air),
+// mirrored onto the ceiling lane like every built-in level. Objects sit in both lanes.
+export const MAKER_TOOLS = {
+  bounce: { w: 2, h: 1 }, boostR: { w: 2, h: 1, type: 'boost', props: { dir: 1 } }, boostL: { w: 2, h: 1, type: 'boost', props: { dir: -1 } },
+  convR: { w: 4, h: 1, type: 'conveyor', props: { dir: 1 } }, convL: { w: 4, h: 1, type: 'conveyor', props: { dir: -1 } },
+  fan: { w: 2, h: 7 }, teleA: { w: 2, h: 2, type: 'tele', props: { pair: 'a' } }, teleB: { w: 2, h: 2, type: 'tele', props: { pair: 'b' } },
+  speed: { w: 1, h: 1, type: 'power', props: { kind: 'speed' } }, jump: { w: 1, h: 1, type: 'power', props: { kind: 'jump' } },
+  shield: { w: 1, h: 1, type: 'power', props: { kind: 'shield' } }, heal: { w: 1, h: 1, type: 'power', props: { kind: 'heal' } },
+  coin: { w: 1, h: 1 }, mover: { w: 3, h: 1, props: { range: 5, freq: 0.18, phase: 0 } }, crumble: { w: 1, h: 1 },
+  cannonL: { w: 1, h: 1, type: 'cannon', props: { dir: -1, period: 3, offset: 0 } }, cannonR: { w: 1, h: 1, type: 'cannon', props: { dir: 1, period: 3, offset: 0 } },
+  mob: { w: 1, h: 1 }, exit: { w: 3, h: 3 },
+};
+export function customLevel(d, n) {
+  const W = Math.max(30, Math.min(160, d?.W | 0 || 60));
+  const b = new Builder(n, W);
+  const rows = Array.isArray(d?.rows) ? d.rows : [];
+  for (let ly = 0; ly < MID; ly++) {
+    const row = String(rows[ly] || '');
+    for (let x = 0; x < W; x++) { const ch = row[x]; if (ch === '#' || ch === '^') b.set(x, ly, ch); }
+  }
+  b.box(0, 0, 0, MID - 1);                  // walls at both ends so nobody falls off the world
+  b.box(W - 1, W - 1, 0, MID - 1);
+  let exit = false;
+  for (const o of (Array.isArray(d?.objs) ? d.objs : []).slice(0, 300)) {
+    const tool = MAKER_TOOLS[o?.t];
+    const x = o?.x | 0, ly = o?.ly | 0;
+    if (!tool || x < 1 || x >= W - 1 || ly < 0 || ly >= MID) continue;
+    if (o.t === 'mob') { b.mobs([x], 4, 1.4); continue; }
+    if (o.t === 'exit') exit = true;
+    b.both(tool.type || o.t, { ...(tool.props || {}) }, x, ly, tool.w, tool.h);
+  }
+  if (!exit) b.both('exit', {}, W - 5, 1, 3, 3);
+  return b.done({ name: String(d?.name || 'Player level').slice(0, 30), objective: `A level made by ${String(d?.author || 'a player').slice(0, 20)}. Reach the portal!`, custom: true });
+}
+let customData = null;
+export const setCustom = d => { customData = d; };
+export const getCustom = () => customData;
 
 // ---------- more race maps ----------
 function bounceHouse(n) {
@@ -897,12 +938,17 @@ export const MODES = {
   },
   space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
   time: { name: 'Through Time', levels: TIME, min: 1, scenes: {} },
+  custom: { name: 'Player level', levels: [n => customLevel(customData, n)], min: 1 },
   sea: { name: 'Deep Sea', levels: SEA, min: 1, scenes: {} },
   training: { name: 'Training Grounds', levels: [n => training(n, TRAIN_ROLES)], min: 1 },
   potato: { name: 'Hot Potato', levels: [n => ({ ...partyArena(n, 'tag'), name: 'Hot Potato', party: 'potato',
     objective: 'Someone holds the 💣. Touch a friend to pass it! When the fuse runs out, whoever holds it is OUT. Last one standing wins.' })], min: 2, time: 300 },
   bossrush: { name: 'Boss Rush', levels: [0, 1, 2].map(r => n => fracture(n, false, r)), min: 1 },
   hunt: { name: 'Crawler Hunt', levels: [hunt], min: 1, time: 120 },
+  meteor: { name: 'Meteor Shower', levels: [n => partyArena(n, 'meteor')], min: 1, time: 75 },
+  paint: { name: 'Paint the Floor', levels: [n => partyArena(n, 'paint')], min: 1, time: 75 },
+  redlight: { name: 'Red Light, Green Light', levels: [n => ({ ...sprint(n), name: 'Red Light, Green Light', party: 'redlight', race: false, spread: false,
+    objective: '🟢 GO = run to the portal. 🔴 STOP = freeze! Anyone moving on red goes back to the start. First to the portal wins.' })], min: 1, time: 150 },
   tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 2, time: 90 },
   koth: { name: 'King of the Hill', levels: [n => partyArena(n, 'koth')], min: 1, time: 90 },
   chaos: { name: 'Coin Chaos', levels: [n => partyArena(n, 'chaos')], min: 1, time: 90 },
