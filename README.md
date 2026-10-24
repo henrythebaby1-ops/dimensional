@@ -31,8 +31,16 @@ auto-fire shoots for you (toggle with AUTO). Choose controls on the main menu
 - **Story Chapter 4 — Troppa**: a soldier the Spectre left behind, forced by its collar to hunt
   you (grenades and laser sweeps). Break the collar to free him, then fight the Spectre's return
   side by side. Cutscenes between levels and a final ending.
+- **🪐 Across the Worlds**: a trip from Earth to a black hole: Earth → Venus (wind) → Mars (low
+  gravity) → the Sun (solar flares) → Saturn → Jupiter (heavy gravity, storms) → Pluto (ice) → the
+  Verse of Everything (dimensions reshuffle every 20s) → the Black Hole (it pulls you in; shoot its 4
+  anchor stars to collapse it).
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
+- **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
+  needs a team (a bot buddy for story, 3 bot rivals for party games).
+- **⏱️ Time Trial**: all 6 race maps alone against the clock, with medals and your best time.
+- **♾️ Endless**: crawler waves that never stop. How long can you last?
 - **Survival**: 10 waves of crawlers. The team shares its lives. Works solo.
 - **Race**: 4 rounds, every traveler for themselves.
 - **Boss Rush**: three bosses in a row, each tougher.
@@ -52,8 +60,13 @@ new dimensions (6 start unlocked; finishing chapters unlocks more). ⭐ Records 
 **Sound:** music for every dimension and boss, plus sound effects (🔊 to mute).
 **Gadgets:** bounce pads, moving platforms, crumbling floors, cannons and hidden coins in the levels.
 
-**Bots:** the host can add 🤖 bots in the lobby (or press "Play with a bot"). Bots hold
-plates, take turns crossing, climb, collect keystones, shoot, race, build and push.
+**Bots:** the host can add 🤖 bots in the lobby (or use 🎮 Solo). Bots get random names and skins. They hold
+plates, take turns crossing, climb, collect keystones, shoot, race, build and push, and they dodge
+missiles, grenades, laser sweeps and solar flares (Shield bots block with their shield). They chat with emotes.
+**🧠 Ollama bot chat (optional):** if you run [Ollama](https://ollama.com) on your computer
+(`OLLAMA_ORIGINS=* ollama serve`), the host can tick "Bot chat with Ollama AI" in the lobby and bots say
+real AI-written lines. Their moves still come from their built-in brain.
+**Skins:** buy body colors in the 🛍️ Shop (Skins tab).
 
 ## Dimensions (verses)
 | Dimension | Lane | Twist |

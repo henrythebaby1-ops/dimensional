@@ -34,7 +34,7 @@
       </label>
       <div class="row">
         <button id="create" class="btn primary">Create room</button>
-        <button id="solo" class="btn">🤖 Play with a bot</button>
+        <button id="solo" class="btn">🎮 Solo</button>
       </div>
       <div class="row">
         <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" class="code-input">
@@ -92,6 +92,8 @@
         <button class="mode" data-mode="story4"><b>Story Ch.4</b><span>Troppa — free him, then face the Spectre</span></button>
         <button class="mode" data-mode="training"><b>🧪 Training</b><span>Try every role and dimension</span></button>
         <button class="mode" data-mode="survival"><b>Survival</b><span>10 waves of crawlers</span></button>
+        <button class="mode" data-mode="endless"><b>♾️ Endless</b><span>Waves never stop</span></button>
+        <button class="mode" data-mode="trial"><b>⏱️ Time Trial</b><span>All 6 race maps against the clock</span></button>
         <button class="mode" data-mode="race"><b>Race</b><span>4 rounds, every traveler for themselves</span></button>
         <button class="mode party" data-mode="tag"><b>🏃 Tag</b><span>Don't be IT</span></button>
         <button class="mode party" data-mode="koth"><b>👑 King of the Hill</b><span>Hold the golden zone</span></button>
@@ -99,6 +101,7 @@
         <button class="mode party" data-mode="potato"><b>💣 Hot Potato</b><span>Pass the bomb before it blows</span></button>
         <button class="mode party" data-mode="lms"><b>💥 Last Standing</b><span>Shoot each other, floor falls</span></button>
         <button class="mode" data-mode="daily"><b>📅 Daily</b><span>Today's challenge</span></button>
+        <button class="mode" data-mode="space"><b>🪐 Across the Worlds</b><span>Earth → Venus → Mars → Sun → Saturn → Jupiter → Pluto → Everything → Black Hole</span></button>
         <button class="mode" data-mode="bossrush"><b>Boss Rush</b><span>3 bosses in a row, each tougher</span></button>
         <button class="mode" data-mode="hunt"><b>Crawler Hunt</b><span>2 minutes — most crawlers shot wins</span></button>
       </div>
@@ -123,6 +126,14 @@
         <button id="bot-add" class="btn small-btn">🤖 Add bot</button>
         <button id="bot-remove" class="btn small-btn">Remove bot</button>
       </div>
+      <details id="ollama-row" class="ollama hidden">
+        <summary>🧠 Bot chat with Ollama AI (optional)</summary>
+        <label class="check"><input type="checkbox" id="ollama-on"> Bots talk using my local Ollama model</label>
+        <label class="field">Model <input id="ollama-model" maxlength="40" placeholder="llama3.2"></label>
+        <p class="muted small">Needs <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> running on this computer. Start it with
+          <code>OLLAMA_ORIGINS=* ollama serve</code> so the game can talk to it. Bots still play with their own built-in brain; Ollama gives them things to say.</p>
+        <p id="ollama-status" class="muted small"></p>
+      </details>
       <p id="lobby-note" class="muted small"></p>
       <div class="row">
         <button id="start" class="btn primary">Start</button>
@@ -181,12 +192,21 @@
       <div class="shop-head"><h2>🛍️ Shop</h2><span id="shop-coins" class="coins">🪙 0</span><button id="shop-close" class="btn small-btn">✕</button></div>
       <div class="tabs" id="shop-tabs">
         <button data-tab="hat" class="tab sel">Hats</button>
+        <button data-tab="skin" class="tab">Skins</button>
         <button data-tab="trail" class="tab">Trails</button>
         <button data-tab="bolt" class="tab">Shots</button>
         <button data-tab="dim" class="tab">Dimensions</button>
       </div>
       <div id="shop-grid" class="shop-grid"></div>
       <p class="muted small">Earn coins by finishing levels (more for ⭐), finding hidden coins, shooting crawlers, winning party games and doing the Daily Challenge.</p>
+    </div>
+  </section>
+
+  <section id="solo-pick" class="panel-screen hidden">
+    <div class="panel shop-panel">
+      <div class="shop-head"><h2>🎮 Solo</h2><button id="solo-close" class="btn small-btn">✕</button></div>
+      <p class="muted small">Play by yourself — bots join in when a mode needs a team.</p>
+      <div id="solo-list" class="solo-list"></div>
     </div>
   </section>
 

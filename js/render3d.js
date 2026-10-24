@@ -296,6 +296,44 @@ export class Renderer3D {
         this.noParallax = true;
         break;
       }
+      case 'earth': case 'venus': case 'mars': case 'sun': case 'saturn': case 'jupiter': case 'pluto': case 'everything': case 'blackhole': {
+        // a giant planet hanging in the sky behind the level, plus stars
+        const P = { earth: [0x3a8fd0, 0x4fae4a], venus: [0xe8b860, 0xffd890], mars: [0xc8583a, 0xe08a5a], sun: [0xffb020, 0xffe060], saturn: [0xd8c08a, 0xb89a60],
+          jupiter: [0xd09a6a, 0xf0d0a8], pluto: [0xc8d8e8, 0x9aaabb], everything: [0xff3a8a, 0x3affd8], blackhole: [0x000000, 0xff8a3a] }[D.key];
+        addPoints(D.key === 'earth' ? 200 : 1200, 0xffffff, 0.25, 30);
+        this.anim = { spin: [] };
+        if (D.key === 'blackhole') {
+          const hole = new THREE.Mesh(new THREE.SphereGeometry(9, 32, 24), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+          const disk = new THREE.Mesh(new THREE.TorusGeometry(15, 2.6, 8, 64), new THREE.MeshBasicMaterial({ color: 0xff8a3a, transparent: true, opacity: 0.8 }));
+          disk.rotation.x = Math.PI / 2.4;
+          hole.position.set(30, H / 2, -60); disk.position.copy(hole.position);
+          this.decor.add(hole, disk);
+          this.anim.spin.push(disk);
+        } else if (D.key === 'everything') {
+          for (let i = 0; i < 9; i++) {   // every planet at once
+            const c = [0x3a8fd0, 0xe8b860, 0xc8583a, 0xffb020, 0xd8c08a, 0xd09a6a, 0xc8d8e8, 0xff3a8a, 0x3affd8][i];
+            const pl = new THREE.Mesh(new THREE.SphereGeometry(2 + r() * 5, 20, 14), glow(c, { emissiveIntensity: 0.3, flatShading: false }));
+            pl.position.set(-30 + i * 14, -4 + r() * (H + 8), -40 - r() * 30);
+            this.decor.add(pl);
+            this.anim.spin.push(pl);
+          }
+        } else {
+          const big = D.key === 'sun' ? 40 : D.key === 'jupiter' ? 34 : D.key === 'pluto' ? 10 : 22;
+          const planetMesh = new THREE.Mesh(new THREE.SphereGeometry(big, 40, 28), D.key === 'sun' ? new THREE.MeshBasicMaterial({ color: P[0] }) : glow(P[0], { emissive: P[1], emissiveIntensity: 0.15, flatShading: false }));
+          planetMesh.position.set(30, D.key === 'earth' ? -big * 0.6 : H + big * 0.3, -90);
+          this.decor.add(planetMesh);
+          this.anim.spin.push(planetMesh);
+          if (D.key === 'saturn') {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(big * 1.7, big * 0.18, 4, 80), new THREE.MeshBasicMaterial({ color: 0xe8d8a8, transparent: true, opacity: 0.6 }));
+            ring.rotation.x = Math.PI / 2.3;
+            ring.position.copy(planetMesh.position);
+            this.decor.add(ring);
+          }
+          if (D.key === 'sun') this.anim.pts = addPoints(400, 0xffa020, 0.4, 4), this.anim.vy = up * 3, this.anim.sway = 1;
+          if (D.key === 'pluto' || D.key === 'jupiter') this.anim.pts = addPoints(700, 0xffffff, 0.2, 4), this.anim.vy = -up * 2, this.anim.sway = D.key === 'jupiter' ? 6 : 1;
+        }
+        break;
+      }
       case 'illusion': {
         // floating blocks like a voxel world… some are near, some impossibly far
         const cols = [0x8a5cff, 0xff9ec7, 0x9ff3ff, 0xffe23a];
@@ -745,6 +783,13 @@ export class Renderer3D {
         root.add(slab, ring);
         break;
       }
+      case 'hole': {
+        e.hole = new THREE.Mesh(new THREE.SphereGeometry(1.4, 24, 18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+        e.disk = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.35, 8, 48), mat(glow(0xff8a3a, { emissiveIntensity: 1.2 })));
+        e.disk.rotation.x = Math.PI / 2.6;
+        root.add(e.hole, e.disk);
+        break;
+      }
       case 'coin': {
         e.coin = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.08, 20), mat(glow(0xffd23a, { emissiveIntensity: 0.7, metalness: 0.8, roughness: 0.2, flatShading: false })));
         e.coin.rotation.x = Math.PI / 2;
@@ -839,6 +884,7 @@ export class Renderer3D {
         }
         case 'hill': e.crown.rotation.z = t; e.crown.position.y = Math.sin(t * 2) * 3; break;
         case 'coin': e.root.visible = !s.coinsTaken.has(o.id); e.coin.rotation.z = t * 3; break;
+        case 'hole': { const k = s.holeStrength ?? 1; e.root.visible = k > 0; e.root.scale.setScalar(0.5 + k * 0.5); e.disk.rotation.z = t * 2; break; }
         case 'rolepad': case 'dimpad': e.ring.rotation.z = t; e.ring.position.y += Math.sin(t * 3) * 0.002; break;
         case 'flip':
           for (const a of e.arrows) {

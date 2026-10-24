@@ -4,8 +4,9 @@ const MIDY = MID * T;
 import { Room, fetchLeaderboard, recordClear, fetchGift, giveGift } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH } from './render3d.js';
+import { drawBanana2D } from './banana2d.js';
 import { unlockAudio, sfx, playMusic, isMuted, setMuted } from './audio.js';
-import { profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, recordLevel, finishDaily, todayKey } from './profile.js';
+import { profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
 
 const $ = id => document.getElementById(id);
 const autoTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -262,6 +263,13 @@ function collides(x, y, dim, w = PW, h = PH, skip = null) {
   return false;
 }
 
+// the black hole weakens as its anchor stars break (1 = full strength, 0 = gone)
+function holeStrength() {
+  const anchors = level?.targets?.filter(t => t.link.startsWith('anchor')) || [];
+  if (!anchors.length) return 0;
+  return anchors.filter(t => !latched.has(t.link)).length / anchors.length;
+}
+
 // ---------- gadgets ----------
 const tri = u => 1 - Math.abs((((u % 2) + 2) % 2) - 1);
 const moverX = (o, t = levelT) => (o.x + tri(t * o.freq * 2 + o.phase) * o.range) * T;
@@ -431,6 +439,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   runStart = rs;
   transitioning = false;
   latched.clear();
+  targetHits.clear();
   grabbed.clear();
   killed.clear();
   levelT = 0;
@@ -462,6 +471,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   if (P) { P.id = me.id; P.ch2 = ch2Roles.get(me.id); }
   if (P && level.ch2) setTimeout(() => P && toast(P.ch2 === 'dragger' ? '🧱 You are a BUILDER — drag the glowing blocks' : P.ch2 === 'walker' ? '🚶 You are a WALKER — push your Builders' : '🧱🚶 You can walk AND build', '#39ff88'), 1200);
   hunt = level.hunt ? { next: 1.5, left: MODES.hunt.time } : null;
+  flareT = 4; swapT = level.swapEvery || 20; holeT = 3;
   party = level.party ? { kind: level.party, left: MODES[gameMode].time, it: null, itCd: 0, scoreT: 1, swapT: 15, collapseT: 10, collapseK: 0, coinT: 0, sendT: 0 } : null;
   partyCoins = new Map();
   if (party && P) P.slot = myIdx;
@@ -599,6 +609,7 @@ function updateActor(p, inp, dt) {
     if (p.x < m.x + MW - 4 && p.x + PW > m.x + 4 && p.y < m.y + MH && p.y + PH > m.y + 4) { hurt(p); break; }
   }
   if (touchesSpike(p.x, p.y) || p.y > H * T + 80 || p.y < -80 - PH) return die(p);
+  if (level.planet?.pull && holeStrength() > 0 && Math.hypot(level.planet.pull.x - p.x - PW / 2, level.planet.pull.y - p.y - PH / 2) < T * 2.2 * (0.5 + holeStrength() * 0.5)) return die(p);
   if (inp.has('fire') && p.boltCd <= 0 && p.ch2 !== 'dragger') fireBolt(p);
   else if (local && isTouch && autoFire && p.boltCd <= 0 && p.ch2 !== 'dragger') {
     const dir = autoTarget(p);
@@ -617,12 +628,20 @@ function physics(p, inp, h) {
   if (ix) p.face = ix;
   p.shielding = p.role === 'shield' && inp.has('down') && p.onGround;
   if (p.shielding) ix = 0;                   // can't walk while holding the shield up
-  const speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1)
+  const pl = level.planet || {};
+  const speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1) * (pl.speed || 1)
     * (party?.kind === 'tag' && party.it === p.id ? 1.15 : 1);
-  const a = p.onGround || D.fly ? D.accel : D.accel * 0.7;
+  const a = Math.min(pl.ice ? 0.035 : 1, p.onGround || D.fly ? D.accel : D.accel * 0.7);
   const k = 1 - Math.pow(1 - a, h * 60);
   p.vx += (ix * speed - p.vx) * k;
   if (D.wind) p.vx += D.wind * Math.sin(levelT * 0.7) * h * 4;
+  if (pl.wind) p.vx += pl.wind * Math.sin(levelT * 0.5) * h * 4;
+  if (pl.pull && p.dead <= 0) {               // the black hole drags everything toward it
+    const dx = pl.pull.x - (p.x + PW / 2), dy = pl.pull.y - (p.y + PH / 2), d = Math.hypot(dx, dy) || 1;
+    const strength = pl.pull.k * holeStrength() * Math.min(2, (T * 10) / d);
+    p.vx += dx / d * strength * h;
+    if (D.fly) p.vy += dy / d * strength * h;
+  }
 
   if (p.dashT > 0) {                         // 2Dverse dash: a straight burst that ignores gravity
     p.dashT -= h;
@@ -633,7 +652,7 @@ function physics(p, inp, h) {
     p.vy += (iy * speed - p.vy) * k;
     p.jumpBuf = 0;
   } else {
-    let gm = G * D.gravMul * (level.mod === 'lowgrav' ? 0.5 : 1);
+    let gm = G * D.gravMul * (level.mod === 'lowgrav' ? 0.5 : 1) * (pl.grav || 1);
     if (!inp.has('jump') && g * p.vy < 0) gm *= 1.9;
     if (p.role === 'glider' && inp.has('jump') && g * p.vy > 0) { p.vy = g * Math.min(g * p.vy, 110); gm = 0; }   // float down   // short hops when jump is released
     p.vy += g * gm * h;
@@ -792,7 +811,7 @@ function stateOf(p, id, name) {
   return {
     id, l: levelIdx, x: Math.round(p.x), y: Math.round(p.y), vx: Math.round(p.vx), vy: Math.round(p.vy),
     d: p.dim, nd: p.native, g: gravOf(p), f: p.face, p: p.press, ro: p.role, e: p.exit, hp: p.hp, dead: p.dead > 0, name,
-    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt] : p.cos, sh: p.shielding ? 1 : 0,
+    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt, profile.equip.skin] : p.cos, sh: p.shielding ? 1 : 0,
   };
 }
 
@@ -803,7 +822,18 @@ function sendState() {
 
 // ---------- bots ----------
 // Bots are run by the host with the same physics as players and broadcast like players.
-const BOT_NAMES = ['Bolt', 'Pixel', 'Nova', 'Echo', 'Sprocket', 'Zip', 'Gizmo', 'Comet', 'Blip', 'Rusty', 'Orbit', 'Chip', 'Widget', 'Byte', 'Sparky', 'Dot', 'Flux', 'Nano', 'Turbo'];
+const BOT_ADJ = ['Zippy', 'Sneaky', 'Mega', 'Tiny', 'Turbo', 'Silly', 'Cosmic', 'Lucky', 'Fuzzy', 'Spicy', 'Brave', 'Sleepy', 'Wobbly', 'Shiny', 'Crispy', 'Bouncy', 'Ultra', 'Grumpy', 'Happy', 'Pro'];
+const BOT_NOUN = ['Bolt', 'Pixel', 'Nova', 'Taco', 'Byte', 'Potato', 'Comet', 'Gizmo', 'Pickle', 'Rex', 'Bean', 'Waffle', 'Noodle', 'Ninja', 'Duck', 'Panda', 'Robo', 'Nugget', 'Llama', 'Toast'];
+function randomBotName(used) {
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  for (let tries = 0; tries < 40; tries++) {
+    const r = Math.random();
+    let nm = r < 0.6 ? pick(BOT_ADJ) + pick(BOT_NOUN) : r < 0.85 ? pick(BOT_NOUN) + Math.floor(Math.random() * 100) : 'xX' + pick(BOT_NOUN) + 'Xx';
+    if (nm.length > 11) continue;
+    if (!used.has('🤖 ' + nm)) return nm;
+  }
+  return 'Bot' + Math.floor(Math.random() * 1000);
+}
 let bots = [];                    // [{ id, name, role }] chosen in the lobby by the host
 let autoMe = null;
 const botActors = new Map();      // id -> { p, inp, name, stuck, lastX, jumpHold }
@@ -812,11 +842,11 @@ const isBot = id => typeof id === 'string' && id.startsWith('bot-');
 function addBot() {
   if (!isHost() || roster.length + bots.length >= MAX_PLAYERS) return;
   const used = new Set(bots.map(b => b.name));
-  const nm = BOT_NAMES.find(n => !used.has('🤖 ' + n)) || 'Bot';
+  const nm = randomBotName(used);
   const roles = Object.keys(ROLES);
   const rnd = a => a[Math.floor(Math.random() * a.length)].id;
   bots.push({ id: 'bot-' + Math.random().toString(36).slice(2, 7), name: '🤖 ' + nm, role: roles[Math.floor(Math.random() * roles.length)],
-    cos: [rnd(SHOP.hat), rnd(SHOP.trail), rnd(SHOP.bolt)] });
+    cos: [rnd(SHOP.hat), rnd(SHOP.trail), rnd(SHOP.bolt), rnd(SHOP.skin)] });
   send('bots', { list: bots });
   renderLobby();
 }
@@ -832,7 +862,7 @@ function setBots(list) {
   if (!Array.isArray(list)) return;
   bots = list.filter(b => b && isBot(b.id)).slice(0, MAX_PLAYERS).map(b => ({
     id: String(b.id), name: String(b.name || '🤖 Bot').slice(0, 14), role: ROLES[b.role] ? b.role : 'runner',
-    cos: Array.isArray(b.cos) ? b.cos.map(String).slice(0, 3) : ['none', 'none', 'default'],
+    cos: Array.isArray(b.cos) ? b.cos.map(String).slice(0, 4) : ['none', 'none', 'default', 'default'],
   }));
 }
 
@@ -868,6 +898,9 @@ function updateBots(dt) {
   if (!level || !botActors.size) return;
   const now = performance.now();
   for (const [id, b] of botActors) {
+    if (b.p.dead > 0 && !b.wasDead) botSay(b, 'died');
+    b.wasDead = b.p.dead > 0;
+    if (!b.greeted && levelT > 1 + Math.random()) { b.greeted = true; if (Math.random() < 0.5) botSay(b, 'start'); }
     if (b.p.dead <= 0) botThink(b, dt);
     updateActor(b.p, b.inp, dt);
     // mirror the bot into remotes so signals, exits, HUD and labels treat it like a player
@@ -1005,6 +1038,54 @@ function planClimb(b, p, g, cx, cy, toward) {
   else b.climbT = 0;
 }
 
+// the enemy shot that will hit this bot soonest in the next ~0.6s, if any
+function botThreat(p, cx, cy) {
+  let best = null;
+  for (const k of bullets) {
+    if (k.life >= 99 || k.k === 'o' && !k.vx && !k.vy) continue;
+    if (k.k === 'beam') {
+      if (k.life < 1.0 && Math.abs(k.y - cy) < 26) { const t = 1.0 - k.life; if (!best || t < best.t) best = { ...k, t }; }
+      continue;
+    }
+    if (k.k === 'ring') {
+      const d = Math.hypot(k.x - cx, k.y - cy), rr = k.r || 0;
+      if (Math.abs(d - rr) < T * 2.5 && d > rr) { const t = 0.2; if (!best || t < best.t) best = { ...k, t }; }
+      continue;
+    }
+    for (let t = 0; t <= 0.6; t += 0.1) {
+      const x = k.x + k.vx * t, y = k.y + k.vy * t + (k.k === 'gr' ? 450 * t * t * (k.w || 1) : 0);
+      if (Math.abs(x - cx) < 22 + (k.r || 6) && Math.abs(y - cy) < 26 + (k.r || 6)) { if (!best || t < best.t) best = { ...k, t }; break; }
+    }
+  }
+  return best;
+}
+
+// bots talk: a quick emote, or a real line from a local Ollama model when the host turned that on
+const BOT_LINES = { start: [6, 1], stuck: [5], dodge: [0, 2], died: [2, 5], win: [3, 0, 1], wait: [7], here: [4] };
+const botChat = { on: false, model: 'llama3.2', busy: false };
+try { Object.assign(botChat, JSON.parse(localStorage.getItem('dim-ollama') || '{}')); } catch {}
+const BOT_SITUATION = { start: 'a new level just started', stuck: 'you are stuck and need help', dodge: 'you just dodged an attack', died: 'you just died', win: 'your team finished the level', wait: 'you want your teammate to wait', here: 'you found the way forward' };
+function botSay(b, why) {
+  const now = performance.now();
+  if (now - (b.saidAt || 0) < 7000) return;
+  b.saidAt = now;
+  const id = b.p.id, opts = BOT_LINES[why] || [1];
+  const fallback = () => { const i = opts[Math.floor(Math.random() * opts.length)]; emoting.set(id, { i, t: performance.now() }); send('emo', { id, i }); };
+  if (!botChat.on || botChat.busy) return fallback();
+  botChat.busy = true;
+  const prompt = `You are ${b.name.replace('🤖 ', '')}, a funny robot teammate in the co-op platform game Dimensional (level: "${level?.name}"). Right now ${BOT_SITUATION[why] || why}. Say ONE short line to your friends, at most 7 words, no quotes, kid-friendly.`;
+  fetch('http://localhost:11434/api/generate', { method: 'POST', body: JSON.stringify({ model: botChat.model, prompt, stream: false, options: { num_predict: 24, temperature: 0.9 } }) })
+    .then(r => r.json())
+    .then(j => {
+      const line = String(j.response || '').replace(/["\n]/g, ' ').trim().slice(0, 40);
+      if (!line) return fallback();
+      emoting.set(id, { i: 1, x: line, t: performance.now() });
+      send('emo', { id, i: 1, x: line });
+    })
+    .catch(fallback)
+    .finally(() => { botChat.busy = false; });
+}
+
 function botThink(b, dt) {
   if (level.ch2) return botThinkCh2(b, dt);
   const p = b.p, D = DIMS[p.dim], inp = b.inp;
@@ -1137,6 +1218,25 @@ function botThink(b, dt) {
     if ((p.onGround && b.commit.t < 0.75) || b.commit.t <= 0) b.commit = null;
     else { dir = b.commit.dir; if (b.commit.t > 0.45) inp.add('jump'); }
   }
+  // danger sense: look half a second ahead at every enemy shot and get out of the way
+  const threat = botThreat(p, cx, cy);
+  if (threat) {
+    b.alarm = (b.alarm || 0) + dt;
+    if (p.role === 'shield' && threat.k !== 'beam' && threat.k !== 'ring' && p.onGround) {
+      p.face = Math.sign(threat.x - cx) || p.face;   // turn and block it
+      dir = 0;
+      inp.add('down');
+    } else if (threat.k === 'beam') {
+      if (D.fly) inp.add(threat.y > cy ? 'jump' : 'down');
+      else if (p.onGround && threat.t < 0.35) { p.jumpBuf = 0.14; b.jumpHold = 0.35; }
+    } else if (threat.vy * g > 0 && Math.abs(threat.vx) < Math.abs(threat.vy)) {
+      dir = cx > threat.x ? 1 : -1;                    // falling from above: sidestep
+      if (b.alarm < 0.1) inp.add('dash');
+    } else if (D.fly) inp.add(threat.y > cy ? 'jump' : 'down');
+    else if (p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.3; }
+    if (b.alarm > 0.6 && b.alarm < 0.7) botSay(b, 'dodge');
+  } else b.alarm = 0;
+  if (b.stuck > 0.6 && (b.stuckLong = (b.stuckLong || 0) + dt) > 6) { b.stuckLong = 0; botSay(b, 'stuck'); }
   if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
   if (dir) {
     const key = D.mirror ? -dir : dir;      // mirrored dimensions swap controls
@@ -1625,7 +1725,7 @@ function sendEmote(i) {
 // ---------- rewards: coins, stars and best times ----------
 let levelStartMs = Date.now(), myDeaths = 0;
 function completeLevel(mode, idx, lv, startMs, deaths) {
-  if (!['story', 'story2', 'story3', 'story4', 'daily'].includes(mode) || !lv) return;
+  if (!['story', 'story2', 'story3', 'story4', 'daily', 'space'].includes(mode) || !lv) return;
   const ms = Date.now() - startMs;
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
@@ -1669,8 +1769,49 @@ function updateRemotes(dt) {
 }
 
 // ---------- host duties ----------
+let flareT = 4, swapT = 20, holeT = 3;
+function hostSpace(dt) {
+  if (level.flares) {                       // solar flares sweep across a row
+    flareT -= dt;
+    if (flareT <= 0) {
+      flareT = 4.5;
+      const a = allActors().filter(x => !x.dead);
+      const t = a[Math.floor(Math.random() * a.length)];
+      if (t) { const list = [[level.W * T / 2, t.y + PH / 2, 0, 0, 0, 'beam', 0, 0, 'f' + Math.random().toString(36).slice(2, 6), null]]; send('atk', { b: list }); addBullets(list); }
+    }
+  }
+  if (level.swapEvery) {                    // the Verse of Everything reshuffles everyone's dimension
+    swapT -= dt;
+    if (swapT <= 0) {
+      swapT = level.swapEvery;
+      const n = level.n, perm = [...Array(n).keys()].sort(() => Math.random() - 0.5), m = {};
+      gameRoster.forEach((id, i) => { m[id] = perm[i % n]; });
+      send('swap', { m });
+      applySwap(m);
+    }
+  }
+  if (level.holeFinal) {
+    holeT -= dt;
+    if (holeT <= 0 && holeStrength() > 0) {   // debris flung out of the black hole
+      holeT = 2.4;
+      const list = [], k = 10, off = Math.random() * Math.PI;
+      for (let i = 0; i < k; i++) { const a = off + i / k * Math.PI * 2; list.push([level.planet.pull.x, level.planet.pull.y, Math.cos(a) * 170, Math.sin(a) * 170, 9, 'o']); }
+      send('atk', { b: list });
+      addBullets(list);
+    }
+    if (holeStrength() === 0 && !transitioning) {
+      transitioning = true;
+      const m = 'THE BLACK HOLE COLLAPSES!';
+      send('toast', { m });
+      toast(m, '#ffe23a');
+      setTimeout(() => mode === 'play' && goto(levelIdx + 1), 2200);
+    }
+  }
+}
+
 function hostChecks(dt) {
   if (transitioning) return;
+  if (level.space) hostSpace(dt);
   if (party) return hostParty(dt);
   if (surv) return hostSurvival(dt);
   if (hunt) return hostHunt(dt);
@@ -1701,6 +1842,7 @@ function hostChecks(dt) {
     transitioning = true;
     send('toast', { m: 'Level complete!' });
     toast('Level complete!', '#ffe23a');
+    for (const b of botActors.values()) if (Math.random() < 0.5) botSay(b, 'win');
     setTimeout(() => mode === 'play' && gotoWithScene(levelIdx + 1), 1400);
   }
 }
@@ -1713,7 +1855,7 @@ function hostSurvival(dt) {
     return;
   }
   if (!level.mobs.every(o => killed.has(o.id))) return;
-  const waves = MODES.survival.waves;
+  const waves = MODES[gameMode].waves;
   if (surv.wave >= waves) {
     transitioning = true;
     send('toast', { m: 'ARENA SURVIVED!' });
@@ -2144,6 +2286,7 @@ function slash(p) {
   for (const k of bullets) if ((k.k === 'm' || k.k === 's' || k.k === 'gr') && inFront(k.x, k.y)) { k.life = 99; send('bdown', { id: k.id }); }
   for (const t of level.targets) {
     if (latched.has(t.link) || t.dim === p.dim || Math.abs((t.x + 0.5) * T - cx) > reach) continue;
+    if (!toughHit(t)) continue;
     latched.add(t.link); send('latch', { k: t.link }); onCrystal(t);
   }
   if (party?.kind === 'lms') for (const a of partyActors()) {
@@ -2223,6 +2366,7 @@ function updateBolts(dt) {
     const t = level.targets.find(o => (o.dim !== b.d || DIMS[b.d].flat) && !latched.has(o.link) && overlap(b.x - 4, b.y - 4, 8, 8, o));
     if (t) {
       b.life = 99;
+      if (!toughHit(t)) continue;
       latched.add(t.link);
       send('latch', { k: t.link });
       onCrystal(t);
@@ -2249,7 +2393,24 @@ function updateBolts(dt) {
   bolts = bolts.filter(b => b.life < 3);
 }
 
+// some targets (the black hole's anchor stars) take many hits before they break
+const targetHits = new Map();
+function toughHit(t) {
+  if (!t.hp) return true;
+  const n = (targetHits.get(t.link) || 0) + 1;
+  targetHits.set(t.link, n);
+  burst((t.x + 0.5) * T, (t.y + t.h / 2) * T, '#ff8a3a', 4, 140);
+  return n >= t.hp;
+}
+
 function onCrystal(t) {
+  if (t.dim === null || !DIMS[t.dim]) {
+    for (let i = 0; i < 6; i++) burst((t.x + 0.5) * T, (t.y + t.h * (i + 0.5) / 6) * T, '#ff8a3a', 8, 240);
+    const left = level.targets.filter(o => o.link.startsWith('anchor') && !latched.has(o.link)).length;
+    toast(left ? `⭐ Anchor star broken! ${left} left — the pull is weaker` : '⭐ Last anchor star broken!', '#ff8a3a');
+    sfx('boom');
+    return;
+  }
   for (let i = 0; i < 6; i++) burst((t.x + 0.5) * T, (t.y + t.h * (i + 0.5) / 6) * T, DIMS[t.dim].color, 8, 240);
   toast(`${DIMS[t.dim].name} crystal shattered — its gate opens!`, DIMS[t.dim].color);
 }
@@ -2359,7 +2520,7 @@ function onMsg(t, d) {
     case 'it': if (mode === 'play' && party && typeof d.id === 'string') onTagged(d.id); break;
     case 'pcoin': if (mode === 'play' && party && typeof d.id === 'string') partyCoins.set(d.id, { x: +d.x, y: +d.y }); break;
     case 'pgot': if (mode === 'play' && party && typeof d.id === 'string') takePartyCoin(d.id, String(d.by)); break;
-    case 'swap': if (mode === 'play' && party && d.m && typeof d.m === 'object') applySwap(d.m); break;
+    case 'swap': if (mode === 'play' && d.m && typeof d.m === 'object') applySwap(d.m); break;
     case 'collapse': if (mode === 'play' && party?.kind === 'lms') collapse(d.k | 0); break;
     case 'pvp':
       if (mode === 'play' && party?.kind === 'lms') {
@@ -2367,7 +2528,7 @@ function onMsg(t, d) {
         else if (isHost() && botActors.has(d.id)) hurt(botActors.get(d.id).p);
       }
       break;
-    case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, t: performance.now() }); sfx('emote'); } break;
+    case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
     case 'crumble': if (mode === 'play') { const o = level.solids.find(x => x.id === d.id && x.type === 'crumble'); if (o) touchCrumble(o, false); } break;
     case 'crate': if (mode === 'play' && typeof d.id === 'string') onCrateMsg(d); break;
     case 'push':
@@ -2417,6 +2578,7 @@ function onPresence(list) {
   renderLobby();
   if (mode === 'lobby' && isHost()) { send('mode', { m: gameMode }); send('bots', { list: bots }); }
   if (isHost() && pendingBots > 0) { while (pendingBots > 0) { pendingBots--; addBot(); } }
+  if (isHost() && pendingStart && mode === 'lobby') { pendingStart = false; setTimeout(() => mode === 'lobby' && !$('start').disabled && $('start').click(), 400); }
   if (mode === 'play' && isHost()) {
     // Someone new: let them watch until the next level. Someone gone for 5s: restart so puzzles stay solvable.
     clearTimeout(rosterTimer);
@@ -2515,6 +2677,7 @@ function renderLobby() {
   });
   $('count').textContent = `(${players().length}/${MAX_PLAYERS})`;
   $('bot-row').classList.toggle('hidden', !isHost());
+  $('ollama-row').classList.toggle('hidden', !isHost());
   $('bot-remove').disabled = !bots.length;
   $('bot-add').disabled = players().length >= MAX_PLAYERS;
   const host = isHost();
@@ -2624,6 +2787,40 @@ async function showVictory() {
     sfx('win');
     return;
   }
+  if (gameMode === 'space') {
+    playStory(friendsForScene(), SCENES.spaceEnd);
+    addCoins(150);
+    title.textContent = 'ACROSS THE WORLDS';
+    text.textContent = 'From Earth to the black hole — and out the other side. You crossed the whole universe together!';
+    big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
+  if (gameMode === 'trial') {
+    let best = 0;
+    try { best = +localStorage.getItem('dim-trial') || 0; } catch {}
+    const record = !best || ms < best;
+    if (record) try { localStorage.setItem('dim-trial', String(ms)); } catch {}
+    const medal = ms < 90000 ? '🥇 Gold' : ms < 150000 ? '🥈 Silver' : '🥉 Bronze';
+    addCoins(record ? 60 : 20);
+    title.textContent = 'TIME TRIAL';
+    text.textContent = `${medal} · ${record ? 'NEW BEST!' : 'Best ' + fmtTime(best)} · +${record ? 60 : 20} 🪙`;
+    big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
+  if (gameMode === 'endless') {
+    const w = result?.wave ?? 0;
+    let best = 0;
+    try { best = +localStorage.getItem('dim-endless') || 0; } catch {}
+    if (w > best) try { localStorage.setItem('dim-endless', String(w)); } catch {}
+    addCoins(w * 8);
+    title.textContent = w > best ? 'NEW RECORD!' : 'ENDLESS OVER';
+    text.textContent = `You lasted ${w} waves (best ${Math.max(w, best)}). +${w * 8} 🪙`;
+    big.textContent = `Wave ${w}`;
+    sfx(w > best ? 'win' : 'click');
+    return;
+  }
   if (gameMode === 'training') {
     title.textContent = 'TRAINING DONE';
     text.textContent = 'Now go use what you learned!';
@@ -2675,7 +2872,7 @@ function updateHud(dt) {
   if (level.keyList) prog = `Keystones ${level.keyList.filter(k => grabbed.has(k)).length}/${level.keyList.length}`;
   if (level.groups) prog = `Gates open ${level.groups.filter(g => latched.has('res' + g)).length}/${level.groups.length}`;
   if (level.nest) prog = `Crawlers left: ${level.mobs.filter(o => !killed.has(o.id)).length}`;
-  if (surv) prog = surv.wave ? `Wave ${surv.wave}/${MODES.survival.waves} · Lives ${surv.lives} · Crawlers ${level.mobs.filter(o => !killed.has(o.id)).length}` : `Get ready… Lives ${surv.lives}`;
+  if (surv) prog = surv.wave ? `Wave ${surv.wave}/${MODES[gameMode].waves === Infinity ? '∞' : MODES[gameMode].waves} · Lives ${surv.lives} · Crawlers ${level.mobs.filter(o => !killed.has(o.id)).length}` : `Get ready… Lives ${surv.lives}`;
   else if (level.race) prog = 'Points: ' + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
   else if (party) prog = `⏱ ${fmtTime(party.left * 1000).replace(/\.\d$/, '')}${party.kind === 'tag' && party.it ? ` · IT: ${nameOf(party.it)}` : ''} · `
     + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
@@ -2733,11 +2930,11 @@ function bodiesForFrame() {
   for (const id of gameRoster) {
     const r = remotes.get(id);
     if (!r || r.l !== levelIdx) continue;
-    list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id),
+    list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) || (Array.isArray(r.co) ? skinColor(r.co[3]) : undefined),
       hat: Array.isArray(r.co) ? r.co[0] : 'none', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
   }
   if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.face, vx: P.vx, ghost: false,
-    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id), hat: profile.equip.hat, trail: profile.equip.trail,
+    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin), hat: profile.equip.hat, trail: profile.equip.trail,
     sword: !!DIMS[P.dim].sword, shield: !!P.shielding });
   for (const [id, b] of botActors) { const e = list.find(x => x.id === id); if (e) { e.shield = !!b.p.shielding; } }
   if (level.ally && boss) { const ap = allyPos(); list.push({ id: 'ally', x: ap.x - PW / 2, y: ap.y - PH / 2, d: 0, nd: 0, g: 1, f: 1, vx: 0, ghost: false, visible: true, color: '#4f6f46', hat: 'helmet', trail: 'none' }); }
@@ -2748,6 +2945,23 @@ function drawGame(dt) {
   const D = P ? DIMS[P.dim] : DIMS[0];
   let camTarget = P ? { x: P.x + PW / 2, y: P.y + PH / 2 } : { x: 0, y: H * T / 2 };
   if (!P) { const r = remotes.get(gameRoster[0]); if (r) camTarget = { x: r.sx, y: r.sy }; }
+  // the Bananaverse is drawn flat and top-down, like the Bananas of the Caribbean
+  if (D.topdown && P) {
+    $('game').style.visibility = 'hidden';
+    ctx.clearRect(0, 0, VW, VH);
+    drawBanana2D(ctx, VW, VH, {
+      level, P, myDim: P.dim, bodies: bodiesForFrame(), killed, signals, pressed: pressedIds, grabbed, bullets, bolts, particles, time, laserOn, moverX,
+      coinsTaken, nameOf: id => (id === 'ally' ? 'Troppa' : nameOf(id)),
+      crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
+      mobs: level.mobs.filter(o => !killed.has(o.id)).map(o => ({ ...mobPos(o), dim: o.dim })),
+    });
+    if (boss) drawBossBar();
+    if (flash.t > 0) { ctx.globalAlpha = Math.min(0.5, flash.t * 1.5); ctx.fillStyle = flash.col; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
+    playMusic('banana');
+    spawnTrails();
+    return;
+  }
+  $('game').style.visibility = '';
   // chapter style repaints the world, except for dimensions with a look of their own
   const VD = level.theme && !D.flat && !D.topdown && D.key !== 'unicode' ? { ...D, ...THEMES[level.theme] } : D;
   renderer.frame({
@@ -2755,7 +2969,7 @@ function drawGame(dt) {
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
     crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
-    moverX, coinsTaken, partyCoins: [...partyCoins.values()],
+    moverX, coinsTaken, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
     crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
   }, dt);
   drawOverlay(D);
@@ -2802,7 +3016,7 @@ function drawExtras(id, p, ly) {
   }
   const em = emoting.get(id);
   if (em && performance.now() - em.t < 2600) {
-    const txt = EMOTES[em.i];
+    const txt = em.x || EMOTES[em.i];
     const big = txt.length <= 2;
     ctx.font = big ? `${isTouch ? 26 : 32}px sans-serif` : `800 ${isTouch ? 12 : 14}px Rubik, sans-serif`;
     const w = ctx.measureText(txt).width + 18, h = big ? 40 : 26, by = ly - h - 12;
@@ -2983,7 +3197,7 @@ function step(dt, draw) {
     sendT -= dt;
     if (sendT <= 0) { sendT = 1 / (gameRoster.length > 8 ? 8 : SEND_HZ); sendState(); }
     if (draw) { drawGame(dt); updateHud(dt); }
-  } else if (draw) { drawMenu(dt); playMusic(mode === 'victory' ? 'victory' : 'menu'); }
+  } else if (draw) { $('game').style.visibility = ''; drawMenu(dt); playMusic(mode === 'victory' ? 'victory' : 'menu'); }
 }
 
 // ---------- wiring ----------
@@ -3034,6 +3248,11 @@ $('start').onclick = async () => {
     send('intro4', { f });
     await playStory(f, SCENES.ch4intro);
   }
+  if (gameMode === 'space') {
+    const f = friendsForScene();
+    send('scene', { k: 'spaceIntro', f });
+    await playStory(f, SCENES.spaceIntro);
+  }
   if (gameMode === 'story3') {
     const order = computeOrder(players());
     const friends = players().map((p, i) => {
@@ -3080,12 +3299,56 @@ for (const b of document.querySelectorAll('#modes .mode')) {
 }
 $('leave').onclick = leaveRoom;
 $('bot-add').onclick = addBot;
+{
+  const on = $('ollama-on'), model = $('ollama-model'), status = $('ollama-status');
+  on.checked = !!botChat.on;
+  model.value = botChat.model;
+  const save = () => { try { localStorage.setItem('dim-ollama', JSON.stringify({ on: botChat.on, model: botChat.model })); } catch {} };
+  on.onchange = async () => {
+    botChat.on = on.checked;
+    save();
+    if (!on.checked) { status.textContent = ''; return; }
+    status.textContent = 'Checking Ollama…';
+    try {
+      const j = await (await fetch('http://localhost:11434/api/tags')).json();
+      const names = (j.models || []).map(m => m.name);
+      status.textContent = names.length ? `✅ Connected. Models: ${names.slice(0, 5).join(', ')}` : '✅ Connected, but no models yet — run: ollama pull llama3.2';
+      if (names.length && !names.some(n => n.startsWith(botChat.model))) { botChat.model = names[0].replace(/:latest$/, ''); model.value = botChat.model; save(); }
+    } catch { status.textContent = '❌ Could not reach Ollama at localhost:11434 — is it running with OLLAMA_ORIGINS set?'; }
+  };
+  model.onchange = () => { botChat.model = model.value.trim() || 'llama3.2'; save(); };
+}
 $('bot-remove').onclick = removeBot;
 let pendingBots = 0;
-$('solo').onclick = () => {             // quick start: a fresh room with one bot buddy
-  pendingBots = 1;
-  $('create').click();
-};
+// Solo: pick any mode, bots fill in the team it needs, and it starts right away
+let pendingStart = false;
+const SOLO = [
+  ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
+    ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
+  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
+];
+const SOLO_BOTS = { story: 1, story2: 1, story3: 1, story4: 1, space: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+for (const [head, list] of SOLO) {
+  const h = document.createElement('h3');
+  h.textContent = head;
+  $('solo-list').append(h);
+  for (const [m, name, desc] of list) {
+    const b = document.createElement('button');
+    b.className = 'mode';
+    b.innerHTML = `<b>${name}</b><span>${desc}</span>`;
+    b.onclick = () => {
+      $('solo-pick').classList.add('hidden');
+      gameMode = m;
+      pendingBots = SOLO_BOTS[m] || 0;
+      pendingStart = true;
+      $('create').click();
+    };
+    $('solo-list').append(b);
+  }
+}
+$('solo').onclick = () => $('solo-pick').classList.remove('hidden');
+$('solo-close').onclick = () => $('solo-pick').classList.add('hidden');
 $('again').onclick = () => { send('lobby', {}); setScreen('lobby'); };
 $('copy-link').onclick = async () => {
   const url = location.href.split('#')[0] + '#' + room.code;
@@ -3192,7 +3455,7 @@ function renderRecords() {
   const list = $('records-list');
   list.replaceChildren();
   let total = 0, max = 0;
-  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa']]) {
+  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['space', 'Across the Worlds']]) {
     const h = document.createElement('h3');
     h.textContent = title;
     list.append(h);

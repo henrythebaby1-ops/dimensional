@@ -639,6 +639,38 @@ function cannonAlley(n) {
   return b.done({ name: 'Cannon Alley', objective: 'RACE! Dodge the cannons, then sprint over the crumbling bridge. First to the portal wins.', race: true, theme: 'arcade' });
 }
 
+// ---------- Across the Worlds: from Earth to the black hole ----------
+// Each planet repaints a map and changes the physics (gravity, speed, wind, ice).
+const planet = (lv, name, objective, theme, phys, extra = {}) => ({ ...lv, race: false, name, objective, theme, planet: phys, space: true, ...extra });
+
+function blackHole(n) {
+  const b = new Builder(n, 60);
+  b.shell();
+  b.box(10, 14, 4, 4);
+  b.box(45, 49, 4, 4);
+  b.both('bounce', {}, 4, 1, 2, 1);
+  b.both('bounce', {}, 54, 1, 2, 1);
+  [8, 20, 40, 52].forEach((x, i) => b.add('target', { dim: null, link: 'anchor' + i, hp: 30 + n * 5 }, 1, x, 1, 1, H - 2));
+  b.raw('hole', {}, 29, MID - 1, 2, 2);
+  return b.done({
+    name: 'The Black Hole', theme: 'blackhole', space: true, holeFinal: true,
+    planet: { grav: 0.8, pull: { x: 30 * T, y: MID * T, k: 260 } },
+    objective: 'It pulls everything in! Shoot its 4 anchor stars (anyone can) to collapse it. Don\'t get too close…',
+  });
+}
+
+const SPACE = [
+  n => planet(sprint(n), 'Earth', 'Mission start! Run, jump the spikes and reach the portal — your trip to the black hole begins.', 'earth', {}),
+  n => planet(riftRush(n), 'Venus', 'Thick, windy air pushes you around and you fall slowly. Rifts and gravity fields ahead.', 'venus', { grav: 0.75, wind: 90 }),
+  n => planet(islands(n, true), 'Mars', 'Low gravity! Huge jumps across the islands — don\'t overshoot.', 'mars', { grav: 0.4 }),
+  n => planet(cannonAlley(n), 'The Sun', 'Scorching! Cannons, a crumbling bridge and SOLAR FLARES that sweep across whole rows.', 'sun', { speed: 1.1 }, { flares: true }),
+  n => planet(bounceHouse(n), 'Saturn', 'Floaty gravity, bounce pads and moving ring platforms over the gaps.', 'saturn', { grav: 0.65 }),
+  n => planet(gauntlet(n), 'Jupiter', 'HEAVY gravity — your jumps are short — and a giant storm keeps blowing. Time the lasers!', 'jupiter', { grav: 1.45, wind: 150 }),
+  n => planet(clockwork(n), 'Pluto', 'Frozen solid: everything is ice, and gravity is low.', 'pluto', { grav: 0.55, ice: true }),
+  n => planet(hop(n), 'The Verse of Everything', 'Every dimension at once! Your dimension swaps every 20 seconds. Collect the keystones.', 'everything', {}, { swapEvery: 20 }),
+  blackHole,
+];
+
 // ---------- Race mode: every traveler for themselves ----------
 function sprint(n) {
   const b = new Builder(n, 110);
@@ -762,6 +794,8 @@ export const MODES = {
     levels: [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), clockwork, topsy, shadows, n => nest(n, true), resonance, fracture],
   },
   survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
+  endless: { name: 'Endless', levels: [n => ({ ...arena(n), name: 'Endless Arena' })], min: 1, waves: Infinity },
+  trial: { name: 'Time Trial', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet].map(f => n => ({ ...f(n), race: false, trial: true })), min: 1 },
   race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet], min: 2 },
   story2: { name: 'Story Ch.2', levels: [lowercase, gapFill, stackOverflow, escapeSeq, unicoderBoss], min: 1 },
   story3: {
@@ -785,6 +819,7 @@ export const MODES = {
     ],
     scenes: { 4: 'troppaFree' },
   },
+  space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
   training: { name: 'Training Grounds', levels: [n => training(n, TRAIN_ROLES)], min: 1 },
   potato: { name: 'Hot Potato', levels: [n => ({ ...partyArena(n, 'tag'), name: 'Hot Potato', party: 'potato',
     objective: 'Someone holds the 💣. Touch a friend to pass it! When the fuse runs out, whoever holds it is OUT. Last one standing wins.' })], min: 2, time: 300 },
@@ -801,8 +836,9 @@ export const LEVELS = MODES.story.levels;
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   let lv = m.levels[idx](n);
-  if (['story', 'story2', 'story3', 'story4', 'daily'].includes(mode) && !lv.boss) lv = addCoins(lv);
+  if (['story', 'story2', 'story3', 'story4', 'daily', 'space'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
+    : mode === 'space' ? `${['🌍', '🟡', '🔴', '☀️', '🪐', '🟠', '🧊', '🌈', '🕳️'][idx]} ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
   if (lv.party && !lv.theme) lv.theme = 'arcade';
   return lv;

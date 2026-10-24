@@ -1,0 +1,201 @@
+// The Bananaverse is drawn in flat 2D, top-down, in the style of the Bananas of the Caribbean:
+// a grass field with dirt paths, water where the floor is missing, hedges for walls, and angry bananas.
+import { DIMS } from './dims.js';
+import { T, H, MID } from './levels.js';
+
+const PW = 22, PH = 28;
+let camX = 0;
+const decoSeed = [];
+for (let i = 0; i < 400; i++) { const a = Math.sin(i * 91.7) * 43758.5; decoSeed.push(a - Math.floor(a)); }
+
+function banana(ctx, x, y, s, face, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.scale(face, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.18)';
+  ctx.beginPath(); ctx.ellipse(0, s * 0.55, s * 0.7, s * 0.18, 0, 0, 7); ctx.fill();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#7a5a10'; ctx.lineWidth = s * 0.5;
+  ctx.beginPath(); ctx.arc(0, -s * 0.2, s * 0.6, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+  ctx.strokeStyle = '#ffd23a'; ctx.lineWidth = s * 0.4;
+  ctx.beginPath(); ctx.arc(0, -s * 0.2, s * 0.6, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+  ctx.fillStyle = '#5a3a1a';
+  for (const a of [Math.PI * 0.12, Math.PI * 0.88]) { ctx.beginPath(); ctx.arc(Math.cos(a) * s * 0.6, -s * 0.2 + Math.sin(a) * s * 0.6, s * 0.1, 0, 7); ctx.fill(); }
+  // angry eyes and eyebrows
+  for (const sx of [-1, 1]) {
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx * s * 0.17, s * 0.28, s * 0.1, 0, 7); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(sx * s * 0.17 + s * 0.03, s * 0.29, s * 0.05, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = s * 0.07;
+    ctx.beginPath(); ctx.moveTo(sx * s * 0.3, s * 0.12); ctx.lineTo(sx * s * 0.06, s * 0.2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function person(ctx, x, y, s, color, face, ghost, sword, hat) {
+  ctx.save();
+  ctx.globalAlpha = ghost ? 0.5 : 1;
+  // body seen from above: a round character with a little tunic
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.roundRect(x - s * 0.35, y - s * 0.2, s * 0.7, s * 0.65, s * 0.18); ctx.fill();
+  ctx.fillStyle = '#f2c79a';
+  ctx.beginPath(); ctx.arc(x, y - s * 0.35, s * 0.3, 0, 7); ctx.fill();
+  ctx.fillStyle = hat === 'none' || !hat ? '#4a2f1a' : hat === 'crown' ? '#ffd23a' : hat === 'halo' ? '#fff3a0' : '#2f6bff';
+  ctx.beginPath(); ctx.arc(x, y - s * 0.45, s * 0.28, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x + face * s * 0.08 - s * 0.1, y - s * 0.38, s * 0.06, s * 0.08);
+  ctx.fillRect(x + face * s * 0.08 + s * 0.04, y - s * 0.38, s * 0.06, s * 0.08);
+  if (sword) {
+    ctx.strokeStyle = '#dfe6f0'; ctx.lineWidth = s * 0.08; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x + face * s * 0.35, y + s * 0.1); ctx.lineTo(x + face * s * 0.85, y - s * 0.35); ctx.stroke();
+    ctx.strokeStyle = '#b8862b'; ctx.lineWidth = s * 0.1;
+    ctx.beginPath(); ctx.moveTo(x + face * s * 0.28, y + s * 0.02); ctx.lineTo(x + face * s * 0.46, y + s * 0.2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// s: { level, P, myDim, bodies, mobs, killed, signals, pressed, grabbed, bullets, bolts, particles, time, laserOn, moverX, coinsTaken, nameOf, crumbleState }
+export function drawBanana2D(ctx, VW, VH, s) {
+  const k = Math.min(VW, VH * 1.6) / 22 / T;          // ~22 tiles across
+  const lv = s.level, P = s.P;
+  const target = P ? P.x + PW / 2 : lv.W * T / 2;
+  camX += (target - camX) * 0.15;
+  camX = Math.max(VW / 2 / k, Math.min(lv.W * T - VW / 2 / k, camX));
+  const groundY = (H - 1) * T;
+  const baseY = VH * 0.72;
+  // squash height so the world reads as a top-down field (like a Zelda-style map)
+  const sx = x => (x - camX) * k + VW / 2;
+  const sy = y => baseY + (y - groundY) * k * 0.62;
+  const ts = T * k;
+
+  // grass, with the dirt road the lane runs along
+  ctx.fillStyle = '#6cc35a';
+  ctx.fillRect(0, 0, VW, VH);
+  for (let i = 0; i < 160; i++) {
+    const wx = (decoSeed[i] * lv.W * T * 1.4) - lv.W * T * 0.2, wy = decoSeed[i + 160] * VH;
+    const x = sx(wx);
+    if (x < -10 || x > VW + 10) continue;
+    ctx.fillStyle = i % 5 ? 'rgba(80,150,60,.5)' : '#ffe86a';
+    ctx.fillRect(x, wy, i % 5 ? 4 : 3, i % 5 ? 3 : 3);
+  }
+  ctx.fillStyle = '#e2c58e';
+  ctx.fillRect(0, sy(groundY - T * 3.2), VW, ts * 1.2);
+  // houses and bushes along the top of the village
+  for (let i = 0; i < 40; i++) {
+    const wx = decoSeed[i + 40] * lv.W * T * 1.2 - T * 4, x = sx(wx), y = 20 + decoSeed[i + 80] * (sy(groundY - T * 6) - 60);
+    if (x < -120 || x > VW + 120) continue;
+    if (i % 3 === 0) {
+      ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.fillRect(x + 6, y + 8, ts * 2.2, ts * 1.4);
+      ctx.fillStyle = '#f3ead6'; ctx.fillRect(x, y + ts * 0.7, ts * 2.2, ts * 0.7);
+      ctx.fillStyle = '#b4442d'; ctx.fillRect(x - 4, y, ts * 2.2 + 8, ts * 0.8);
+      ctx.fillStyle = '#8f3523'; ctx.fillRect(x - 4, y + ts * 0.65, ts * 2.2 + 8, ts * 0.15);
+      ctx.fillStyle = '#5a3a1a'; ctx.fillRect(x + ts * 0.9, y + ts * 1.05, ts * 0.35, ts * 0.35);
+    } else {
+      ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.beginPath(); ctx.arc(x + 4, y + 6, ts * 0.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#2f8f3a'; ctx.beginPath(); ctx.arc(x, y, ts * 0.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#3fae4a'; ctx.beginPath(); ctx.arc(x - ts * 0.12, y - ts * 0.12, ts * 0.25, 0, 7); ctx.fill();
+    }
+  }
+
+  const x0 = Math.max(0, Math.floor((camX - VW / 2 / k) / T) - 1), x1 = Math.min(lv.W - 1, Math.ceil((camX + VW / 2 / k) / T) + 1);
+  // the lane: dirt path where there's floor, water where it's missing
+  for (let tx = x0; tx <= x1; tx++) {
+    const x = sx(tx * T), floor = lv.grid[H - 1][tx] === '#';
+    ctx.fillStyle = floor ? (tx % 2 ? '#d4b06a' : '#cba660') : '#3a8fd0';
+    ctx.fillRect(x, sy(groundY - T), ts + 1, ts * 0.62 + ts * 0.5);
+    if (!floor) {
+      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x + ts / 2 + Math.sin(s.time * 2 + tx) * 4, sy(groundY - T * 0.4), ts * 0.2, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    }
+  }
+  // blocks become hedges / stone walls (green top, darker front), drawn back to front
+  for (let ty = MID; ty < H - 1; ty++) for (let tx = x0; tx <= x1; tx++) {
+    const c = lv.grid[ty][tx];
+    if (c === '#') {
+      const x = sx(tx * T), y = sy(ty * T), top = lv.grid[ty - 1]?.[tx] !== '#';
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(x + 4, y + 6, ts, ts * 0.62);
+      ctx.fillStyle = '#7a6a52'; ctx.fillRect(x, y + ts * 0.25, ts + 1, ts * 0.4);
+      if (top) { ctx.fillStyle = '#3d8f3a'; ctx.fillRect(x, y, ts + 1, ts * 0.3); ctx.fillStyle = '#56b34f'; ctx.fillRect(x + 3, y + 3, ts - 6, ts * 0.1); }
+    } else if (c === '^') {
+      // thorn bush
+      const x = sx(tx * T + T / 2), y = sy(ty * T + T * 0.6);
+      ctx.fillStyle = '#1f5a28'; ctx.beginPath(); ctx.arc(x, y, ts * 0.4, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#d9d2b0'; ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * ts * 0.3, y + Math.sin(a) * ts * 0.3); ctx.lineTo(x + Math.cos(a) * ts * 0.5, y + Math.sin(a) * ts * 0.5); ctx.stroke(); }
+    }
+  }
+
+  // objects
+  const myDim = s.myDim;
+  for (const o of lv.objs) {
+    if (o.y < MID - 2 && o.type !== 'target') continue;    // the other world is far up the map
+    const own = o.dim === null || o.dim === myDim;
+    const col = o.dim === null ? '#fff3b0' : DIMS[o.dim]?.color || '#fff';
+    const x = sx(o.x * T), y = sy(o.y * T), w = o.w * ts, h = o.h * ts * 0.62;
+    if (x + w < -20 || x > VW + 20) continue;
+    ctx.globalAlpha = own ? 1 : 0.3;
+    switch (o.type) {
+      case 'plate': case 'pad': case 'rolepad': case 'dimpad':
+        ctx.fillStyle = s.pressed.has(o.id) ? '#ffffff' : '#9a9a8a'; ctx.fillRect(x + 3, y + h * 0.4, w - 6, h * 0.6);
+        ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(x + 3, y + h * 0.4, w - 6, h * 0.6);
+        break;
+      case 'bridge':
+        if (s.signals[o.link]) { ctx.fillStyle = '#9a6b3a'; for (let i = 0; i < o.w; i++) ctx.fillRect(x + i * ts + 2, y - ts * 0.2, ts - 4, ts * 0.8); }
+        else { ctx.strokeStyle = col; ctx.setLineDash([5, 5]); ctx.strokeRect(x, y - ts * 0.2, w, ts * 0.8); ctx.setLineDash([]); }
+        break;
+      case 'door':
+        if (!s.signals[o.link]) { ctx.fillStyle = '#6a4a2a'; ctx.fillRect(x, sy((o.y + o.h - 3) * T), w, ts * 2); ctx.fillStyle = '#ffd23a'; ctx.fillRect(x + w / 2 - 3, sy((o.y + o.h - 2) * T), 6, 6); }
+        break;
+      case 'phase': ctx.fillStyle = col; ctx.fillRect(x, y, w, h); break;
+      case 'exit': {
+        const cx = x + w / 2, cy = sy((o.y + o.h - 1) * T);
+        ctx.fillStyle = 'rgba(255,240,180,.85)'; ctx.beginPath(); ctx.ellipse(cx, cy, w * 0.45, ts * 0.45, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#ffd95a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(cx, cy, w * 0.5 + Math.sin(s.time * 4) * 3, ts * 0.5, 0, 0, 7); ctx.stroke();
+        break;
+      }
+      case 'rift': case 'flip':
+        ctx.strokeStyle = o.type === 'rift' ? '#ff6ad5' : '#9feaff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(x + w / 2, sy((o.y + o.h - 1) * T), w * 0.5, ts * 0.4, s.time, 0, 7); ctx.stroke();
+        break;
+      case 'key': if (!s.grabbed.has(o.key)) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x + w / 2, y - 8); ctx.lineTo(x + w / 2 + 8, y + 2); ctx.lineTo(x + w / 2, y + 12); ctx.lineTo(x + w / 2 - 8, y + 2); ctx.fill(); } break;
+      case 'coin': if (!s.coinsTaken.has(o.id)) { ctx.fillStyle = '#ffd23a'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, ts * 0.22 * Math.abs(Math.cos(s.time * 3)) + 2, ts * 0.22, 0, 0, 7); ctx.fill(); } break;
+      case 'bounce': ctx.fillStyle = '#ff3d8b'; ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * 0.6, w * 0.45, h * 0.4, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(x + w / 2 - 3, y + h * 0.2, 6, 6); break;
+      case 'mover': { const mx = sx(s.moverX(o)); ctx.fillStyle = '#9a6b3a'; ctx.fillRect(mx, y, w, ts * 0.5); ctx.fillStyle = '#7a5230'; ctx.fillRect(mx, y + ts * 0.4, w, 4); break; }
+      case 'crumble': if (s.crumbleState(o) !== 2) { ctx.fillStyle = s.crumbleState(o) === 1 ? '#b88a50' : '#9a6b3a'; ctx.fillRect(x + 1, y, w - 2, ts * 0.5); } break;
+      case 'cannon': ctx.fillStyle = '#333844'; ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, ts * 0.35, 0, 7); ctx.fill(); ctx.fillRect(x + w / 2, y + h / 2 - 5, o.dir * ts * 0.5, 10); break;
+      case 'laser': if (s.laserOn(o)) { ctx.fillStyle = col; ctx.fillRect(x + w * 0.4, sy((o.y + o.h - 4) * T), w * 0.2, ts * 2.5); } break;
+      case 'target': if (!s.signals[o.link]) { ctx.fillStyle = col; ctx.fillRect(x + w * 0.25, sy(groundY - T * 3), w * 0.5, ts * 1.9); } break;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // the crawlers are bananas here
+  for (const m of s.mobs) {
+    if (m.y < MID * T) continue;
+    banana(ctx, sx(m.x + 13), sy(m.y + 22) - ts * 0.15, ts * 0.55, m.face, m.dim === myDim ? 1 : 0.4);
+  }
+
+  // shots, debris and sparks
+  for (const b of s.bullets) if (b.y > MID * T) { ctx.fillStyle = '#ff3d8b'; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), Math.max(4, (b.r || 8) * k), 0, 7); ctx.fill(); }
+  for (const b of s.bolts) { ctx.fillStyle = b.col && b.col !== 'rainbow' ? b.col : '#ffffff'; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), 5, 0, 7); ctx.fill(); }
+  for (const p of s.particles) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.col; ctx.fillRect(sx(p.x), sy(p.y), 4, 4); }
+  ctx.globalAlpha = 1;
+
+  // travelers: a shadow on the ground, the character lifted by how high they are
+  for (const b of s.bodies) {
+    if (b.visible === false || b.y < MID * T - 40) continue;
+    const x = sx(b.x + PW / 2), feet = sy(b.y + PH);
+    ctx.fillStyle = 'rgba(0,0,0,.22)';
+    ctx.beginPath(); ctx.ellipse(x, Math.max(feet, sy(groundY - T * 0.1)) + 4, ts * 0.32, ts * 0.12, 0, 0, 7); ctx.fill();
+    person(ctx, x, feet - ts * 0.35, ts * 0.9, b.color || DIMS[b.nd]?.color || '#fff', b.f || 1, b.ghost, b.sword, b.hat);
+    ctx.font = `700 ${Math.round(ts * 0.32)}px Rubik, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    const nm = s.nameOf(b.id);
+    const tw = ctx.measureText(nm).width + 10;
+    ctx.fillRect(x - tw / 2, feet - ts * 1.35, tw, ts * 0.42);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(nm, x, feet - ts * 1.03);
+  }
+  return { sx, sy };
+}

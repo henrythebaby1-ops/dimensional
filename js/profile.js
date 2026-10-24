@@ -21,6 +21,18 @@ export const SHOP = {
     { id: 'code', name: 'Code rain', icon: '💚', price: 150 },
     { id: 'rainbow', name: 'Rainbow', icon: '🌈', price: 250 },
   ],
+  skin: [
+    { id: 'default', name: 'My dimension', icon: '🎨', price: 0 },
+    { id: 'tomato', name: 'Tomato', icon: '🍅', price: 50, color: '#ff4a3a' },
+    { id: 'tangerine', name: 'Tangerine', icon: '🍊', price: 50, color: '#ff9a2a' },
+    { id: 'bubblegum', name: 'Bubblegum', icon: '🩷', price: 70, color: '#ff7ac8' },
+    { id: 'mint', name: 'Mint', icon: '🌿', price: 70, color: '#5affb0' },
+    { id: 'ocean', name: 'Ocean', icon: '🌊', price: 90, color: '#2a8aff' },
+    { id: 'grape', name: 'Grape', icon: '🍇', price: 90, color: '#9a4aff' },
+    { id: 'snow', name: 'Snow', icon: '⛄', price: 110, color: '#f4f8ff' },
+    { id: 'shadow', name: 'Shadow', icon: '🌑', price: 140, color: '#2a2a34' },
+    { id: 'gold', name: 'Gold', icon: '🏆', price: 220, color: '#ffc92a' },
+  ],
   bolt: [
     { id: 'default', name: 'My dimension', icon: '✦', price: 0 },
     { id: 'lime', name: 'Lime', icon: '🟢', price: 40, color: '#9dff3a' },
@@ -29,10 +41,11 @@ export const SHOP = {
     { id: 'rainbow', name: 'Rainbow', icon: '🌈', price: 200, color: 'rainbow' },
   ],
 };
+export const skinColor = id => SHOP.skin.find(s => s.id === id)?.color;
 export const DIM_PRICE = key => (key === 'middle' || key === 'flat' ? 150 : 100);
 
 function fresh() {
-  return { coins: 50, owned: ['hat:none', 'trail:none', 'bolt:default'], equip: { hat: 'none', trail: 'none', bolt: 'default' },
+  return { coins: 50, owned: ['hat:none', 'trail:none', 'bolt:default', 'skin:default'], equip: { hat: 'none', trail: 'none', bolt: 'default', skin: 'default' },
     stars: {}, dims: [...START_DIMS], daily: { last: '', streak: 0 } };
 }
 
@@ -41,7 +54,8 @@ function load() {
     const p = JSON.parse(localStorage.getItem(KEY));
     if (p && typeof p.coins === 'number') {
       const dims = [...new Set([...(p.dims || []), ...START_DIMS])];   // new free dimensions show up for old saves too
-      return { ...fresh(), ...p, dims, equip: { ...fresh().equip, ...p.equip }, daily: { ...fresh().daily, ...p.daily } };
+      const owned = [...new Set([...(p.owned || []), 'skin:default'])];
+      return { ...fresh(), ...p, dims, owned, equip: { ...fresh().equip, ...p.equip }, daily: { ...fresh().daily, ...p.daily } };
     }
   } catch {}
   return fresh();

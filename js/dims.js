@@ -104,3 +104,16 @@ export const THEMES = {
   war: { key: 'war', sky: ['#160606', '#6a2414'], ground: '#4a3a2c', dirt: '#33281f', edge: '#a8322a' },
   arcade: { key: 'arcade', sky: ['#07001a', '#2a0058'], ground: '#140a30', dirt: '#0e0624', edge: '#00f0ff' },
 };
+
+// Across the Worlds: every planet repaints the world (and the levels change its physics)
+Object.assign(THEMES, {
+  earth: { key: 'earth', sky: ['#5fb6ff', '#dff3ff'], ground: '#4f8f3a', dirt: '#3a6b2a', edge: '#8ee870' },
+  venus: { key: 'venus', sky: ['#c98a1a', '#ffe08a'], ground: '#9a6a2a', dirt: '#7a521e', edge: '#ffd27a' },
+  mars: { key: 'mars', sky: ['#5a1a0a', '#e0784a'], ground: '#a8452a', dirt: '#82331e', edge: '#ff9a6a' },
+  sun: { key: 'sun', sky: ['#ff6a00', '#fff2a0'], ground: '#8a2a00', dirt: '#6a1e00', edge: '#ffd23a' },
+  saturn: { key: 'saturn', sky: ['#1a1830', '#c9b48a'], ground: '#b8a070', dirt: '#97825a', edge: '#fff0c0' },
+  jupiter: { key: 'jupiter', sky: ['#3a1a0a', '#e0a070'], ground: '#9a6a4a', dirt: '#7a523a', edge: '#ffd0a0' },
+  pluto: { key: 'pluto', sky: ['#05060f', '#3a4a6a'], ground: '#9ab0c8', dirt: '#7a90a8', edge: '#ffffff' },
+  everything: { key: 'everything', sky: ['#2a0a4a', '#0a4a4a'], ground: '#3a2a5a', dirt: '#2a1e44', edge: '#ffffff' },
+  blackhole: { key: 'blackhole', sky: ['#000000', '#120a1a'], ground: '#1a1a24', dirt: '#101018', edge: '#ff8a3a' },
+});

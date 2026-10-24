@@ -251,6 +251,13 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 .item.eq { border-color: #39ff88; box-shadow: 0 0 0 1px #39ff88 inset; }
 .item .swatch-big { width: 30px; height: 30px; border-radius: 8px; }
 #records-list h3 { margin: 14px 0 6px; }
+.ollama { margin: 6px 0; font-size: 13px; }
+.ollama summary { cursor: pointer; opacity: .85; }
+.ollama .check { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+.ollama code { background: rgba(255,255,255,.1); padding: 1px 4px; border-radius: 4px; }
+.solo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.solo-list h3 { grid-column: 1 / -1; margin: 10px 0 0; font-size: 14px; opacity: .8; }
+.solo-list .mode { text-align: left; }
 .rec { display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.04); margin-bottom: 4px; font-size: 14px; }
 .rec .st { color: #ffd23a; letter-spacing: 2px; }
 .rec .bt { color: var(--muted); min-width: 56px; text-align: right; }
@@ -292,3 +299,6 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 .cut-stage.angry .tp-visor { animation: thump .2s infinite alternate; }
 .cut-stage.freed .tp-collar { display: none; }
 .cut-stage.freed .tp-visor { background: #7fe7ff; box-shadow: 0 0 12px #7fe7ff; }
+.cut-planets { position: absolute; top: 40px; left: 0; right: 0; display: flex; justify-content: space-around; align-items: center; padding: 0 20px; z-index: 2; }
+.cut-planet { border-radius: 50%; box-shadow: 0 0 14px rgba(255,255,255,.35); animation: float 2s ease-in-out infinite alternate; }
+.cut-planet:last-child { box-shadow: 0 0 0 4px #ff8a3a, 0 0 24px #ff8a3a; }

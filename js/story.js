@@ -351,3 +351,25 @@ export const SCENES = {
     { text: 'THE END. Thanks for playing Dimensional.', bg: 'happy', cast: ['friends'], ms: 4000 },
   ],
 };
+
+// Across the Worlds
+CAST.planets = () => {
+  const row = el('div', 'cut-planets');
+  for (const [c, sz] of [['#3a8fd0', 26], ['#ffd27a', 22], ['#e0784a', 18], ['#ffcc33', 40], ['#d8c08a', 30], ['#e0a070', 36], ['#c8d8e8', 14], ['conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)', 24], ['#000', 34]]) {
+    const p = el('div', 'cut-planet');
+    p.style.width = p.style.height = sz + 'px';
+    p.style.background = c;
+    row.append(p);
+  }
+  return row;
+};
+SCENES.spaceIntro = [
+  { text: 'Across the Worlds. One day, the friends looked up at the night sky…', bg: 'dark', cast: ['friends'], ms: 3200 },
+  { text: '…and saw a path of planets leading all the way to a black hole.', bg: 'dark', cast: ['planets'], ms: 3600 },
+  { text: 'Earth. Venus. Mars. The Sun. Saturn. Jupiter. Pluto. The Verse of Everything. And at the end — the Black Hole.', bg: 'dark', cast: ['planets'], ms: 4600 },
+  { text: 'Every world has its own gravity. Ready for launch!', bg: 'happy', cast: ['friends'], ms: 3000 },
+];
+SCENES.spaceEnd = [
+  { text: 'The last anchor star breaks. The black hole collapses into a single point of light…', bg: 'dark', cast: ['planets'], fx: 'flash', ms: 3600 },
+  { text: '…and the friends fall through it, out the other side, into a brand-new universe.', bg: 'tear', cast: ['friends'], ms: 3800 },
+];
