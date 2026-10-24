@@ -20,6 +20,7 @@
     <div class="panel">
       <h1 class="logo">DIMENSIONAL</h1>
       <p class="tag">2–20 players. Every one of you in a different dimension. Work together anyway.</p>
+      <p id="save-line" class="save-line"></p>
       <label class="field">Your name
         <input id="name" maxlength="14" placeholder="Traveler" autocomplete="off">
       </label>
@@ -72,10 +73,19 @@
       <button id="copy-link" class="btn small">Copy invite link</button>
       <h3>Game mode</h3>
       <div id="modes" class="modes">
-        <button class="mode" data-mode="story"><b>Story</b><span>Co-op puzzle levels + a boss</span></button>
+        <button class="mode" data-mode="story"><b>Story Ch.1</b><span>The Spectre — 13 co-op levels</span></button>
+        <button class="mode" data-mode="story2"><b>Story Ch.2</b><span>The Unicoder — Builders &amp; Walkers</span></button>
         <button class="mode" data-mode="survival"><b>Survival</b><span>10 waves of crawlers</span></button>
-        <button class="mode" data-mode="race"><b>Race</b><span>3 rounds, every traveler for themselves</span></button>
+        <button class="mode" data-mode="race"><b>Race</b><span>4 rounds, every traveler for themselves</span></button>
+        <button class="mode" data-mode="bossrush"><b>Boss Rush</b><span>3 bosses in a row, each tougher</span></button>
+        <button class="mode" data-mode="hunt"><b>Crawler Hunt</b><span>2 minutes — most crawlers shot wins</span></button>
       </div>
+      <label id="story-start-wrap" class="field hidden">Story start
+        <select id="story-start">
+          <option value="new">From the beginning</option>
+          <option value="continue">Continue from my save</option>
+        </select>
+      </label>
       <div class="picks">
         <label class="field">Your role
           <select id="role-pick"></select>
@@ -131,6 +141,60 @@
   </div>
 
   <div id="toasts"></div>
+
+  <section id="cutscene" class="hidden">
+    <div id="cut-stage" class="cut-stage"></div>
+    <p id="cut-caption" class="cut-caption"></p>
+    <button id="cut-skip" class="btn small-btn">Skip ▸</button>
+  </section>
+
+  <section id="offer" class="hidden">
+    <div class="panel offer-panel">
+      <p class="muted small">A VOICE FROM SOMEWHERE ELSE</p>
+      <h2>"You can't beat it alone. Let me help you."</h2>
+      <p id="offer-from" class="muted"></p>
+      <div class="row">
+        <button id="offer-yes" class="btn primary">Accept help</button>
+        <button id="offer-no" class="btn">Refuse</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="decision" class="panel-screen hidden">
+    <div class="panel decision-panel">
+      <h1 class="logo">THE SPECTRE FADES</h1>
+      <p>A message flickers across every dimension:</p>
+      <p class="reveal">The help you accepted was another traveler's <b>saved game</b>. They erased everything they had so you could win.</p>
+      <p id="decision-who" class="muted"></p>
+      <p>Right now, another group of friends is fighting the Spectre. They can't win alone either.</p>
+      <h3>Will you give your saved game to them?</h3>
+      <div class="row decision-row">
+        <button id="give-save" class="btn primary">Give up my saved game</button>
+        <button id="keep-save" class="btn">Don't delete my game save</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="crash" class="hidden">
+    <div class="crash-glitch"></div>
+    <div class="crash-box">
+      <p class="crash-title">Dimensional has stopped responding</p>
+      <pre>FATAL: save data not found
+  at loadSave (dimensional.js:0)
+  at Spectre.release (dimensional.js:1)
+Your save was given to another world.
+Restarting…</pre>
+    </div>
+  </div>
+
+  <div id="death" class="hidden">
+    <div class="death-inner">
+      <h1>YOU DIED</h1>
+      <p>You kept your save, <span id="death-name"></span>.</p>
+      <p>The Spectre took you instead.</p>
+      <button id="death-back" class="btn">Back to menu</button>
+    </div>
+  </div>
   <div id="net" class="hidden">Connection lost — reconnecting…</div>
 
   <div id="touch" class="hidden">

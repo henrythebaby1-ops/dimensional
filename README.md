@@ -15,12 +15,21 @@ Create a room and share the 4-letter code or invite link. In the lobby, pick a
 (Automatic / Phone / Computer).
 
 ## Game modes
-- **Story**: 13 co-op levels, ending with the boss.
-  1. The Crossing · 2. Phase Stairs · 3. Crawler Nest · 4. Dimension Hop · 5. Crystal Hunt ·
-  6. Laser Relay · 7. Floating Isle · 8. Sky Islands · 9. Topsy-Turvy · 10. Shadow Bridge ·
-  11. Night Nest · 12. Resonance · 13. The Fracture (boss)
+- **Story Chapter 1 — The Spectre**: 13 co-op levels. An intro cutscene shows how the
+  Spectre tore the friends apart. The Spectre can't be beaten... unless you accept help.
+  At the end you choose: give up your saved game for the next group of players (the game
+  crashes and restarts), or keep it (you die). The help you got was another player's save.
+- **Story Chapter 2 — The Unicoder**: everyone is in one world, but the Unicoder (a being
+  made of Unicode letters) split the team: **Builders** can't walk but drag blocks;
+  **Walkers** walk and push Builders. 5 levels: Lowercase, Gap Fill, Stack Overflow,
+  Escape Sequence, The Unicoder.
 - **Survival**: 10 waves of crawlers. The team shares its lives. Works solo.
-- **Race**: 4 rounds, every traveler for themselves. Spike Sprint, Rift Rush, Island Hop, Laser Gauntlet.
+- **Race**: 4 rounds, every traveler for themselves.
+- **Boss Rush**: three bosses in a row, each tougher.
+- **Crawler Hunt**: 2 minutes, most crawlers shot wins.
+
+**Bots:** the host can add 🤖 bots in the lobby (or press "Play with a bot"). Bots hold
+plates, take turns crossing, climb, collect keystones, shoot, race, build and push.
 
 ## Dimensions (verses)
 | Dimension | Lane | Twist |

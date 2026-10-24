@@ -48,12 +48,16 @@ export const ALL_DIMS = [
     gravMul: 0.3, jumpMul: 0.62, jumps: 2, maxFall: 420, desc: 'Deep space, upside down. Almost no gravity and a double jump.' },
   { key: 'cloud', name: 'Cloudverse', grav: 0, color: '#d8ecff', sky: ['#8ec5ff', '#ffffff'], ground: '#ffffff', dirt: '#dfe9f5', edge: '#b8d8ff',
     fly: true, speed: 170, accel: 0.05, desc: 'You drift through the sky between worlds. Floating, but slow to stop.' },
+  // Chapter 2: the Unicoder pulls everyone into one world made of code. Never picked or assigned normally.
+  { key: 'unicode', name: 'Unicode', hidden: true, color: '#e8fff0', sky: ['#02060a', '#06261a'], ground: '#0f2a1d', dirt: '#0a1e14', edge: '#39ff88',
+    desc: 'The Unicoder\'s world. Everything here is made of letters.' },
 ].map(d => ({ ...BASE, ...d }));
 
 // DIMS is the play order for the current game (slot i = player i).
 // It is reordered in place when players pick dimensions, so every module sees it.
 export const DIMS = [...ALL_DIMS];
-export const MAX_PLAYERS = ALL_DIMS.length;
+export const PICKABLE = ALL_DIMS.filter(d => !d.hidden);
+export const MAX_PLAYERS = PICKABLE.length;
 
 export function setDimOrder(keys) {
   const picked = keys.map(k => ALL_DIMS.find(d => d.key === k)).filter(Boolean);
@@ -65,10 +69,10 @@ export function setDimOrder(keys) {
 export function computeOrder(list) {
   const taken = new Set();
   const picks = list.map(p => {
-    if (p.dim && ALL_DIMS.some(d => d.key === p.dim) && !taken.has(p.dim)) { taken.add(p.dim); return p.dim; }
+    if (p.dim && PICKABLE.some(d => d.key === p.dim) && !taken.has(p.dim)) { taken.add(p.dim); return p.dim; }
     return null;
   });
-  const free = ALL_DIMS.map(d => d.key).filter(k => !taken.has(k));
+  const free = PICKABLE.map(d => d.key).filter(k => !taken.has(k));
   return picks.map(k => k || free.shift());
 }
 

@@ -35,3 +35,15 @@ alter table public.dim_clears
   add constraint dim_clears_player_count_check check (player_count between 1 and 10),
   add constraint dim_clears_time_ms_check check (time_ms between 1000 and 86400000);
 create index if not exists dim_clears_mode_idx on public.dim_clears (mode, score desc, time_ms);
+
+-- v3: saved games given up at the end of Story. The next group fighting the Spectre is helped by one.
+create table if not exists public.dim_gifts (
+  id bigint generated always as identity primary key,
+  name text not null check (char_length(name) between 1 and 14),
+  level int not null default 0 check (level between 0 and 100),
+  created_at timestamptz not null default now()
+);
+alter table public.dim_gifts enable row level security;
+create policy "anyone can read gifts" on public.dim_gifts for select to anon, authenticated using (true);
+create policy "anyone can give a save" on public.dim_gifts for insert to anon, authenticated with check (true);
+create index if not exists dim_gifts_recent_idx on public.dim_gifts (created_at desc);

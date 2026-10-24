@@ -1,7 +1,8 @@
-import { DIMS, ALL_DIMS, MAX_PLAYERS, ROLES, setDimOrder, computeOrder } from './dims.js';
+import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, setDimOrder, computeOrder } from './dims.js';
 import { buildLevel, laneIndex, MODES, T, H, MID } from './levels.js';
 const MIDY = MID * T;
-import { Room, fetchLeaderboard, recordClear } from './net.js';
+import { Room, fetchLeaderboard, recordClear, fetchGift, giveGift } from './net.js';
+import { playIntro, playIntro2, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH } from './render3d.js';
 
 const $ = id => document.getElementById(id);
@@ -62,6 +63,7 @@ let levelT = 0;
 let gameMode = 'story';
 let scores = {};                   // race points by player id
 let surv = null;                   // survival: { wave, lives, next }
+let hunt = null;                   // crawler hunt: { next, left } seconds
 let result = null;                 // how the last run ended, sent by the host
 const modeLevels = () => MODES[gameMode].levels;
 let signals = {};
@@ -70,6 +72,20 @@ let boss = null;
 let bullets = [], bolts = [], particles = [], pings = [];
 let time = 0, sendT = 0, flash = { t: 0, col: '#fff' };
 let transitioning = false, rosterTimer = 0, recorded = false, hintText = '';
+
+// Story save: how far you have reached. Shown on the menu and used to continue.
+const SAVE_KEY = 'dim-save';
+function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || null; } catch { return null; } }
+function writeSave(levelNum) {
+  const cur = loadSave();
+  if (cur && cur.level >= levelNum) return;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ level: levelNum, at: Date.now() })); } catch {}
+}
+function showSave() {
+  const sv = loadSave();
+  $('save-line').textContent = sv ? `💾 Your save: reached Story level ${sv.level}` : '💾 No saved game yet';
+}
+let gift = null;                   // whose given-up save helps against the Spectre
 
 const isHost = () => roster.length > 0 && roster[0].id === me.id;
 const players = () => [...roster, ...bots].slice(0, MAX_PLAYERS);
@@ -87,6 +103,11 @@ const KEYMAP = {
 const held = new Set();
 addEventListener('keydown', e => {
   if (mode !== 'play' || e.target.tagName === 'INPUT') return;
+  if (P && canDrag(P) && ['Space', 'KeyF', 'Enter'].includes(e.code)) {
+    e.preventDefault();
+    if (!e.repeat) toggleGrab();
+    return;
+  }
   const a = KEYMAP[e.code];
   if (!a) return;
   e.preventDefault();
@@ -176,10 +197,13 @@ function solid(tx, ty, dim) {
   return false;
 }
 
-function collides(x, y, dim) {
-  const x0 = Math.floor(x / T), x1 = Math.floor((x + PW - 0.001) / T);
-  const y0 = Math.floor(y / T), y1 = Math.floor((y + PH - 0.001) / T);
+function collides(x, y, dim, w = PW, h = PH, skip = null) {
+  const x0 = Math.floor(x / T), x1 = Math.floor((x + w - 0.001) / T);
+  const y0 = Math.floor(y / T), y1 = Math.floor((y + h - 0.001) / T);
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) if (solid(tx, ty, dim)) return true;
+  if (crates) for (const c of crates) {
+    if (c !== skip && x < c.x + T && x + w > c.x && y < c.y + T && y + h > c.y) return true;
+  }
   return false;
 }
 
@@ -207,10 +231,10 @@ function mobPos(o) {
   return { x: (o.x + k * o.range) * T + 3, y: g > 0 ? (H - 1) * T - MH : T, face: Math.floor(u) % 2 ? -1 : 1 };
 }
 
-function spawnPoint(dim) {
+function spawnPoint(dim, slot) {
   let cp = level.checkpoints[0];
   for (const c of level.checkpoints) if (!c.link || signals[c.link]) cp = c;
-  const x = (cp.x + laneIndex(dim) * 0.9) * T + 4;
+  const x = (cp.x + (slot ?? laneIndex(dim)) * 0.9) * T + 4;
   const g = DIMS[dim].grav;
   const y = g > 0 ? (H - 1) * T - PH - 0.01 : g < 0 ? T + 0.01 : MIDY - PH / 2 - laneIndex(dim) * T * 1.5;
   return { x, y };
@@ -227,6 +251,11 @@ function computeSignals() {
     if (!gameRoster.includes(id) || r.l !== levelIdx || r.dead || now - r.t > 4000) continue;
     for (const p of r.p || []) pressed.add(p);
   }
+  // blocks are heavy: they hold down shared plates and pads
+  if (crates) for (const c of crates) {
+    if (c.held) continue;
+    for (const o of level.objs) if ((o.type === 'plate' || o.type === 'pad') && o.dim === null && overlap(c.x + 4, c.y + 4, T - 8, T - 4, o)) pressed.add(o.id);
+  }
   for (const o of level.objs) if (o.type === 'plate' && pressed.has(o.id)) s[o.link] = true;
   pressedIds = pressed;
   signals = s;
@@ -240,6 +269,8 @@ function sendSnapshot() {
     l: levelIdx, m: gameMode, lt: levelT, r: gameRoster, la: [...latched], gr: [...grabbed], ki: [...killed],
     sv: surv && { w: surv.wave, lives: surv.lives, mobs: level.mobs.map(o => ({ id: o.id, dim: o.dim, x: o.x, range: o.range, speed: o.speed, phase: o.phase })) },
     b: boss && { hp: boss.hp, max: boss.max },
+    cr: crates && crates.map(c => [c.id, Math.round(c.x), Math.round(c.y), c.held ? 1 : 0]),
+    hu: hunt && { left: hunt.left, sc: scores, mobs: level.mobs.filter(o => !killed.has(o.id)).map(o => ({ id: o.id, dim: o.dim, x: o.x, range: o.range, speed: o.speed, phase: o.phase })) },
   });
 }
 
@@ -259,6 +290,15 @@ function onSnapshot(d) {
   if (surv && d.sv) {
     if (Array.isArray(d.sv.mobs) && d.sv.w !== surv.wave) applyWave(d.sv.w, d.sv.mobs.slice(0, 30));
     surv.lives = d.sv.lives | 0;
+  }
+  if (crates && Array.isArray(d.cr)) for (const [id, x, y, h] of d.cr) {
+    const c = crates.find(k => k.id === id);
+    if (c && dragState?.id !== id && !c.held) { c.x = x; c.y = y; c.held = !!h; }
+  }
+  if (hunt && d.hu) {
+    addMobs((d.hu.mobs || []).slice(0, 60));
+    hunt.left = +d.hu.left || hunt.left;
+    if (d.hu.sc) scores = d.hu.sc;
   }
   for (const id of d.ki || []) killMob(String(id));
   if (Math.abs((+d.lt || 0) - levelT) > 0.25) levelT = +d.lt || levelT;   // keep crawlers in step
@@ -298,15 +338,25 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   held.clear();
   if (idx >= modeLevels().length) return showVictory();
   recorded = false;
+  $('cutscene').classList.add('hidden');
+  $('offer').classList.add('hidden');
+  if (gameMode === 'story' && ids.includes(me.id)) writeSave(idx + 1);
   const n = ids.length;
   level = buildLevel(gameMode, idx, n);
+  if (level.ch2) setDimOrder(['unicode']);       // everyone is pulled into the Unicoder's world
+  crates = level.crates?.length ? level.crates.map(c => ({ ...c, ox: c.x, oy: c.y, vy: 0, held: false })) : null;
+  ch2Roles = level.ch2 ? assignCh2Roles(ids) : new Map();
+  dragState = null;
   level.solids = level.objs.filter(o => o.type === 'bridge' || o.type === 'door' || o.type === 'phase');
   level.mobs = level.objs.filter(o => o.type === 'mob');
   level.targets = level.objs.filter(o => o.type === 'target');
   surv = level.survival ? { wave: 0, lives: 3 + n, next: 3 } : null;
   signals = {};
   const myIdx = ids.indexOf(me.id);
-  P = myIdx < 0 ? null : newPlayer(rot ? (myIdx + idx) % n : myIdx);
+  P = myIdx < 0 ? null : newPlayer(level.ch2 ? 0 : rot ? (myIdx + idx) % n : myIdx, me.role, level.ch2 ? myIdx : undefined);
+  if (P) { P.id = me.id; P.ch2 = ch2Roles.get(me.id); }
+  if (P && level.ch2) setTimeout(() => P && toast(P.ch2 === 'dragger' ? '🧱 You are a BUILDER — drag the glowing blocks' : P.ch2 === 'walker' ? '🚶 You are a WALKER — push your Builders' : '🧱🚶 You can walk AND build', '#39ff88'), 1200);
+  hunt = level.hunt ? { next: 1.5, left: MODES.hunt.time } : null;
   setupBots(ids, idx, n, rot);
   boss = level.boss ? newBoss(n) : null;
   setScreen('play');
@@ -319,10 +369,10 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   else toast('Room is full — spectating');
 }
 
-function newPlayer(native, role = me.role) {
-  const sp = spawnPoint(native);
+function newPlayer(native, role = me.role, slot) {
+  const sp = spawnPoint(native, slot);
   const p = {
-    native, dim: native, x: sp.x, y: sp.y, vx: 0, vy: 0, face: 1, onGround: false, coyote: 0, role,
+    native, dim: native, x: sp.x, y: sp.y, slot, vx: 0, vy: 0, face: 1, onGround: false, coyote: 0, role,
     dashT: 0, dashCd: 0, healCd: 0,
     jumpBuf: 0, airJumps: 0, hp: 3, inv: 1, dead: 0, inRift: false, gflip: false, boltCd: 0, press: [], exit: false,
   };
@@ -345,7 +395,8 @@ function updateActor(p, inp, dt) {
   p.dashCd -= dt;
   p.healCd -= dt;
   const steps = Math.ceil(dt / (1 / 120));
-  for (let i = 0; i < steps && p.dead <= 0; i++) physics(p, inp, dt / steps);
+  const mv = level.ch2 && p.ch2 === 'dragger' ? NO_INPUT : inp;   // Builders can't walk
+  for (let i = 0; i < steps && p.dead <= 0; i++) physics(p, mv, dt / steps);
   p.jumpBuf -= dt;
   if (p.dead > 0) return;
 
@@ -381,7 +432,7 @@ function updateActor(p, inp, dt) {
     if (p.x < m.x + MW - 4 && p.x + PW > m.x + 4 && p.y < m.y + MH && p.y + PH > m.y + 4) { hurt(p); break; }
   }
   if (touchesSpike(p.x, p.y) || p.y > H * T + 80 || p.y < -80 - PH) return die(p);
-  if (inp.has('fire') && p.boltCd <= 0) fireBolt(p);
+  if (inp.has('fire') && p.boltCd <= 0 && p.ch2 !== 'dragger') fireBolt(p);
   if (local && p.exit && !level.boss) hintText = 'Waiting for everyone at the portal…';
 }
 
@@ -430,6 +481,19 @@ function physics(p, inp, h) {
     p.hitWall = true;
     if (D.climb && ix && !D.fly) p.vy = -g * 240;   // Jungleverse climbs walls
   }
+  // Chapter 2: a Walker on the ground walking into a Builder pushes them along
+  if (level.ch2 && p.ch2 !== 'dragger' && p.onGround && p.x !== ox) {
+    for (const d of builderBodies()) {
+      if (d.id === p.id) continue;
+      // you can push someone standing up to one block higher than you (you push their feet)
+      if (p.x < d.x + PW && p.x + PW > d.x && p.y < d.y + PH + 6 && p.y + PH > d.y - T + 4) {
+        const push = p.x - ox;
+        p.x = ox;
+        requestPush(d, push);
+        break;
+      }
+    }
+  }
   const oy = p.y, dy = p.vy * h;
   p.onGround = false;
   p.y += dy;
@@ -468,11 +532,12 @@ function die(p) {
 
 function respawn(p) {
   p.dim = p.native;
-  Object.assign(p, spawnPoint(p.native), { vx: 0, vy: 0, hp: maxHp(p), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
+  Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0, hp: maxHp(p), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
 }
 
 function hurt(p) {
   if (p.inv > 0 || p.dead > 0) return;
+  if (p.ch2 === 'dragger' && boss) return;   // the Unicoder's bullets can't hit Builders, who can't dodge
   p.hp--;
   p.inv = 1.3;
   if (p === P) { flash = { t: 0.2, col: '#ff3355' }; buzz(40); }
@@ -555,6 +620,7 @@ function sendState() {
 // Bots are run by the host with the same physics as players and broadcast like players.
 const BOT_NAMES = ['Bolt', 'Pixel', 'Nova', 'Echo', 'Sprocket', 'Zip', 'Gizmo', 'Comet', 'Blip', 'Rusty', 'Orbit', 'Chip', 'Widget', 'Byte', 'Sparky', 'Dot', 'Flux', 'Nano', 'Turbo'];
 let bots = [];                    // [{ id, name, role }] chosen in the lobby by the host
+let autoMe = null;
 const botActors = new Map();      // id -> { p, inp, name, stuck, lastX, jumpHold }
 const isBot = id => typeof id === 'string' && id.startsWith('bot-');
 
@@ -588,7 +654,10 @@ function setupBots(ids, idx, n, rot) {
   for (const b of bots) {
     const i = ids.indexOf(b.id);
     if (i < 0) continue;
-    botActors.set(b.id, { p: newPlayer(rot ? (i + idx) % n : i, b.role), inp: new Set(), name: b.name, stuck: 0, lastX: 0, jumpHold: 0, think: 0 });
+    const bp = newPlayer(level.ch2 ? 0 : rot ? (i + idx) % n : i, b.role, level.ch2 ? i : undefined);
+    bp.id = b.id;
+    bp.ch2 = ch2Roles.get(b.id);
+    botActors.set(b.id, { p: bp, inp: new Set(), name: b.name, stuck: 0, lastX: 0, jumpHold: 0, think: 0 });
   }
 }
 
@@ -598,7 +667,9 @@ function adoptBots() {
     if (botActors.has(b.id) || !gameRoster.includes(b.id)) continue;
     const r = remotes.get(b.id);
     const i = gameRoster.indexOf(b.id);
-    const p = newPlayer(r?.nd ?? i % level.n, b.role);
+    const p = newPlayer(level.ch2 ? 0 : r?.nd ?? i % level.n, b.role, level.ch2 ? i : undefined);
+    p.id = b.id;
+    p.ch2 = ch2Roles.get(b.id);
     if (r) Object.assign(p, { x: r.x, y: r.y, dim: r.d ?? p.dim });
     botActors.set(b.id, { p, inp: new Set(), name: b.name, stuck: 0, lastX: p.x, jumpHold: 0, think: 0 });
   }
@@ -649,7 +720,7 @@ function botGoal(b) {
     const ex = near(level.objs.filter(o => o.type === 'exit' && (D.fly || needGrav(o) === g)));
     return ex ? goTo(ex) : null;
   }
-  if (surv || level.nest) {
+  if (surv || hunt || level.nest) {
     const mobs = level.mobs.filter(o => !killed.has(o.id));
     if (mobs.length) {
       let best = null, bd = 1e9;
@@ -663,6 +734,9 @@ function botGoal(b) {
         const side = best.x > cx ? -1 : 1;
         return { x: best.x + MW / 2 + side * T * 5, y: best.y + MH / 2, shootAt: best.x + MW / 2 };
       }
+      // every crawler is in the other lane: go through a gravity field to reach them
+      const field = near(level.objs.filter(o => o.type === 'flip'));
+      if (field && !D.fly) return { x: (field.x + 0.5) * T, y: p.y + PH / 2 };
     }
   }
   if (boss) {
@@ -671,6 +745,15 @@ function botGoal(b) {
     return { x: cx, y: p.y + PH / 2, fire: true };
   }
   const actors = allActors();
+  // Chain puzzles: if my own bridge/lasers are open right now and nobody earlier in line can go,
+  // it's my turn to cross instead of holding plates (stops everyone waiting on each other forever).
+  const blockersOf = l => level.objs.filter(x => x.link === l && x.type !== 'plate');
+  const endOf = l => Math.max(...blockersOf(l).map(e => e.x + e.w)) * T;
+  const pendingOf = a => [...new Set(level.objs.filter(o => (o.type === 'bridge' || o.type === 'laser') && o.link && o.dim === a.dim).map(o => o.link))]
+    .filter(l => a.x < endOf(l) + 8);
+  const canGo = a => { const pend = pendingOf(a); return pend.length > 0 && pend.every(l => signals[l]); };
+  const firstGoer = actors.find(a => !a.dead && canGo(a));
+  const myTurn = firstGoer === p;
   // 1. hold plates that a teammate still needs
   const helping = [];
   for (const o of level.objs) {
@@ -683,7 +766,7 @@ function botGoal(b) {
     const mySide = (o.x * T < startX) === (cx < startX);
     if (needers.length && mySide) helping.push(o);
   }
-  const help = near(helping);
+  const help = !myTurn && near(helping);
   if (help) return goTo(help);
   // 2. team pads: stand on mine in the first gate that is still closed
   for (const gid of level.groups || []) {
@@ -709,6 +792,7 @@ function botGoal(b) {
 }
 
 function botThink(b, dt) {
+  if (level.ch2) return botThinkCh2(b, dt);
   const p = b.p, D = DIMS[p.dim], inp = b.inp;
   const g = gravOf(p);
   inp.clear();
@@ -717,6 +801,13 @@ function botThink(b, dt) {
   let goal = b.goal;
   if (!goal) return;
   const cx = p.x + PW / 2, cy = p.y + PH / 2;
+  // climbing: follow a ledge waypoint until standing on it
+  if (b.way) {
+    b.way.t -= dt;
+    const onIt = p.onGround && Math.abs(b.way.x - cx) < T * 0.7 && Math.floor(cy / T) === b.way.row;
+    if (onIt || b.way.t <= 0) b.way = null;
+    else goal = { ...goal, x: b.way.x, y: b.way.y, o: null, shootAt: undefined };
+  }
   // a goal in the other lane needs flipped gravity first: route through a gravity field
   if (!D.fly && goal.o && needGrav(goal.o) !== g && goal.o.type !== 'exit') {
     const field = level.objs.filter(o => o.type === 'flip').sort((a, c) => Math.abs(a.x * T - cx) - Math.abs(c.x * T - cx))[0];
@@ -732,9 +823,17 @@ function botThink(b, dt) {
   for (const o of level.mobs) {
     if (killed.has(o.id)) continue;
     const m = mobPos(o);
-    if (Math.abs(m.y + MH / 2 - cy) < T && Math.abs(m.x - cx) < T * 9) {
-      if (o.dim === p.dim && p.role !== 'ghost' && Math.abs(m.x - cx) < T * 3) dir = -Math.sign(m.x - cx) || dir;
-      if (!dir || Math.sign(m.x - cx) === p.face) { p.face = Math.sign(m.x - cx) || p.face; inp.add('fire'); }
+    const mdx = m.x + MW / 2 - cx;
+    if (Math.abs(m.y + MH / 2 - cy) > T || Math.abs(mdx) > T * 9) continue;
+    const ahead = !dir || Math.sign(mdx) === dir;
+    // a crawler that can hurt me and is in my way: stop, turn and shoot it
+    if (o.dim === p.dim && p.role !== 'ghost' && ahead && Math.abs(mdx) < T * 6) {
+      dir = 0;
+      p.face = Math.sign(mdx) || p.face;
+      inp.add('fire');
+    } else if (ahead) {
+      p.face = Math.sign(mdx) || p.face;
+      inp.add('fire');
     }
   }
 
@@ -746,8 +845,18 @@ function botThink(b, dt) {
     const tx = Math.floor((cx + dir * 22) / T);
     const feet = g > 0 ? Math.floor((p.y + PH + 4) / T) : Math.floor((p.y - 4) / T);
     const wall = collides(p.x + dir * 8, p.y, p.dim);
+    // a column is safe if there is ground somewhere below it (a step down is fine), not a pit or spikes
+    const safe = col => {
+      for (let k = 0; k < 12; k++) {
+        const row = feet + g * k;
+        if (row < 0 || row >= H) return false;
+        if (/[\^v]/.test(level.grid[row]?.[col] || '')) return false;
+        if (solid(col, row, p.dim)) return true;
+      }
+      return false;
+    };
     let gap = 0;
-    for (let i = 0; i < 5 && !solid(tx + dir * i, feet, p.dim); i++) gap++;
+    for (let i = 0; i < 5 && !safe(tx + dir * i); i++) gap++;
     const bodyRow = Math.floor(cy / T);
     const spike = [0, 1].some(i => /[\^v]/.test(level.grid[bodyRow]?.[tx + dir * i] || '') || /[\^v]/.test(level.grid[feet - g]?.[tx + dir * i] || ''));
     const laser = level.objs.some(o => o.type === 'laser' && o.dim === p.dim && laserOn(o) && Math.abs((o.x + 0.5) * T - (cx + dir * 30)) < T * 1.2);
@@ -755,7 +864,27 @@ function botThink(b, dt) {
     else if (gap >= 4 && D.jumps <= 1) dir = 0;  // too wide: wait for a bridge
     else if ((wall || gap || spike) && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.35; }
     const above = g > 0 ? goal.y < p.y - T * 1.5 : goal.y > p.y + PH + T * 1.5;
-    if (above && Math.abs(dx) < T * 4 && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.35; }
+    const ledge = !solid(tx, feet, p.dim);
+    if (above && p.onGround && ((Math.abs(dx) < T * 4 && Math.abs(dx) > T * 0.4) || ledge)) { p.jumpBuf = 0.14; b.jumpHold = 0.4; }
+    // a wall too tall to jump: find the highest ledge within reach nearby and climb onto it
+    b.climbT = (b.climbT || 0) - dt;
+    if (p.onGround && !b.way && !D.climb) {
+      const row = Math.floor(cy / T), col = Math.floor(cx / T);
+      let tall = 0;
+      if (wall) for (let k = 0; k < 6 && solid(col + dir, row - g * k, p.dim); k++) tall++;
+      if (tall >= 4) b.climbT = 6;              // keep stepping up ledge by ledge for a while
+      if (b.climbT > 0) {
+        let best = null;
+        for (let c = col - 8; c <= col + 3; c++) for (let hgt = 1; hgt <= 4; hgt++) {
+          const r = row - g * hgt;
+          if (r < 0 || r >= H || solid(c, r, p.dim) || solid(c, r - g, p.dim) || !solid(c, r + g, p.dim)) continue;
+          const score = hgt * 10 - Math.abs(c - col) * 0.5;
+          if (!best || score > best.score) best = { score, c, r };
+        }
+        if (best) b.way = { x: (best.c + 0.5) * T, y: (best.r + 0.5) * T, row: best.r, t: 4 };
+        else b.climbT = 0;
+      }
+    }
     if (!p.onGround && p.vy * g > 0 && (wall || gap) && p.airJumps > 0 && D.jumps > 1) p.jumpBuf = 0.14;
   }
   if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
@@ -768,6 +897,260 @@ function botThink(b, dt) {
   if (dir && Math.abs(p.x - b.lastX) < 1) b.stuck += dt; else b.stuck = 0;
   b.lastX = p.x;
   if (b.stuck > 0.8 && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.4; b.stuck = 0; }
+}
+
+// ---------- chapter 2: builders, walkers and blocks ----------
+const NO_INPUT = new Set();
+const DRAG_RANGE = T * 9;
+let crates = null;                  // [{ id, x, y, vy, held, by, ox, oy }]
+let ch2Roles = new Map();           // id -> 'walker' | 'dragger' | 'both'
+let dragState = null;               // { id, cx, cy, kb } my current drag / keyboard cursor
+let crateSendT = 0;
+const pushAcc = new Map();
+const canDrag = p => !!level?.ch2 && (p.ch2 === 'dragger' || p.ch2 === 'both');
+
+// Half the team builds, half walks. Bots take the Walker jobs first so humans get to build.
+function assignCh2Roles(ids) {
+  const roles = new Map();
+  if (ids.length === 1) { roles.set(ids[0], 'both'); return roles; }
+  const walkers = Math.ceil(ids.length / 2);
+  const order = [...ids.filter(isBot), ...ids.filter(id => !isBot(id))];
+  order.forEach((id, i) => roles.set(id, i < walkers ? 'walker' : 'dragger'));
+  return roles;
+}
+
+function builderBodies() {
+  const list = [];
+  for (const id of gameRoster) {
+    if (ch2Roles.get(id) !== 'dragger') continue;
+    if (id === me.id) { if (P && P.dead <= 0) list.push({ id, x: P.x, y: P.y, ref: P }); continue; }
+    const b = botActors.get(id);
+    if (b) { if (b.p.dead <= 0) list.push({ id, x: b.p.x, y: b.p.y, ref: b.p }); continue; }
+    const r = remotes.get(id);
+    if (r && r.l === levelIdx && !r.dead) list.push({ id, x: r.x, y: r.y, remote: r });
+  }
+  return list;
+}
+
+function requestPush(d, dx) {
+  if (d.ref) { pushActor(d.ref, dx); return; }
+  // someone else's Builder: move them here right away, and tell their game
+  d.remote.x += dx; d.remote.sx += dx;
+  pushAcc.set(d.id, (pushAcc.get(d.id) || 0) + dx);
+}
+
+function flushPushes(dt) {
+  crateSendT -= dt;
+  if (crateSendT > 0) return;
+  crateSendT = 1 / 15;
+  for (const [id, dx] of pushAcc) if (Math.abs(dx) > 0.2) send('push', { id, dx: clamp(dx, -40, 40) });
+  pushAcc.clear();
+  // also stream any block I'm moving
+  if (dragState?.id) sendCrate(crates.find(c => c.id === dragState.id));
+  for (const b of botActors.values()) if (b.carry) sendCrate(crates.find(c => c.id === b.carry.id));
+}
+
+// being pushed: slide along, stepping up onto anything one tile high
+function pushActor(p, dx) {
+  dx = clamp(dx, -40, 40);
+  const g = gravOf(p) || 1;
+  const ox = p.x, oy = p.y;
+  p.x += dx;
+  if (!collides(p.x, p.y, p.dim)) return;
+  p.y -= g * (T + 1);
+  if (!collides(p.x, p.y, p.dim) && !collides(ox, p.y, p.dim)) return;
+  p.x = ox; p.y = oy;
+}
+
+function crateHits(c, x, y) {
+  return collides(x, y, 0, T, T, c);
+}
+
+function moveCrate(c, nx, ny) {
+  c.touched = performance.now();
+  // move in small steps so blocks never tunnel through walls
+  const steps = Math.max(1, Math.ceil(Math.hypot(nx - c.x, ny - c.y) / 8));
+  for (let i = 0; i < steps; i++) {
+    const sx = c.x + (nx - c.x) / (steps - i), sy = c.y + (ny - c.y) / (steps - i);
+    const okX = !crateHits(c, sx, c.y) && !actorsIn(sx, c.y);
+    if (okX) c.x = sx;
+    const okY = !crateHits(c, c.x, sy) && !actorsIn(c.x, sy);
+    if (okY) c.y = sy;
+    if (!okX && !okY) break;
+  }
+}
+
+// never drop a block onto someone's head
+function actorsIn(x, y) {
+  for (const a of allActors()) if (!a.dead && x < a.x + PW && x + T > a.x && y < a.y + PH && y + T > a.y) return true;
+  return false;
+}
+
+function updateCrates(dt) {
+  if (!crates) return;
+  const now = performance.now();
+  for (const c of crates) {
+    // nobody has moved a "held" block for a while (holder left, or a message was lost): let it drop
+    if (c.held && now - (c.touched || now) > 2500 && dragState?.id !== c.id) { c.held = false; c.vy = 0; snapCrate(c); }
+    if (c.held) continue;
+    c.vy = Math.min(c.vy + G * dt, 900);
+    const ny = c.y + c.vy * dt;
+    if (crateHits(c, c.x, ny)) {
+      // land exactly on the grid line below (touching edges don't count as overlapping)
+      const land = Math.floor((ny + T) / T) * T - T;
+      if (c.vy > 0 && land >= c.y - 0.5 && !crateHits(c, c.x, land)) c.y = land;
+      c.vy = 0;
+    } else c.y = ny;
+    if (c.y > H * T + 64) { c.x = c.ox; c.y = c.oy; c.vy = 0; }   // fell out: put it back
+  }
+}
+
+// dropped blocks snap to the grid so stacks line up
+function snapCrate(c) {
+  const nx = Math.round(c.x / T) * T;
+  if (Math.abs(nx - c.x) < T / 2 && !crateHits(c, nx, c.y)) c.x = nx;
+  else if (!crateHits(c, Math.floor(c.x / T) * T, c.y)) c.x = Math.floor(c.x / T) * T;
+  else if (!crateHits(c, Math.ceil(c.x / T) * T, c.y)) c.x = Math.ceil(c.x / T) * T;
+}
+
+function sendCrate(c) {
+  if (c) send('crate', { id: c.id, x: Math.round(c.x), y: Math.round(c.y), h: c.held });
+}
+
+function onCrateMsg(d) {
+  const c = crates?.find(k => k.id === d.id);
+  if (!c || dragState?.id === c.id) return;
+  c.x = +d.x; c.y = +d.y; c.held = !!d.h; c.vy = 0; c.touched = performance.now();
+}
+
+function inRange(p, x, y) {
+  return Math.hypot(x - (p.x + PW / 2), y - (p.y + PH / 2)) <= DRAG_RANGE;
+}
+
+function grabAt(wx, wy) {
+  if (!P || !canDrag(P) || P.dead > 0) return false;
+  let best = null, bd = 1e9;
+  for (const c of crates || []) {
+    if (c.held) continue;
+    const d = Math.hypot(c.x + T / 2 - wx, c.y + T / 2 - wy);
+    if (d < T * 1.3 && d < bd && inRange(P, c.x + T / 2, c.y + T / 2)) { bd = d; best = c; }
+  }
+  if (!best) { if (!inRange(P, wx, wy)) toast('Too far — get a Walker to push you closer', '#39ff88'); return false; }
+  best.held = true;
+  best.touched = performance.now();
+  dragState = { id: best.id, cx: wx, cy: wy, offX: wx - best.x, offY: wy - best.y, kb: dragState?.kb };
+  sendCrate(best);
+  return true;
+}
+
+function dropCrate() {
+  const c = crates?.find(k => k.id === dragState?.id);
+  if (c) { c.held = false; c.vy = 0; snapCrate(c); sendCrate(c); }
+  if (dragState) dragState.id = null;
+}
+
+function toggleGrab() {
+  if (!dragState) dragState = { id: null, cx: P.x + PW / 2 + T * 2, cy: P.y + PH / 2, kb: true };
+  dragState.kb = true;
+  if (dragState.id) dropCrate();
+  else grabAt(dragState.cx, dragState.cy);
+}
+
+// keyboard cursor for Builders (arrows move it), and keeping the held block on it
+function updateDrag(dt) {
+  if (!P || !canDrag(P) || !crates) return;
+  if (P.ch2 === 'dragger' && dragState?.kb) {
+    const v = 420 * dt;
+    if (held.has('left')) dragState.cx -= v;
+    if (held.has('right')) dragState.cx += v;
+    if (held.has('jump') || held.has('up')) dragState.cy -= v;
+    if (held.has('down')) dragState.cy += v;
+  }
+  if (!dragState) return;
+  // keep the cursor within reach
+  const px = P.x + PW / 2, py = P.y + PH / 2;
+  const d = Math.hypot(dragState.cx - px, dragState.cy - py);
+  if (d > DRAG_RANGE) { dragState.cx = px + (dragState.cx - px) / d * DRAG_RANGE; dragState.cy = py + (dragState.cy - py) / d * DRAG_RANGE; }
+  const c = crates.find(k => k.id === dragState.id);
+  if (c) moveCrate(c, dragState.cx - (dragState.offX ?? T / 2), dragState.cy - (dragState.offY ?? T / 2));
+}
+
+function slotFilled(sl) {
+  return !!crates?.some(c => !c.held && Math.abs(c.x - sl.x) < 10 && Math.abs(c.y - sl.y) < 10);
+}
+
+// ---------- chapter 2 bots ----------
+function botThinkCh2(b, dt) {
+  const p = b.p, inp = b.inp;
+  inp.clear();
+  const cx = p.x + PW / 2;
+  const slots = level.slots || [];
+  const next = slots.find(sl => !slotFilled(sl));
+  if (p.ch2 === 'dragger') {
+    if (b.carry) return carryStep(b, dt);
+    if (!next || !inRange(p, next.x + T / 2, next.y + T / 2)) return;
+    const used = new Set(crates.filter(c => slots.some(sl => Math.abs(c.x - sl.x) < 10 && Math.abs(c.y - sl.y) < 10)).map(c => c.id));
+    // a block already falling into this column will land on its own: wait for it
+    if (crates.some(c => !c.held && Math.abs(c.x - next.x) < 4 && c.y < next.y - 2 && performance.now() - (c.touched || 0) < 1500)) return;
+    const settled = c => !c.held && Math.abs(c.vy) < 1 && performance.now() - (c.touched || 0) > 800;
+    const free = crates.filter(c => settled(c) && !used.has(c.id) && inRange(p, c.x + T / 2, c.y + T / 2)
+      && !actorsIn(c.x, c.y - T) && !crates.some(k => k !== c && Math.abs(k.x - c.x) < T && Math.abs(k.y - (c.y - T)) < 4))   // nothing on top of it
+      .sort((a, c) => Math.abs(a.x - next.x) - Math.abs(c.x - next.x))[0];
+    if (!free) return;
+    free.held = true;
+    free.touched = performance.now();
+    b.carry = { id: free.id, slot: next, phase: 0, t: 0 };
+    return;
+  }
+  // Walker: escort the Builders forward, then everyone into the portal
+  const builders = builderBodies().filter(d => d.id !== p.id);
+  const exit = level.objs.find(o => o.type === 'exit' && o.y >= MID);
+  const exitX = exit ? (exit.x + 1) * T : level.W * T;
+  const lagging = builders.filter(d => !(exit && overlap(d.x, d.y, PW, PH, exit))).sort((a, c) => a.x - c.x)[0];
+  if (boss) { inp.add('fire'); if (boss.shatterT <= 0) { b.goal = { x: p.x, y: p.y }; } }
+  let goalX = exitX;
+  if (lagging) {
+    // stop the Builder within reach of the next empty slot (but never onto spikes); then all the way home
+    const stopX = next ? Math.min(next.x - T * 4, exitX) : exitX;
+    if (lagging.x < stopX - 8) {
+      const behind = p.x + PW / 2 < lagging.x + PW / 2 - 6;
+      if (behind) goalX = lagging.x + T * 3;           // walk into them: pushes them right
+      else goalX = lagging.x - T * 1.5;                // get behind them first
+    } else goalX = Math.min(p.x + PW / 2, lagging.x - T);   // wait beside them
+  }
+  b.goal = { x: goalX, y: p.y + PH / 2 };
+  let dir = Math.abs(goalX - cx) > 8 ? Math.sign(goalX - cx) : 0;
+  // hop over a Builder instead of shoving them the wrong way
+  const blocker = builders.find(d => Math.abs(d.y - p.y) < T * 1.5 && Math.sign(d.x - p.x) === dir && Math.abs(d.x - p.x) < PW + 6);
+  if (blocker && dir < 0 && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.4; }
+  const wall = dir && collides(p.x + dir * 8, p.y, p.dim);   // blocks and walls: hop up and keep pushing from there
+  if (wall && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.4; }
+  const tx = Math.floor((cx + dir * 22) / T), row = Math.floor((p.y + PH / 2) / T);
+  if (dir && /[\^v]/.test(level.grid[row]?.[tx] || '') && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.4; }
+  if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
+  if (dir) inp.add(dir > 0 ? 'right' : 'left');
+}
+
+function carryStep(b, dt) {
+  const c = crates.find(k => k.id === b.carry.id);
+  if (!c) { b.carry = null; return; }
+  const sl = b.carry.slot;
+  b.carry.liftY ??= Math.max(T, Math.min(c.y, sl.y) - T * 2);   // decided once, so blocks don't float up forever
+  const liftY = b.carry.liftY;
+  // lift, carry over the column, then let go: gravity stacks it neatly
+  const wps = [{ x: c.x, y: liftY }, { x: sl.x, y: liftY }];
+  const wp = wps[b.carry.phase];
+  const v = 340 * dt;
+  const dx = wp.x - c.x, dy = wp.y - c.y, d = Math.hypot(dx, dy);
+  const before = c.x + c.y;
+  moveCrate(c, d < v ? wp.x : c.x + dx / d * v, d < v ? wp.y : c.y + dy / d * v);
+  if (Math.hypot(wp.x - c.x, wp.y - c.y) < 2) b.carry.phase++;
+  b.carry.t += dt;
+  const stuck = Math.abs(c.x + c.y - before) < 0.01;
+  if (b.carry.phase >= wps.length || b.carry.t > 6 || (stuck && b.carry.t > 1.5)) {
+    c.held = false; c.vy = 0; snapCrate(c); sendCrate(c);
+    b.carry = null;
+  }
 }
 
 // ---------- remotes ----------
@@ -791,6 +1174,7 @@ function updateRemotes(dt) {
 function hostChecks(dt) {
   if (transitioning) return;
   if (surv) return hostSurvival(dt);
+  if (hunt) return hostHunt(dt);
   for (const g of level.groups || []) {
     if (latched.has('res' + g)) continue;
     const pads = level.objs.filter(o => o.type === 'pad' && o.group === g);
@@ -861,6 +1245,11 @@ function spawnWave() {
 function applyWave(w, list) {
   surv.wave = w;
   surv.next = 0;
+  addMobs(list);
+  toast(`Wave ${w}!`, '#ff6ad5');
+}
+
+function addMobs(list) {
   for (const m of list) {
     if (level.objs.some(o => o.id === m.id)) continue;
     const dim = clamp(m.dim | 0, 0, level.n - 1);
@@ -868,7 +1257,31 @@ function applyWave(w, list) {
       range: +m.range || 4, speed: +m.speed || 1.5, phase: +m.phase || 0 });
   }
   level.mobs = level.objs.filter(o => o.type === 'mob');
-  toast(`Wave ${w}!`, '#ff6ad5');
+}
+
+// ---------- crawler hunt ----------
+let huntSeq = 0;
+function hostHunt(dt) {
+  hunt.left -= dt;
+  if (hunt.left <= 0) {
+    transitioning = true;
+    send('toast', { m: 'TIME!' });
+    toast('TIME!', '#ffe23a');
+    setTimeout(() => mode === 'play' && goto(1), 1500);
+    return;
+  }
+  hunt.next -= dt;
+  const alive = level.mobs.filter(o => !killed.has(o.id)).length;
+  if (hunt.next > 0 || alive >= 5 + level.n * 2) return;
+  hunt.next = 1.2;
+  const n = level.n, laneDims = [...Array(n).keys()].filter(d => DIMS[d].grav), list = [];
+  for (let i = 0; i < 3; i++) {
+    const range = 3 + Math.floor(Math.random() * 8);
+    list.push({ id: `h${huntSeq++}`, dim: laneDims.length ? laneDims[Math.floor(Math.random() * laneDims.length)] : 0,
+      x: 3 + Math.floor(Math.random() * (level.W - range - 6)), range, speed: 1.6 + Math.random() * 1.4, phase: Math.random() * 2 });
+  }
+  send('mobs', { mobs: list, left: hunt.left, sc: scores });
+  addMobs(list);
 }
 
 function loseLife() {
@@ -892,9 +1305,10 @@ function latch(k) {
 
 // ---------- boss ----------
 function newBoss(n) {
-  const hp = 45 * n;
+  const hp = Math.round(45 * n * (level.hpMul || 1));
   return { x: level.W * T / 2, y: H * T / 2, tx: level.W * T / 2, ty: H * T / 2, hp, max: hp,
-    exposed: 0, exposeT: 5, shatterT: 0, shatterCd: 0, atkT: 3, atkN: 0, t: 0, sendT: 0 };
+    exposed: 0, exposeT: 5, shatterT: 0, shatterCd: 0, atkT: 3, atkN: 0, t: 0, sendT: 0,
+    spectre: !!level.spectre, helped: false, offerT: 18, unicoder: !!level.unicoder };
 }
 
 function hostBoss(dt) {
@@ -910,15 +1324,24 @@ function hostBoss(dt) {
     const pads = level.objs.filter(o => o.type === 'pad' && o.group === 'shatter');
     if (pads.every(p => pressedIds.has(p.id))) { b.shatterT = 5; b.shatterCd = 9; onShatter(); }
   }
+  // The Spectre can't be beaten alone. After a while, a voice offers help.
+  if (b.spectre && !b.helped) {
+    b.offerT -= dt;
+    if (b.offerT <= 0) {
+      b.offerT = 30;
+      send('offer', { from: gift?.name || '' });
+      showOffer();
+    }
+  }
   b.atkT -= dt;
   if (b.atkT <= 0) {
     spawnAttack();
-    b.atkT = b.hp < b.max / 2 ? 1.6 : 2.4;
+    b.atkT = (b.hp < b.max / 2 ? 1.6 : 2.4) * (level.atkMul || 1);
   }
   b.sendT -= dt;
   if (b.sendT <= 0) {
     b.sendT = 0.1;
-    send('boss', { x: b.x, y: b.y, hp: b.hp, max: b.max, e: b.exposed, et: b.exposeT, s: b.shatterT, t: b.t, a: b.atkT, n: b.atkN });
+    send('boss', { x: b.x, y: b.y, hp: b.hp, max: b.max, e: b.exposed, et: b.exposeT, s: b.shatterT, t: b.t, a: b.atkT, n: b.atkN, hp2: b.helped });
   }
 }
 
@@ -926,7 +1349,7 @@ function onBossMsg(m) {
   if (!boss) return;
   const wasShattered = boss.shatterT > 0;
   boss.tx = m.x; boss.ty = m.y;
-  Object.assign(boss, { hp: m.hp, max: m.max, exposed: m.e, exposeT: m.et, shatterT: m.s, t: m.t, atkT: m.a, atkN: m.n });
+  Object.assign(boss, { hp: m.hp, max: m.max, exposed: m.e, exposeT: m.et, shatterT: m.s, t: m.t, atkT: m.a, atkN: m.n, helped: !!m.hp2 });
   if (!wasShattered && m.s > 0) onShatter();
 }
 
@@ -987,7 +1410,7 @@ function fireBolt(p) {
   const g = gravOf(p), homing = !!boss;
   const b = { x: p.x + PW / 2 + p.face * 10, y: p.y + PH / 2, vx: p.face * (homing ? 300 : r === 'sniper' ? 1000 : 720), vy: homing ? -g * 320 : 0,
     d: p.dim, mine: true, life: 0, h: homing,
-    range: r === 'sniper' ? 2.6 : r === 'gunner' ? 2.4 : 1.6, pierce: r === 'sniper', bomb: r === 'bomber' };
+    range: r === 'sniper' ? 2.6 : r === 'gunner' ? 2.4 : 1.6, pierce: r === 'sniper', bomb: r === 'bomber', by: p.id };
   bolts.push(b);
   send('bolt', { x: b.x, y: b.y, vx: b.vx, vy: b.vy, d: b.d, h: homing });
 }
@@ -1003,7 +1426,7 @@ function updateBolts(dt) {
       b.x += b.vx * dt; b.y += b.vy * dt;
       if (dist < 60) {
         b.life = 99;
-        const ok = boss.shatterT > 0 || boss.exposed === b.d;
+        const ok = boss.unicoder ? boss.shatterT > 0 : boss.helped || boss.shatterT > 0 || boss.exposed === b.d;
         burst(b.x, b.y, ok ? DIMS[b.d].color : '#888888', ok ? 10 : 5, ok ? 200 : 90);
         if (b.mine && ok) {
           const dmg = boss.shatterT > 0 ? 2 : 1;
@@ -1031,14 +1454,14 @@ function updateBolts(dt) {
       if (killed.has(o.id)) continue;
       const m = mobPos(o);
       if (b.x > m.x - 4 && b.x < m.x + MW + 4 && b.y > m.y - 6 && b.y < m.y + MH + 6) {
-        killMob(o.id);
-        send('kill', { id: o.id });
+        killMob(o.id, b.by);
+        send('kill', { id: o.id, by: b.by });
         if (b.bomb) {                      // Bomber: the blast takes out nearby crawlers too
           burst(b.x, b.y, '#ffb347', 40, 380);
           for (const o2 of level.mobs) {
             if (killed.has(o2.id)) continue;
             const m2 = mobPos(o2);
-            if (Math.hypot(m2.x - m.x, m2.y - m.y) < T * 3.5) { killMob(o2.id); send('kill', { id: o2.id }); }
+            if (Math.hypot(m2.x - m.x, m2.y - m.y) < T * 3.5) { killMob(o2.id, b.by); send('kill', { id: o2.id, by: b.by }); }
           }
         }
         if (!b.pierce) { b.life = 99; break; }   // Sniper shots keep going
@@ -1053,25 +1476,61 @@ function onCrystal(t) {
   toast(`${DIMS[t.dim].name} crystal shattered — its gate opens!`, DIMS[t.dim].color);
 }
 
-function killMob(id) {
+function killMob(id, by) {
   if (killed.has(id)) return;
   killed.add(id);
+  if (hunt && typeof by === 'string') scores[by] = (scores[by] || 0) + 1;
   const o = level.mobs.find(m => m.id === id);
   if (!o) return;
   const m = mobPos(o);
   burst(m.x + MW / 2, m.y + MH / 2, DIMS[o.dim].color, 22, 260);
 }
 
+let immuneToastT = 0;
 function applyHit(d) {
   if (!boss || transitioning) return;
-  boss.hp = Math.max(0, boss.hp - clamp(Number(d) || 0, 0, 2));
+  if (boss.spectre && !boss.helped) {         // impossible to hurt without help
+    if (performance.now() - immuneToastT > 4000) {
+      immuneToastT = performance.now();
+      const m = 'Your shots pass right through the Spectre…';
+      send('toast', { m });
+      toast(m, '#b48cff');
+    }
+    return;
+  }
+  boss.hp = Math.max(0, boss.hp - clamp(Number(d) || 0, 0, 2) * (boss.helped ? 2 : 1));
   if (boss.hp <= 0) {
     transitioning = true;
-    send('toast', { m: 'THE FRACTURE IS BROKEN!' });
-    toast('THE FRACTURE IS BROKEN!', '#ffe23a');
+    const m = boss.spectre ? 'THE SPECTRE FADES…' : boss.unicoder ? 'THE UNICODER IS DELETED!' : 'THE BOSS IS BROKEN!';
+    send('toast', { m });
+    toast(m, '#ffe23a');
     burst(boss.x, boss.y, '#ffffff', 120, 600);
-    setTimeout(() => mode === 'play' && goto(LEVELS.length), 2000);
+    setTimeout(() => mode === 'play' && goto(levelIdx + 1), 2000);   // next boss round, or the ending
   }
+}
+
+function showOffer(from) {
+  if (!boss || boss.helped) return;
+  const who = from ?? gift?.name;
+  $('offer-from').textContent = who ? `It feels like… ${who}?` : 'You don\'t recognise the voice.';
+  $('offer').classList.remove('hidden');
+}
+
+function acceptHelp() {
+  $('offer').classList.add('hidden');
+  if (isHost()) onHelp(); else send('help', {});
+}
+
+function onHelp() {
+  if (!boss || boss.helped) return;
+  boss.helped = true;
+  boss.max = Math.max(10, Math.round(boss.max * 0.25));
+  boss.hp = boss.max;
+  const m = 'Something pours into the Spectre — it\'s weakened! Fire!';
+  send('toast', { m });
+  send('offer-close', {});
+  toast(m, '#ffe23a');
+  flash = { t: 0.5, col: '#ffffff' };
 }
 
 // ---------- particles ----------
@@ -1105,8 +1564,27 @@ function onMsg(t, d) {
     case 'mode': if (MODES[d.m] && mode !== 'play') { gameMode = d.m; renderLobby(); } break;
     case 'bots': if (!isHost()) { setBots(d.list); renderLobby(); } break;
     case 'wave': if (mode === 'play' && surv && Array.isArray(d.mobs)) { applyWave(d.w | 0, d.mobs.slice(0, 30)); surv.lives = d.lives | 0; } break;
+    case 'mobs':
+      if (mode === 'play' && hunt && Array.isArray(d.mobs)) {
+        addMobs(d.mobs.slice(0, 10));
+        hunt.left = +d.left || hunt.left;
+        if (d.sc && typeof d.sc === 'object') scores = d.sc;
+      }
+      break;
     case 'surv': if (mode === 'play' && surv) { surv.wave = d.w | 0; surv.lives = d.lives | 0; } break;
     case 'died': if (mode === 'play' && isHost()) loseLife(); break;
+    case 'crate': if (mode === 'play' && typeof d.id === 'string') onCrateMsg(d); break;
+    case 'push':
+      if (mode === 'play' && typeof d.id === 'string') {
+        if (d.id === me.id && P) pushActor(P, +d.dx || 0);
+        else if (isHost() && botActors.has(d.id)) pushActor(botActors.get(d.id).p, +d.dx || 0);
+      }
+      break;
+    case 'offer': if (mode === 'play') showOffer(typeof d.from === 'string' ? d.from.slice(0, 14) : ''); break;
+    case 'offer-close': $('offer').classList.add('hidden'); break;
+    case 'help': if (mode === 'play' && isHost()) onHelp(); break;
+    case 'intro': if (Array.isArray(d.f) && mode !== 'play') playIntro(d.f.slice(0, MAX_PLAYERS)); break;
+    case 'intro2': if (Array.isArray(d.f) && mode !== 'play') playIntro2(d.f.slice(0, MAX_PLAYERS)); break;
     case 'heal':
       if (mode === 'play' && P && P.dead <= 0) {
         P.hp = Math.min(maxHp(P), P.hp + 1);
@@ -1126,7 +1604,7 @@ function onMsg(t, d) {
     case 'atk': if (mode === 'play' && boss && Array.isArray(d.b)) addBullets(d.b.slice(0, 80)); break;
     case 'hit': if (mode === 'play' && isHost()) applyHit(d.d); break;
     case 'bolt': if (mode === 'play') bolts.push({ x: +d.x, y: +d.y, vx: +d.vx || 0, vy: +d.vy || 0, d: d.d | 0, mine: false, life: 0, h: !!d.h }); break;
-    case 'kill': if (mode === 'play' && typeof d.id === 'string') killMob(d.id); break;
+    case 'kill': if (mode === 'play' && typeof d.id === 'string') killMob(d.id, d.by); break;
     case 'ping': if (mode === 'play') addPing({ x: +d.x, y: +d.y, id: String(d.id) }); break;
     case 'toast': if (typeof d.m === 'string') toast(d.m.slice(0, 60), '#ffe23a'); break;
   }
@@ -1204,7 +1682,8 @@ function setScreen(m) {
   $('hud').classList.toggle('hidden', m !== 'play');
   $('touch').classList.toggle('hidden', m !== 'play' || !isTouch);
   document.body.classList.toggle('playing', m === 'play');
-  if (m === 'menu') { loadBoard($('board-menu'), 'story'); loadBoard($('board-surv'), 'survival'); }
+  if (m === 'menu') { loadBoard($('board-menu'), 'story'); loadBoard($('board-surv'), 'survival'); showSave(); }
+  if (m === 'play' && gameMode === 'story' && !gift) fetchGift().then(g => { gift = g; });
   if (m === 'lobby') renderLobby();
 }
 
@@ -1245,6 +1724,9 @@ function renderLobby() {
   $('start').classList.toggle('hidden', !host);
   $('start').disabled = players().length < min;
   $('start').textContent = `Start ${MODES[gameMode].name}`;
+  const sv = loadSave();
+  $('story-start-wrap').classList.toggle('hidden', !(host && gameMode === 'story' && sv && sv.level > 1));
+  if (sv) $('story-start').options[1].textContent = `Continue from my save (level ${Math.min(sv.level, modeLevels().length)})`;
   $('lobby-note').textContent = !roster.length ? 'Connecting…'
     : host ? (players().length < min ? 'Share the code or add a bot — this mode needs at least 2 travelers.' : 'Everyone here? Start when ready. Dimensions shuffle each level.')
     : `Waiting for the host to start ${MODES[gameMode].name}…`;
@@ -1287,17 +1769,39 @@ async function showVictory() {
   const ms = Date.now() - runStart;
   const title = $('win-title'), text = $('win-text'), big = $('clear-time');
   $('again').classList.toggle('hidden', !isHost());
-  $('board-win-wrap').classList.toggle('hidden', gameMode === 'race');
-  if (gameMode === 'race') {
+  $('board-win-wrap').classList.toggle('hidden', !['story', 'survival'].includes(gameMode));
+  if (gameMode === 'race' || gameMode === 'hunt') {
     const ranked = gameRoster.map(id => [nameOf(id), scores[id] || 0]).sort((a, b) => b[1] - a[1]);
     const top = ranked[0][1];
     const winners = ranked.filter(r => r[1] === top).map(r => r[0]);
-    title.textContent = 'RACE OVER';
+    title.textContent = gameMode === 'hunt' ? 'HUNT OVER' : 'RACE OVER';
     big.textContent = winners.join(' & ');
     text.textContent = ranked.map(([n, p]) => `${n}: ${p}`).join(' · ');
     return;
   }
-  const won = gameMode === 'story' || result?.won;
+  if (gameMode === 'story') {
+    if (isHost() && !recorded && room) {
+      recorded = true;
+      recordClear(room.code, gameRoster.map(nameOf), ms, 'story', null);
+    }
+    $('victory').classList.add('hidden');
+    $('decision-who').textContent = gift ? `The save belonged to ${gift.name}, who had reached level ${gift.level || '?'}.` : 'You never learn whose save it was.';
+    $('decision').classList.remove('hidden');
+    return;
+  }
+  if (gameMode === 'story2') {
+    title.textContent = 'CHAPTER 2 COMPLETE';
+    text.textContent = 'The Unicoder scatters into a million letters. Everyone can walk again — together.';
+    big.textContent = fmtTime(ms);
+    return;
+  }
+  if (gameMode === 'bossrush') {
+    title.textContent = 'BOSS RUSH CLEARED';
+    text.textContent = 'All three Fractures defeated back to back.';
+    big.textContent = fmtTime(ms);
+    return;
+  }
+  const won = result?.won;
   title.textContent = gameMode === 'story' ? 'REALITY RESTORED' : won ? 'ARENA SURVIVED' : 'OVERRUN';
   text.textContent = gameMode === 'story' ? 'The Fracture is defeated. Every dimension is safe — for now.'
     : won ? 'All 10 waves cleared. The crawlers retreat into the rifts.' : `The crawlers broke through on wave ${result?.wave ?? '?'}.`;
@@ -1322,6 +1826,7 @@ function updateHud(dt) {
   if (level.nest) prog = `Crawlers left: ${level.mobs.filter(o => !killed.has(o.id)).length}`;
   if (surv) prog = surv.wave ? `Wave ${surv.wave}/${MODES.survival.waves} · Lives ${surv.lives} · Crawlers ${level.mobs.filter(o => !killed.has(o.id)).length}` : `Get ready… Lives ${surv.lives}`;
   else if (level.race) prog = 'Points: ' + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
+  else if (hunt) prog = `⏱ ${fmtTime(hunt.left * 1000).replace(/\.\d$/, '')} · ` + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
   else if (!level.boss && !level.keyList && !level.groups) {
     const at = gameRoster.filter(id => (id === me.id ? P?.exit : remotes.get(id)?.e)).length;
     prog = `At the portal ${at}/${gameRoster.length}`;
@@ -1347,9 +1852,13 @@ function updateHud(dt) {
   }
   if (P) {
     const D = DIMS[P.dim];
-    $('dim-name').textContent = D.name + (P.dim !== P.native ? ' (visiting)' : '');
+    $('dim-name').textContent = level.ch2 ? (P.ch2 === 'dragger' ? '🧱 Builder' : P.ch2 === 'walker' ? '🚶 Walker' : '🧱🚶 Builder + Walker')
+      : D.name + (P.dim !== P.native ? ' (visiting)' : '');
+    if (level.ch2) $('dim-name').style.color = '#39ff88';
     $('dim-name').style.color = D.color;
-    $('dim-desc').textContent = D.desc;
+    $('dim-desc').textContent = !level.ch2 ? D.desc : P.ch2 === 'dragger'
+      ? (isTouch ? 'Drag glowing blocks with your finger. You can\'t walk — Walkers push you.' : 'Click and drag blocks (or arrows + Space). You can\'t walk — Walkers push you.')
+      : P.ch2 === 'walker' ? 'Walk into your Builders to push them. Jump with W / Space.' : 'Walk, and drag blocks with the mouse.';
     $('hearts').textContent = `${ROLES[P.role].icon} ` + '❤️'.repeat(Math.max(0, P.hp)) + '🖤'.repeat(Math.max(0, maxHp(P) - P.hp));
   } else {
     $('dim-name').textContent = 'Spectating';
@@ -1358,18 +1867,23 @@ function updateHud(dt) {
   }
   $('hint').textContent = hintText;
   $('tb-dash').classList.toggle('hidden', !(P && (DIMS[P.dim].dash || P.role === 'ninja')));
+  // Builders drag with their finger, so the movement controls get out of the way
+  $('touch').classList.toggle('hidden', !isTouch || (P && level.ch2 && P.ch2 === 'dragger'));
 }
 
 // ---------- rendering ----------
+const CH2_COLORS = ['#39ff88', '#ff6ad5', '#ffe23a', '#6ec8ff', '#ff8a3a', '#b48cff', '#ffffff', '#7affb0', '#ff5a4f', '#3ad1c4'];
+const colorOf = id => (level?.ch2 ? CH2_COLORS[Math.max(0, gameRoster.indexOf(id)) % CH2_COLORS.length] : undefined);
+
 function bodiesForFrame() {
   const list = [];
   for (const id of gameRoster) {
     const r = remotes.get(id);
     if (!r || r.l !== levelIdx) continue;
-    list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead });
+    list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) });
   }
   if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.face, vx: P.vx, ghost: false,
-    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2) });
+    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) });
   return list;
 }
 
@@ -1381,6 +1895,7 @@ function drawGame(dt) {
     D, flipX: !!D.mirror, flipY: P ? gravOf(P) < 0 : false, level, time, myDim: P ? P.dim : -1, P,
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
+    crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
   }, dt);
   drawOverlay(D);
 }
@@ -1412,7 +1927,8 @@ function drawLabels() {
     if (!r || r.l !== levelIdx) continue;
     const p = renderer.project(r.sx + PW / 2, r.sy + PH / 2);
     const col = DIMS[r.nd]?.color || '#fff';
-    const label = nameOf(id) + (r.dead ? ' 💀' : '');
+    const tag = level.ch2 ? (ch2Roles.get(id) === 'dragger' ? '🧱 ' : '🚶 ') : '';
+    const label = tag + nameOf(id) + (r.dead ? ' 💀' : '');
     if (p.x < edge || p.x > VW - edge || p.y < edge || p.y > VH - edge) {   // off-screen arrow
       const ex = clamp(p.x, 26, VW - 26), ey = clamp(p.y, 26, VH - 26);
       const a = Math.atan2(p.y - ey, p.x - ex) || (p.x < edge ? Math.PI : 0);
@@ -1449,9 +1965,12 @@ function drawBossBar() {
   ctx.fillStyle = '#3a1030'; ctx.fillRect(x, y, w, 12);
   ctx.fillStyle = '#ff3d8b'; ctx.fillRect(x, y, w * boss.hp / boss.max, 12);
   ctx.textAlign = 'left'; ctx.font = `900 ${isTouch ? 11 : 14}px Orbitron, sans-serif`; ctx.fillStyle = '#fff';
-  ctx.fillText('THE FRACTURE', x, y - 7);
+  ctx.fillText(boss.spectre ? 'THE SPECTRE' : boss.unicoder ? 'THE UNICODER' : 'THE FRACTURE', x, y - 7);
   ctx.textAlign = 'right';
-  if (boss.shatterT > 0) { ctx.fillStyle = '#fff'; ctx.fillText('SHATTERED!', x + w, y - 7); }
+  if (boss.unicoder) { ctx.fillStyle = boss.shatterT > 0 ? '#ffe23a' : '#39ff88'; ctx.fillText(boss.shatterT > 0 ? 'EXPOSED — FIRE!' : 'GUARDED', x + w, y - 7); return; }
+  if (boss.spectre && !boss.helped) { ctx.fillStyle = '#ff2244'; ctx.fillText('INVULNERABLE', x + w, y - 7); }
+  else if (boss.spectre) { ctx.fillStyle = '#ffe23a'; ctx.fillText('WEAKENED', x + w, y - 7); }
+  else if (boss.shatterT > 0) { ctx.fillStyle = '#fff'; ctx.fillText('SHATTERED!', x + w, y - 7); }
   else { const d = DIMS[boss.exposed]; ctx.fillStyle = d.color; ctx.fillText(`Weak to: ${d.name}`, x + w, y - 7); }
 }
 
@@ -1494,7 +2013,9 @@ requestAnimationFrame(frame);
 setInterval(() => {
   const now = performance.now();
   if (now - lastRaf < 250) return;
-  step(Math.min(0.1, (now - last) / 1000), false);
+  // browsers throttle timers in background tabs to ~1/s, so catch up in small steps
+  let behind = Math.min(2, (now - last) / 1000);
+  while (behind > 0) { const d = Math.min(0.05, behind); step(d, false); behind -= d; }
   last = now;
 }, 50);
 
@@ -1502,7 +2023,11 @@ function step(dt, draw) {
   time += dt;
   if (mode === 'play' && level) {
     levelT += dt;
+    if (hunt && !isHost()) hunt.left = Math.max(0, hunt.left - dt);
     computeSignals();
+    if (P && autoMe) { autoMe.p = P; botThink(autoMe, dt); }   // local test autopilot
+    updateCrates(dt);
+    updateDrag(dt);
     if (P) updateActor(P, held, dt);
     if (isHost()) { if (bots.length && botActors.size < bots.length) adoptBots(); updateBots(dt); }
     updateRemotes(dt);
@@ -1513,6 +2038,7 @@ function step(dt, draw) {
     updateBolts(dt);
     updateBullets(dt);
     updateFx(dt);
+    if (level.ch2) flushPushes(dt);
     if (isHost()) {
       hostChecks(dt);
       snapT -= dt;
@@ -1525,6 +2051,25 @@ function step(dt, draw) {
 }
 
 // ---------- wiring ----------
+// Builders drag blocks with the mouse or a finger
+{
+  const cvs = $('game');
+  let pid = null;
+  cvs.addEventListener('pointerdown', e => {
+    if (mode !== 'play' || !P || !canDrag(P)) return;
+    const w = renderer.unproject(e.clientX, e.clientY);
+    dragState = { ...(dragState || {}), cx: w.x, cy: w.y, kb: false, id: dragState?.id || null };
+    if (grabAt(w.x, w.y)) { pid = e.pointerId; try { cvs.setPointerCapture(pid); } catch {} }
+  });
+  cvs.addEventListener('pointermove', e => {
+    if (e.pointerId !== pid || !dragState) return;
+    const w = renderer.unproject(e.clientX, e.clientY);
+    dragState.cx = w.x; dragState.cy = w.y;
+  });
+  const up = e => { if (e.pointerId !== pid) return; pid = null; dropCrate(); };
+  cvs.addEventListener('pointerup', up);
+  cvs.addEventListener('pointercancel', up);
+}
 $('name').value = me.name === 'Traveler' ? '' : me.name;
 $('create').onclick = () => {
   const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -1532,10 +2077,48 @@ $('create').onclick = () => {
 };
 $('join').onclick = () => enterRoom($('code').value);
 $('code').addEventListener('keydown', e => { if (e.key === 'Enter') enterRoom($('code').value); });
-$('start').onclick = () => {
+$('start').onclick = async () => {
   if (!isHost() || players().length < MODES[gameMode].min) return;
   runStart = 0; levelIdx = -1; scores = {};
-  goto(0);
+  let first = 0;
+  if (gameMode === 'story') {
+    const sv = loadSave();
+    if ($('story-start').value === 'continue' && sv) first = Math.min(sv.level, modeLevels().length) - 1;
+    // the intro: everyone sees the friends torn apart by the Spectre
+    const order = computeOrder(players());
+    const friends = players().map((p, i) => {
+      const d = ALL_DIMS.find(x => x.key === order[i]);
+      return { name: p.name, color: d.color, dimName: d.name, dimColor: d.color === '#111111' ? '#ffffff' : d.color };
+    });
+    send('intro', { f: friends });
+    await playIntro(friends);
+  }
+  if (gameMode === 'story2') {
+    const roles = assignCh2Roles(players().map(p => p.id));
+    const friends = players().map((p, i) => ({ name: p.name, color: CH2_COLORS[i % CH2_COLORS.length], role: roles.get(p.id) }));
+    send('intro2', { f: friends });
+    await playIntro2(friends);
+  }
+  goto(first);
+};
+$('offer-yes').onclick = acceptHelp;
+$('offer-no').onclick = () => $('offer').classList.add('hidden');
+$('give-save').onclick = async () => {
+  const sv = loadSave();
+  $('decision').classList.add('hidden');
+  giveGift(me.name, sv?.level || modeLevels().length);
+  try { localStorage.removeItem(SAVE_KEY); } catch {}
+  room?.leave();
+  crashAndRestart();
+};
+$('keep-save').onclick = () => {
+  $('decision').classList.add('hidden');
+  dieScreen(me.name);
+};
+$('death-back').onclick = () => {
+  $('death').classList.add('hidden');
+  $('death').classList.remove('play');
+  leaveRoom();
 };
 for (const b of document.querySelectorAll('#modes .mode')) {
   b.onclick = () => {
@@ -1567,7 +2150,7 @@ $('hud-level').onclick = () => $('hud-level').classList.toggle('open');
 const roleSel = $('role-pick'), dimSel = $('dim-pick'), ctrlSel = $('controls');
 for (const [k, r] of Object.entries(ROLES)) roleSel.append(new Option(`${r.icon} ${r.name} — ${r.desc}`, k));
 dimSel.append(new Option('🎲 Auto (dimensions rotate each level)', ''));
-for (const d of ALL_DIMS) dimSel.append(new Option(`${d.name}${d.grav < 0 ? ' ⬆ upside down' : d.grav === 0 ? ' ✦ floating' : ''}`, d.key));
+for (const d of PICKABLE) dimSel.append(new Option(`${d.name}${d.grav < 0 ? ' ⬆ upside down' : d.grav === 0 ? ' ✦ floating' : ''}`, d.key));
 roleSel.value = me.role;
 dimSel.value = me.dim;
 const showPickInfo = () => {
@@ -1599,7 +2182,15 @@ $('fs').onclick = () => {
   else (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)?.catch?.(() => {});
 };
 if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) $('fs').classList.add('hidden');
-if (location.hostname === 'localhost') window.__dim = { get P() { return P; }, get level() { return level; }, get signals() { return signals; }, get boss() { return boss; }, get killed() { return [...killed]; }, mobs: () => level.mobs.filter(o => !killed.has(o.id)).map(o => ({ id: o.id, ...mobPos(o), o })), get bolts() { return bolts.length; }, goto };
+if (location.hostname === 'localhost') window.__dim = { get P() { return P; }, get level() { return level; }, get signals() { return signals; }, get boss() { return boss; }, get killed() { return [...killed]; }, mobs: () => level.mobs.filter(o => !killed.has(o.id)).map(o => ({ id: o.id, ...mobPos(o), o })), get bolts() { return bolts.length; }, goto,
+  autopilot(on = true) { autoMe = on ? { p: P, inp: held, stuck: 0, lastX: 0, jumpHold: 0, think: 0 } : null; },
+  get levelIdx() { return levelIdx; },
+  get crates() { return crates; },
+  get autoCarry() { return autoMe && autoMe.carry && { ...autoMe.carry, slot: [autoMe.carry.slot.x / T, autoMe.carry.slot.y / T] }; },
+  crateBelow(i) { const c = crates[i]; const y = c.y + 2; return { tiles: collides(c.x, y, 0, T, T, { x: -1e9, y: -1e9 }) && !crates.some(k => k !== c && c.x < k.x + T && c.x + T > k.x && y < k.y + T && y + T > k.y), hit: crateHits(c, c.x, y), others: crates.filter(k => k !== c && c.x < k.x + T && c.x + T > k.x && y < k.y + T && y + T > k.y).map(k => [k.id, k.x, k.y]), c: [c.x, c.y, c.held] }; },
+  grab: (x, y) => grabAt(x, y), dragTo(x, y) { if (dragState) { dragState.cx = x; dragState.cy = y; } }, drop: () => dropCrate(),
+  bots: () => [...botActors].map(([id, b]) => ({ id, x: +(b.p.x / T).toFixed(1), y: Math.round(b.p.y), dim: b.p.dim, exit: b.p.exit, dead: b.p.dead > 0,
+    goal: b.goal && { x: +(b.goal.x / T).toFixed(1), type: b.goal.o?.type, shoot: b.goal.shootAt !== undefined }, inp: [...b.inp] })) };
 const hash = location.hash.slice(1).toUpperCase();
 if (/^[A-Z]{4}$/.test(hash)) $('code').value = hash;
 setScreen('menu');

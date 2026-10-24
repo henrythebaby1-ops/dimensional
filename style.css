@@ -139,3 +139,65 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
   .tb.big { width: 74px; height: 74px; }
   .tb.small { width: 42px; height: 42px; }
 }
+
+/* ---------- story ---------- */
+#cutscene { position: fixed; inset: 0; z-index: 8; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 20px; }
+.cut-stage { position: relative; width: min(820px, 100%); height: 280px; border-radius: 18px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 46px;
+  background: linear-gradient(#7cc9ff, #e4f6ff 70%, #5fbf5f 70%); transition: background 1.2s, filter 1.2s; }
+.cut-stage.dark { background: linear-gradient(#14042a, #3a1050 70%, #2a1a3a 70%); }
+.cut-stage.tear { background: linear-gradient(90deg, #6ee26e 0 14%, #ff6ad5 14% 28%, #9feaff 28% 42%, #efe7a6 42% 56%, #ff8a3a 56% 70%, #b48cff 70% 85%, #3ad1c4 85%); }
+.cut-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; max-width: 92%; z-index: 1; }
+.cut-friend { display: flex; flex-direction: column; align-items: center; gap: 4px; transition: transform 1.6s cubic-bezier(.2,.8,.2,1), opacity 1.6s; }
+.cut-friend.split { transform: translate(var(--dx), var(--dy)) scale(.9); }
+.cut-body { width: 34px; height: 42px; border-radius: 9px; box-shadow: 0 4px 0 rgba(0,0,0,.25); position: relative; }
+.cut-body::after { content: '• •'; position: absolute; top: 9px; width: 100%; text-align: center; color: #111; font-weight: 900; letter-spacing: 2px; }
+.happy .cut-body { animation: hop .7s ease-in-out infinite alternate; }
+@keyframes hop { to { transform: translateY(-14px); } }
+.cut-name { font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #000; }
+.cut-dim { font-size: 11px; font-weight: 800; text-shadow: 0 1px 3px #000; }
+.cut-spectre { position: absolute; width: 110px; height: 120px; top: -160px; left: 50%; transform: translateX(-50%); border-radius: 75px 75px 20px 20px;
+  background: radial-gradient(circle at 50% 35%, rgba(255,255,255,.95), rgba(200,190,255,.55) 60%, rgba(120,90,200,0)); filter: drop-shadow(0 0 30px #b48cff);
+  display: flex; gap: 22px; justify-content: center; padding-top: 34px; transition: top 1.6s ease, opacity 1.2s; z-index: 2; }
+.cut-spectre.in { top: 8px; animation: float 2s ease-in-out infinite alternate; }
+.cut-spectre.out { opacity: 0; }
+@keyframes float { to { margin-top: 14px; } }
+.cut-eye { width: 16px; height: 20px; border-radius: 50%; background: #ff2244; box-shadow: 0 0 18px #ff2244; }
+.cut-caption { font-family: Orbitron, sans-serif; font-size: clamp(16px, 3.4vw, 24px); text-align: center; max-width: 760px; min-height: 2.6em; color: #f1eefc; margin: 0; }
+#cut-skip { position: absolute; right: 18px; bottom: 18px; }
+
+#offer { position: fixed; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.45); }
+.offer-panel { text-align: center; border-color: #b48cff; box-shadow: 0 0 60px rgba(180,140,255,.5); }
+.offer-panel h2 { font-family: Orbitron, sans-serif; font-size: 20px; margin: 6px 0 10px; }
+
+.decision-panel { text-align: center; }
+.decision-panel .reveal { font-size: 18px; color: #ffe23a; }
+.decision-row { flex-wrap: wrap; }
+
+#crash { position: fixed; inset: 0; z-index: 20; background: #0000aa; color: #fff; font-family: ui-monospace, Menlo, monospace; display: flex; align-items: center; justify-content: center; }
+#crash .crash-box { opacity: 0; max-width: 90vw; }
+#crash.fatal .crash-box { opacity: 1; }
+#crash .crash-title { font-size: 22px; font-weight: 700; }
+#crash pre { white-space: pre-wrap; font-size: 15px; }
+#crash.glitching { background: transparent; }
+#crash.glitching .crash-glitch { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,0,80,.5) 0 3px, rgba(0,255,200,.4) 3px 6px, transparent 6px 14px); animation: glitch .12s steps(2) infinite; }
+@keyframes glitch { 0% { transform: translate(-8px, 4px); } 50% { transform: translate(10px, -6px); filter: hue-rotate(90deg); } 100% { transform: translate(-4px, 0); } }
+#crash.black { background: #000; }
+#crash.black .crash-box { opacity: 0; transition: opacity .6s; }
+
+#death { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(60,0,0,0); transition: background 2s; text-align: center; }
+#death.play { background: rgba(60,0,0,.94); }
+#death h1 { font-family: Orbitron, sans-serif; font-size: clamp(40px, 12vw, 90px); color: #ff2244; margin: 0 0 10px; letter-spacing: 6px; animation: deathIn 2.4s ease forwards; text-shadow: 0 0 30px #ff2244; }
+@keyframes deathIn { from { opacity: 0; transform: scale(1.6); filter: blur(10px); } to { opacity: 1; transform: none; filter: none; } }
+#death p { font-size: 18px; opacity: 0; animation: fadeUp 1s 1.6s forwards; }
+#death button { opacity: 0; animation: fadeUp 1s 2.6s forwards; margin-top: 12px; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.save-line { font-size: 13px; color: var(--muted); text-align: center; margin: 4px 0 0; }
+.cut-stage.code { background: linear-gradient(#02060a, #06261a 70%, #0f2a1d 70%); }
+.cut-stage.glitchy { animation: stageGlitch .25s steps(2) 6; }
+@keyframes stageGlitch { 50% { filter: hue-rotate(90deg) contrast(1.4); transform: translateX(4px); } }
+.cut-unicoder { position: absolute; left: 50%; top: 22px; width: 0; height: 0; z-index: 2; }
+.cut-unicoder .glyph { position: absolute; font: 900 22px monospace; color: #39ff88; text-shadow: 0 0 10px #39ff88; opacity: 0;
+  transform: translate(var(--sx), var(--sy)) rotate(90deg); transition: transform 1.4s cubic-bezier(.2,.8,.2,1), opacity 1s; }
+.cut-unicoder.in .glyph { opacity: 1; transform: translate(var(--gx), var(--gy)); animation: glyphFlicker 1.2s steps(2) infinite; }
+@keyframes glyphFlicker { 50% { opacity: .55; } }
+.cut-friend.frozen .cut-body { animation: none !important; filter: saturate(.5); outline: 2px dashed #39ff88; outline-offset: 3px; }

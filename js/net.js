@@ -104,3 +104,15 @@ export async function recordClear(room, players, ms, mode = 'story', score = nul
   const { error } = await sb.from('dim_clears').insert({ room, players, player_count: players.length, time_ms: ms, mode, score });
   if (error) console.warn('leaderboard insert failed', error);
 }
+
+// Saved games given up by other players. One of them is the "help" against the Spectre.
+export async function fetchGift() {
+  const { data, error } = await sb.from('dim_gifts').select('name,level,created_at').order('created_at', { ascending: false }).limit(20);
+  if (error || !data?.length) return null;
+  return data[Math.floor(Math.random() * data.length)];
+}
+
+export async function giveGift(name, level) {
+  const { error } = await sb.from('dim_gifts').insert({ name: String(name).slice(0, 14) || 'Traveler', level: Math.max(0, Math.min(100, level | 0)) });
+  if (error) console.warn('gift failed', error);
+}

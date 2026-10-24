@@ -72,8 +72,13 @@ class Builder {
     this.objs.push(o);
     return o;
   }
+  // Chapter 2: draggable blocks (tile coords on the floor lane) and hint outlines where blocks should go
+  crate(x, ly) { (this.crates ??= []).push({ id: 'c' + (this.crates?.length || 0), x, ly }); }
+  slot(x, ly) { (this.slots ??= []).push({ x, ly }); }
   done(meta) {
-    return { W: this.W, grid: this.grid, objs: this.objs, n: this.n, checkpoints: [{ x: 2 }], ...meta };
+    const crates = (this.crates || []).map((c, i) => ({ id: 'c' + i, x: c.x * T, y: (H - 1 - c.ly) * T }));
+    const slots = (this.slots || []).map(s => ({ x: s.x * T, y: (H - 1 - s.ly) * T }));
+    return { W: this.W, grid: this.grid, objs: this.objs, n: this.n, checkpoints: [{ x: 2 }], crates, slots, ...meta };
   }
 }
 
@@ -316,6 +321,77 @@ function islands(n, race) {
   });
 }
 
+// ---------- Story chapter 2: the Unicoder ----------
+// Everyone shares one world. Builders can't walk but drag blocks; Walkers walk and push Builders.
+function lowercase(n) {
+  const b = new Builder(n, 50);
+  b.shell();
+  b.box(24, 25, 1, 2);
+  b.crate(12, 1); b.crate(14, 1);
+  b.slot(23, 1);
+  b.both('exit', {}, 42, 1, 3, 3);
+  return b.done({
+    name: 'Lowercase', ch2: true,
+    objective: 'Walkers: push your Builder toward the wall. Builders: drag a block next to the wall so you can be pushed up it.',
+  });
+}
+
+function gapFill(n) {
+  const b = new Builder(n, 56);
+  b.shell();
+  b.box(22, 24, 1, 1, '^');
+  [8, 10, 12, 14].forEach(x => b.crate(x, 1));
+  [22, 23, 24].forEach(x => b.slot(x, 1));
+  b.both('exit', {}, 48, 1, 3, 3);
+  return b.done({
+    name: 'Gap Fill', ch2: true,
+    objective: 'Builders can\'t jump. Cover the spikes with blocks so your Walkers can push you across safely.',
+  });
+}
+
+function stackOverflow(n) {
+  const b = new Builder(n, 54);
+  b.shell();
+  b.box(26, 27, 1, 3);
+  [12, 13, 14, 15, 16, 17].forEach(x => b.crate(x, 1));
+  b.slot(23, 1); b.slot(24, 1); b.slot(24, 2); b.slot(25, 1); b.slot(25, 2); b.slot(25, 3);
+  b.both('exit', {}, 45, 1, 3, 3);
+  return b.done({
+    name: 'Stack Overflow', ch2: true,
+    objective: 'A wall too tall for anyone. Stack blocks into stairs — one step at a time — and push your Builder to the top.',
+  });
+}
+
+function escapeSeq(n) {
+  const b = new Builder(n, 56);
+  b.shell();
+  b.box(26, 27, 1, 1, '^');
+  b.add('plate', { dim: null, link: 'esc' }, 1, 17, 1, 2, 1);
+  b.both('door', { link: 'esc' }, 36, 1, 1, 12);
+  [10, 12, 13, 14, 15].forEach(x => b.crate(x, 1));
+  b.slot(17, 1); b.slot(26, 1); b.slot(27, 1);
+  b.both('exit', {}, 48, 1, 3, 3);
+  return b.done({
+    name: 'Escape Sequence', ch2: true,
+    objective: 'The gate only stays open while something heavy sits on the plate. Use a block — then cover the spikes and get everyone through.',
+  });
+}
+
+function unicoderBoss(n) {
+  const b = new Builder(n, 46);
+  b.shell();
+  b.box(7, 11, 4, 4);
+  b.box(34, 38, 4, 4);
+  b.add('pad', { dim: null, group: 'shatter' }, 1, 14, 1, 1, 1);
+  b.add('pad', { dim: null, group: 'shatter' }, 1, 31, 1, 1, 1);
+  [18, 20, 25, 27].forEach(x => b.crate(x, 1));
+  b.slot(14, 1); b.slot(31, 1);
+  return b.done({
+    name: 'The Unicoder', ch2: true, boss: true, unicoder: true,
+    objective: 'Builders: weigh down BOTH pads with blocks to break his guard. Walkers: then shoot (F) — fast!',
+  });
+}
+
 // ---------- Race mode: every traveler for themselves ----------
 function sprint(n) {
   const b = new Builder(n, 110);
@@ -360,6 +436,11 @@ function gauntlet(n) {
 }
 
 // ---------- Survival mode ----------
+function hunt(n) {
+  const lv = arena(n);
+  return { ...lv, name: 'Crawler Hunt', objective: 'Shoot as many crawlers as you can before time runs out. Every crawler is a point!', survival: false, hunt: true };
+}
+
 function arena(n) {
   const b = new Builder(n, 56);
   b.shell();
@@ -396,7 +477,7 @@ function resonance(n) {
   });
 }
 
-function fracture(n) {
+function fracture(n, spectre = true, round = 0) {
   const b = new Builder(n, 46);
   b.shell();
   b.box(7, 11, 4, 4);
@@ -404,9 +485,13 @@ function fracture(n) {
   b.box(20, 25, 7, 7);
   for (let d = 0; d < n; d++) b.addD('pad', d, { group: 'shatter' }, 3 + laneIndex(d) * 5, 1, 2, 1);
   return b.done({
-    name: 'The Fracture',
-    objective: 'Hold F to fire. The shield only lets in the glowing dimension. Everyone on their pads at once SHATTERS it!',
+    name: spectre ? 'The Spectre' : ['The Fracture', 'The Fracture Returns', 'The Fracture Unbound'][round],
+    objective: spectre ? 'The Spectre that tore your world apart. Hold F to fire. Everyone on their pads at once shatters its shield…'
+      : 'Hold F to fire. The shield only lets in the glowing dimension. Everyone on their pads at once SHATTERS it!',
     boss: true,
+    spectre,
+    hpMul: [1, 1.5, 2][round],
+    atkMul: [1, 0.8, 0.6][round],
     checkpoints: [{ x: 3 }],
   });
 }
@@ -418,12 +503,16 @@ export const MODES = {
   },
   survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
   race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), gauntlet], min: 2 },
+  story2: { name: 'Story Ch.2', levels: [lowercase, gapFill, stackOverflow, escapeSeq, unicoderBoss], min: 1 },
+  bossrush: { name: 'Boss Rush', levels: [0, 1, 2].map(r => n => fracture(n, false, r)), min: 1 },
+  hunt: { name: 'Crawler Hunt', levels: [hunt], min: 1, time: 120 },
 };
 export const LEVELS = MODES.story.levels;
 
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   const lv = m.levels[idx](n);
-  lv.name = mode === 'race' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}` : lv.name;
+  lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
+    : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : lv.name;
   return lv;
 }

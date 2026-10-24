@@ -25,6 +25,27 @@ function rng(seed) {
   return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 }
 
+// a canvas texture of Unicode letters, for the Unicode world and the Unicoder himself
+function glyphTexture(color, w, h, text, lines) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = color;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  if (lines) {
+    const lh = h / lines.length;
+    g.font = `bold ${Math.floor(lh * 0.9)}px monospace`;
+    lines.forEach((ln, i) => g.fillText(ln, w / 2, lh * (i + 0.5)));
+  } else {
+    g.font = `bold ${Math.floor(h * 0.7)}px monospace`;
+    g.fillText(text, w / 2, h / 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function disposeTree(obj) {
   obj.traverse(n => {
     if (n.geometry && !n.geometry.userData.shared) n.geometry.dispose();
@@ -142,6 +163,17 @@ export class Renderer3D {
       }
     };
     switch (D.key) {
+      case 'unicode': {
+        this.anim = { pts: addPoints(1400, 0x39ff88, 0.22, 4), vy: -up * 6, sway: 0 };
+        const tex = glyphTexture('#39ff88', 256, 64, 'ΨЖ∆§◆¤⌘Ѫ☼¥');
+        for (let i = 0; i < 26; i++) {
+          const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.35, depthWrite: false }));
+          sp.scale.set(8, 2, 1);
+          sp.position.set((r() - 0.5) * 150, -4 + r() * (H + 8), -20 - r() * 30);
+          this.decor.add(sp);
+        }
+        break;
+      }
       case 'middle': {
         const rock = std(0x8a6fc0);
         const grass = std(0xffb3dd);
@@ -587,7 +619,7 @@ export class Renderer3D {
     for (const b of list) {
       seen.add(b.id);
       let g = this.bodies.get(b.id);
-      const color = DIMS[b.nd]?.color || '#ffffff';
+      const color = b.color || DIMS[b.nd]?.color || '#ffffff';
       if (!g || g.userData.color !== color) {
         if (g) { this.scene.remove(g); g.userData.mat.dispose(); }
         g = this.makeBody(color);
@@ -630,6 +662,12 @@ export class Renderer3D {
     b.pupil = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10), b.pupilMat);
     b.pupil.position.z = 1.7;
     b.add(b.core, b.shell, b.shards, eye, b.pupil);
+    // the Unicoder: a figure made of Unicode letters
+    b.glyph = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false,
+      map: glyphTexture('#39ff88', 256, 320, '', ['  Ѫ  ', ' ◆Ψ◆ ', '∆§Ж§∆', '¤ ⌘ ¤', ' ¥ ¥ ', ' Ж Ж ']) }));
+    b.glyph.scale.set(6, 7.5, 1);
+    b.glyph.visible = false;
+    b.add(b.glyph);
     b.visible = false;
     this.boss = b;
     this.scene.add(b);
@@ -645,12 +683,27 @@ export class Renderer3D {
     const shattered = boss.shatterT > 0;
     const exp = DIMS[boss.exposed] || DIMS[0];
     b.shell.visible = !shattered;
+    b.shell.scale.setScalar(boss.unicoder ? 1.5 : 1);
     b.shards.visible = shattered;
     b.shell.rotation.z = s.time * 1.2;
-    b.shellMat.color.set(exp.color);
-    b.shellMat.emissive.set(exp.color);
-    b.pupilMat.color.set(shattered ? '#ff2244' : exp.color);
-    b.pupilMat.emissive.set(shattered ? '#ff2244' : exp.color);
+    const uni = !!boss.unicoder;
+    b.glyph.visible = uni;
+    b.core.visible = !uni;
+    b.glyph.material.opacity = 0.75 + Math.sin(s.time * 12) * 0.2;
+    b.glyph.material.rotation = Math.sin(s.time * 2) * 0.05;
+    const shellCol = uni ? (shattered ? '#ffe23a' : '#39ff88') : boss.spectre ? (boss.helped ? '#ffe23a' : '#ff2244') : exp.color;
+    b.shellMat.color.set(shellCol);
+    b.shellMat.emissive.set(shellCol);
+    const eyeCol = boss.spectre || shattered ? '#ff2244' : exp.color;
+    b.pupilMat.color.set(eyeCol);
+    b.pupilMat.emissive.set(eyeCol);
+    // the Spectre is a pale, flickering ghost; it dims once it has been weakened
+    b.core.material.color.set(boss.spectre ? '#e9e4ff' : '#1a0b2e');
+    b.core.material.emissive.set(boss.spectre ? '#b48cff' : '#ff2bd6');
+    b.core.material.emissiveIntensity = boss.spectre ? (boss.helped ? 0.2 : 0.6 + Math.sin(s.time * 9) * 0.25) : 0.25;
+    b.core.material.transparent = !!boss.spectre;
+    b.core.material.opacity = boss.spectre ? 0.75 : 1;
+    b.scale.setScalar(boss.spectre && !boss.helped ? 1.25 : 1);
     b.shards.children.forEach((sh, i) => {
       const a = i / 12 * Math.PI * 2 + s.time * 2.5;
       sh.position.set(Math.cos(a) * 2.6, Math.sin(a) * 2.6, Math.sin(a * 2) * 0.6);
@@ -677,6 +730,57 @@ export class Renderer3D {
     this.waveMesh = inst(new THREE.BoxGeometry(1, 1, DEPTH * 0.9), glow(0xff8c28, { emissiveIntensity: 1, transparent: true, opacity: 0.85 }), 32);
     this.boltMesh = inst(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff }), 200, true);
     this.partMesh = inst(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff }), 700, true);
+    // chapter 2: draggable code-blocks, outlines where they belong, and the Builder's cursor
+    const crateTex = glyphTexture('#0b1f14', 64, 64, '▣');
+    this.crateMesh = inst(new THREE.BoxGeometry(0.96, 0.96, 1.2), std(0x39ff88, { emissive: 0x39ff88, emissiveIntensity: 0.35, map: crateTex, flatShading: false }), 40);
+    const slotGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1.25));
+    this.slotLines = [];
+    for (let i = 0; i < 16; i++) {
+      const l = new THREE.LineSegments(slotGeo, new THREE.LineDashedMaterial({ color: 0x39ff88, dashSize: 0.12, gapSize: 0.1, transparent: true, opacity: 0.7 }));
+      l.computeLineDistances();
+      l.visible = false;
+      this.scene.add(l);
+      this.slotLines.push(l);
+    }
+    this.cursor = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.48, 24), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false }));
+    this.reach = new THREE.Mesh(new THREE.RingGeometry(8.9, 9, 64), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0x39ff88, transparent: true, opacity: 0.25, depthTest: false }));
+    this.cursor.visible = this.reach.visible = false;
+    this.scene.add(this.cursor, this.reach);
+  }
+
+  updateCrates(s) {
+    const cr = s.crates || [];
+    let n = 0;
+    _q.identity();
+    for (const c of cr) {
+      if (n >= 40) break;
+      this.crateMesh.setMatrixAt(n++, _m.compose(_p.set(X(c.x + T / 2), Y(c.y + T / 2), 0), _q, _s.set(1, 1, 1)));
+    }
+    this.crateMesh.count = n;
+    this.crateMesh.instanceMatrix.needsUpdate = true;
+    const slots = s.slots || [];
+    this.slotLines.forEach((l, i) => {
+      const sl = slots[i];
+      l.visible = !!sl && !!s.crates && !s.slotFilled(sl);
+      if (l.visible) { l.position.set(X(sl.x + T / 2), Y(sl.y + T / 2), 0); l.material.opacity = 0.45 + Math.sin(s.time * 4) * 0.25; }
+    });
+    const dc = s.dragCursor;
+    this.cursor.visible = this.reach.visible = !!dc && !!s.P;
+    if (dc && s.P) {
+      this.cursor.position.set(X(dc.cx), Y(dc.cy), 0.8);
+      this.cursor.material.color.set(dc.id ? '#ffe23a' : '#ffffff');
+      this.reach.position.set(X(s.P.x + PW / 2), Y(s.P.y + PH / 2), 0.7);
+    }
+  }
+
+  // CSS pixels on screen -> world pixels on the play plane
+  unproject(sx, sy) {
+    const ndc = new THREE.Vector2(sx / this.w * 2 - 1, -(sy / this.h) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.cam);
+    const hit = new THREE.Vector3();
+    ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), hit);
+    return { x: hit.x * T, y: (H - hit.y) * T };
   }
 
   updateDynamic(s) {
@@ -795,6 +899,7 @@ export class Renderer3D {
     this.updateBodies(s.bodies);
     this.updateBoss(s.boss, s);
     this.updateDynamic(s);
+    this.updateCrates(s);
     this.animateDecor(dt, s.time);
     this.updateCamera(s.camTarget, s.flipX, s.flipY, dt, s.D.flat);
     this.r.render(this.scene, this.cam);
