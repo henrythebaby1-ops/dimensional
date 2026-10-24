@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Dimensional</title>
+  <meta name="description" content="A co-op game for 2-10 players, each stuck in a different dimension.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <section id="menu" class="panel-screen">
+    <div class="panel">
+      <h1 class="logo">DIMENSIONAL</h1>
+      <p class="tag">2–10 players. Every one of you in a different dimension. Work together anyway.</p>
+      <label class="field">Your name
+        <input id="name" maxlength="14" placeholder="Traveler" autocomplete="off">
+      </label>
+      <div class="row">
+        <button id="create" class="btn primary">Create room</button>
+      </div>
+      <div class="row">
+        <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" class="code-input">
+        <button id="join" class="btn">Join</button>
+      </div>
+      <p id="menu-err" class="err"></p>
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li><b>A/D</b> or <b>←/→</b> move · <b>W</b>/<b>Space</b>/<b>↑</b> jump · <b>F</b> fire · <b>E</b> ping</li>
+          <li>Each player is in their own dimension with its own physics — grassy, upside-down, icy, low-gravity, mirrored, dark…</li>
+          <li>You can see everyone as ghosts, but you only touch things from <i>your</i> dimension.</li>
+          <li>Plates, pads, rifts and keystones link dimensions together. Nobody can win alone.</li>
+        </ul>
+      </details>
+      <div class="board">
+        <h3>Fastest clears</h3>
+        <ol id="board-menu"><li class="muted">Loading…</li></ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="lobby" class="panel-screen hidden">
+    <div class="panel">
+      <p class="muted small">ROOM CODE</p>
+      <div id="room-code" class="room-code">----</div>
+      <button id="copy-link" class="btn small">Copy invite link</button>
+      <h3>Travelers <span id="count" class="muted"></span></h3>
+      <ul id="players" class="players"></ul>
+      <p id="lobby-note" class="muted small"></p>
+      <div class="row">
+        <button id="start" class="btn primary">Start</button>
+        <button id="leave" class="btn">Leave</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="victory" class="panel-screen hidden">
+    <div class="panel">
+      <h1 class="logo">REALITY RESTORED</h1>
+      <p>The Fracture is defeated. Every dimension is safe — for now.</p>
+      <div id="clear-time" class="room-code">0:00</div>
+      <div class="board">
+        <h3>Fastest clears</h3>
+        <ol id="board-win"></ol>
+      </div>
+      <div class="row">
+        <button id="again" class="btn primary">Back to lobby</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="hud" class="hidden">
+    <div id="hud-level">
+      <div id="lvl-name"></div>
+      <div id="lvl-obj"></div>
+      <div id="lvl-progress"></div>
+    </div>
+    <ul id="hud-players"></ul>
+    <div id="hud-dim">
+      <div id="dim-name"></div>
+      <div id="dim-desc"></div>
+      <div id="hearts"></div>
+    </div>
+    <div id="hint"></div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <div id="touch" class="hidden">
+    <div class="tgroup">
+      <button data-k="left">◀</button>
+      <button data-k="right">▶</button>
+    </div>
+    <div class="tgroup">
+      <button data-k="ping">!</button>
+      <button data-k="fire">✦</button>
+      <button data-k="jump">⤒</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
