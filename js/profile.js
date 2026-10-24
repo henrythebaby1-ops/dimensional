@@ -12,6 +12,17 @@ export const SHOP = {
     { id: 'halo', name: 'Halo', icon: '😇', price: 150 },
     { id: 'wizard', name: 'Wizard hat', icon: '🧙', price: 180 },
     { id: 'crown', name: 'Crown', icon: '👑', price: 250 },
+    { id: 'beanie', name: 'Beanie', icon: '🧶', price: 50 },
+    { id: 'flower', name: 'Flower', icon: '🌼', price: 60 },
+    { id: 'bunny', name: 'Bunny ears', icon: '🐰', price: 80 },
+    { id: 'chef', name: 'Chef hat', icon: '👨‍🍳', price: 90 },
+    { id: 'cowboy', name: 'Cowboy hat', icon: '🤠', price: 110 },
+    { id: 'santa', name: 'Santa hat', icon: '🎅', price: 120 },
+    { id: 'propeller', name: 'Propeller cap', icon: '🚁', price: 140 },
+    { id: 'pirate', name: 'Pirate hat', icon: '🏴‍☠️', price: 160 },
+    { id: 'tophat', name: 'Top hat', icon: '🎩', price: 180 },
+    { id: 'viking', name: 'Viking helmet', icon: '⚔️', price: 200 },
+    { id: 'astro', name: 'Space helmet', icon: '👩‍🚀', price: 300 },
   ],
   trail: [
     { id: 'none', name: 'No trail', icon: '·', price: 0 },
@@ -20,6 +31,16 @@ export const SHOP = {
     { id: 'fire', name: 'Fire', icon: '🔥', price: 120 },
     { id: 'code', name: 'Code rain', icon: '💚', price: 150 },
     { id: 'rainbow', name: 'Rainbow', icon: '🌈', price: 250 },
+    { id: 'bubbles', name: 'Bubbles', icon: '🫧', price: 60, cols: ['#9fe8ff', '#ffffff'] },
+    { id: 'snow', name: 'Snow', icon: '❄️', price: 70, cols: ['#ffffff', '#cfefff'] },
+    { id: 'leaves', name: 'Leaves', icon: '🍃', price: 70, cols: ['#4caf50', '#c8a02a'] },
+    { id: 'candy', name: 'Candy', icon: '🍬', price: 80, cols: ['#ff7ac8', '#7ad8ff'] },
+    { id: 'banana', name: 'Bananas', icon: '🍌', price: 90, cols: ['#ffe23a', '#fff3a0'] },
+    { id: 'smoke', name: 'Smoke', icon: '💨', price: 90, cols: ['#8a8a8a', '#cccccc'] },
+    { id: 'toxic', name: 'Toxic', icon: '☢️', price: 110, cols: ['#9dff3a', '#3aff6a'] },
+    { id: 'lightning', name: 'Lightning', icon: '⚡', price: 130, cols: ['#fff23a', '#9fefff'] },
+    { id: 'galaxy', name: 'Galaxy', icon: '🌌', price: 160, cols: ['#7a3aff', '#3a8aff'] },
+    { id: 'gold', name: 'Gold dust', icon: '🪙', price: 200, cols: ['#ffd23a', '#ffb000'] },
   ],
   skin: [
     { id: 'default', name: 'My dimension', icon: '🎨', price: 0 },
@@ -71,13 +92,37 @@ export const SHOP = {
     { id: 'gold', name: 'Gold', icon: '🟡', price: 80, color: '#ffd23a' },
     { id: 'void', name: 'Void', icon: '🟣', price: 120, color: '#7a3aff' },
     { id: 'rainbow', name: 'Rainbow', icon: '🌈', price: 200, color: 'rainbow' },
+    { id: 'red', name: 'Red', icon: '🔴', price: 40, color: '#ff3a3a' },
+    { id: 'orange', name: 'Orange', icon: '🟠', price: 40, color: '#ff9a2a' },
+    { id: 'cyan', name: 'Cyan', icon: '🩵', price: 50, color: '#3affff' },
+    { id: 'pink', name: 'Pink', icon: '🩷', price: 50, color: '#ff6ad5' },
+    { id: 'white', name: 'White', icon: '⚪', price: 60, color: '#ffffff' },
+    { id: 'ice', name: 'Ice', icon: '🧊', price: 80, color: '#bff4ff' },
+    { id: 'fire', name: 'Fireball', icon: '🔥', price: 100, color: '#ff5a1a' },
+    { id: 'toxic', name: 'Toxic', icon: '☢️', price: 100, color: '#9dff3a' },
+    { id: 'banana', name: 'Banana', icon: '🍌', price: 100, color: '#ffe23a' },
+    { id: 'shadow', name: 'Shadow', icon: '⚫', price: 140, color: '#2a1a3a' },
+  ],
+  acc: [
+    { id: 'none', name: 'Nothing', icon: '🙂', price: 0 },
+    { id: 'glasses', name: 'Glasses', icon: '👓', price: 50 },
+    { id: 'shades', name: 'Sunglasses', icon: '🕶️', price: 80 },
+    { id: 'mustache', name: 'Mustache', icon: '🥸', price: 60 },
+    { id: 'bowtie', name: 'Bow tie', icon: '🎀', price: 60 },
+    { id: 'scarf', name: 'Scarf', icon: '🧣', price: 80 },
+    { id: 'backpack', name: 'Backpack', icon: '🎒', price: 100 },
+    { id: 'cape', name: 'Hero cape', icon: '🦸', price: 150 },
+    { id: 'balloon', name: 'Balloon', icon: '🎈', price: 120 },
+    { id: 'wings', name: 'Angel wings', icon: '🪽', price: 220 },
+    { id: 'jetpack', name: 'Jetpack', icon: '🚀', price: 260 },
+    { id: 'pet', name: 'Pet duck', icon: '🐤', price: 300 },
   ],
 };
 export const skinColor = (id, t = 0) => { const s = SHOP.skin.find(k => k.id === id); return s?.anim ? s.anim(t) : s?.color; };
 export const DIM_PRICE = key => (key === 'middle' || key === 'flat' ? 150 : 100);
 
 function fresh() {
-  return { coins: 50, owned: ['hat:none', 'trail:none', 'bolt:default', 'skin:default'], equip: { hat: 'none', trail: 'none', bolt: 'default', skin: 'default' },
+  return { coins: 50, owned: ['hat:none', 'trail:none', 'bolt:default', 'skin:default', 'acc:none'], equip: { hat: 'none', trail: 'none', bolt: 'default', skin: 'default', acc: 'none' },
     stars: {}, dims: [...START_DIMS], daily: { last: '', streak: 0 } };
 }
 
@@ -86,7 +131,7 @@ function load() {
     const p = JSON.parse(localStorage.getItem(KEY));
     if (p && typeof p.coins === 'number') {
       const dims = [...new Set([...(p.dims || []), ...START_DIMS])];   // new free dimensions show up for old saves too
-      const owned = [...new Set([...(p.owned || []), 'skin:default'])];
+      const owned = [...new Set([...(p.owned || []), 'skin:default', 'acc:none'])];
       return { ...fresh(), ...p, dims, owned, equip: { ...fresh().equip, ...p.equip }, daily: { ...fresh().daily, ...p.daily } };
     }
   } catch {}

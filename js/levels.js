@@ -671,6 +671,28 @@ const SPACE = [
   blackHole,
 ];
 
+// ---------- more series: each level is an existing map, repainted, with its own physics ----------
+const TIME = [
+  n => planet(nest(n), 'Dinosaur Age', '65 million years ago! Raptors everywhere — clear them out and find the way forward.', 'dino', {}),
+  n => planet(stairs(n), 'Ancient Egypt', 'Climb the pyramid steps together. The sand slows you down.', 'egypt', { speed: 0.9 }),
+  n => planet(crossing(n), 'Medieval Castle', 'Raise the drawbridges! Hold the plates so your friends can cross the moat.', 'castle', {}),
+  n => planet(floatIsle(n), 'Pirate Seas', 'Ahoy! Hop between floating islands while the sea wind blows.', 'pirate', { wind: 110 }),
+  n => planet(cannonAlley(n), 'Wild West', 'High noon. Dodge the cannons and don\'t trust the old bridge.', 'west', {}),
+  n => planet(relay(n), 'Today', 'Back in the present day, a normal city. Pass the keystones along!', 'today', {}),
+  n => planet(gauntlet(n), 'Future City', 'Hover-tech makes you fast and light. Time the lasers!', 'future', { grav: 0.7, speed: 1.15 }),
+  n => planet(topsy(n), 'The End of Time', 'Time is falling apart: your dimension swaps every 15 seconds.', 'endtime', {}, { swapEvery: 15 }),
+  n => planet(fracture(n, false, 1), 'The Time Keeper', 'The Time Keeper wants to freeze you forever. Everyone on their pads shatters its shield!', 'endtime', {}),
+];
+const SWIM = { grav: 0.5, swim: true };
+const SEA = [
+  n => planet(sprint(n), 'Sunny Beach', 'Last stop on dry land! Run along the beach and dive in at the portal.', 'beach', {}),
+  n => planet(hop(n), 'Coral Reef', 'Underwater! Tap jump to swim. Collect the keystones among the coral.', 'reef', SWIM),
+  n => planet(crystals(n), 'Shipwreck', 'A sunken pirate ship. Break the crystals to open its doors — keep swimming.', 'wreck', SWIM),
+  n => planet(bounceHouse(n), 'Kelp Forest', 'Tall swaying kelp and bouncy sea sponges.', 'kelp', SWIM),
+  n => planet(shadows(n), 'The Abyss', 'The deepest, darkest water. Ping so your friends can find you.', 'abyss', SWIM),
+  n => planet(fracture(n, false, 2), 'The Kraken', 'The Kraken guards the bottom of the sea! Everyone on their pads shatters its shield.', 'abyss', SWIM),
+];
+
 // ---------- Race mode: every traveler for themselves ----------
 function sprint(n) {
   const b = new Builder(n, 110);
@@ -820,6 +842,8 @@ export const MODES = {
     scenes: { 4: 'troppaFree' },
   },
   space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
+  time: { name: 'Through Time', levels: TIME, min: 1, scenes: {} },
+  sea: { name: 'Deep Sea', levels: SEA, min: 1, scenes: {} },
   training: { name: 'Training Grounds', levels: [n => training(n, TRAIN_ROLES)], min: 1 },
   potato: { name: 'Hot Potato', levels: [n => ({ ...partyArena(n, 'tag'), name: 'Hot Potato', party: 'potato',
     objective: 'Someone holds the 💣. Touch a friend to pass it! When the fuse runs out, whoever holds it is OUT. Last one standing wins.' })], min: 2, time: 300 },
@@ -836,9 +860,11 @@ export const LEVELS = MODES.story.levels;
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   let lv = m.levels[idx](n);
-  if (['story', 'story2', 'story3', 'story4', 'daily', 'space'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
+  if (['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
     : mode === 'space' ? `${['🌍', '🟡', '🔴', '☀️', '🪐', '🟠', '🧊', '🌈', '🕳️'][idx]} ${lv.name}`
+    : mode === 'time' ? `${['🦖', '🏺', '🏰', '🏴‍☠️', '🤠', '🏙️', '🚀', '⌛', '⏰'][idx]} ${lv.name}`
+    : mode === 'sea' ? `${['🏖️', '🪸', '⚓', '🌿', '🌑', '🦑'][idx]} ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
   if (lv.party && !lv.theme) lv.theme = 'arcade';
   return lv;

@@ -35,6 +35,10 @@ auto-fire shoots for you (toggle with AUTO). Choose controls on the main menu
   gravity) → the Sun (solar flares) → Saturn → Jupiter (heavy gravity, storms) → Pluto (ice) → the
   Verse of Everything (dimensions reshuffle every 20s) → the Black Hole (it pulls you in; shoot its 4
   anchor stars to collapse it).
+- **⏳ Through Time**: Dinosaur Age → Ancient Egypt → Medieval Castle → Pirate Seas → Wild West → Today →
+  Future City → The End of Time → the Time Keeper boss.
+- **🌊 Deep Sea**: Sunny Beach → Coral Reef → Shipwreck → Kelp Forest → The Abyss → the Kraken. Underwater you
+  tap jump to swim.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
@@ -67,6 +71,8 @@ missiles, grenades, laser sweeps and solar flares (Shield bots block with their 
 (`OLLAMA_ORIGINS=* ollama serve`), the host can tick "Bot chat with Ollama AI" in the lobby and bots say
 real AI-written lines. Their moves still come from their built-in brain.
 **Skins:** 31 body colors in the 🛍️ Shop (Skins tab), including animated ones: Lava, Ocean Wave, Galaxy, Disco, Rainbow and Ghost.
+**More cosmetics:** 19 hats, 16 trails, 15 shot colors and 12 **accessories** (glasses, sunglasses, mustache,
+bow tie, scarf, backpack, hero cape, balloon, angel wings, jetpack, pet duck).
 **🍌 Banana outfits:** special Shop tab with costumes from the Bananas of the Caribbean (Pirate, Captain, Banana Suit,
 Half Peeled, Islander, Parrot Pal, Skeleton Pirate, Rotten Banana, Banana King). You wear the full costume in the
 Bananaverse and get its color everywhere else.

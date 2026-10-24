@@ -55,9 +55,39 @@ function tricorn(ctx, x, y, s, col, trim) {
   if (trim) { ctx.strokeStyle = trim; ctx.lineWidth = s * 0.04; ctx.stroke(); }
 }
 
-export function person(ctx, x, y, s, color, face, ghost, sword, hat, skin, t = 0) {
+const HAT_2D = { cap: '#2f6bff', party: '#ff4fc1', headphones: '#222', horns: '#c8102e', halo: '#fff3a0', wizard: '#5b2bd6', crown: '#ffd23a', helmet: '#3b4a3a',
+  beanie: '#ff4a3a', flower: '#4a2f1a', bunny: '#ffffff', chef: '#ffffff', cowboy: '#8a5a2a', santa: '#d8202a', propeller: '#ffd23a', pirate: '#1a1a1a', tophat: '#151515', viking: '#9aa4b0', astro: '#dddddd' };
+
+// accessories in the top-down view; 'back' ones are drawn behind the body
+function accessory(ctx, x, y, s, acc, face, t, back) {
+  const isBack = acc === 'cape' || acc === 'wings' || acc === 'backpack' || acc === 'jetpack';
+  if (!acc || acc === 'none' || isBack !== back) return;
+  switch (acc) {
+    case 'cape': ctx.fillStyle = '#d8202a'; ctx.beginPath(); ctx.moveTo(x - s * 0.3, y - s * 0.15); ctx.lineTo(x + s * 0.3, y - s * 0.15); ctx.lineTo(x + s * 0.4 - face * s * 0.2, y + s * 0.6); ctx.lineTo(x - s * 0.4 - face * s * 0.2, y + s * 0.6); ctx.fill(); break;
+    case 'wings': ctx.fillStyle = '#ffffff'; for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * s * 0.45, y - s * 0.05, s * 0.28, s * 0.14 + Math.sin(t * 8) * s * 0.04, d * -0.5, 0, 7); ctx.fill(); } break;
+    case 'backpack': ctx.fillStyle = '#ff9a2a'; ctx.beginPath(); ctx.roundRect(x - face * s * 0.35 - s * 0.18, y - s * 0.15, s * 0.36, s * 0.5, s * 0.08); ctx.fill(); break;
+    case 'jetpack': ctx.fillStyle = '#bfc8d4'; for (const d of [-1, 1]) ctx.fillRect(x - face * s * 0.38 + d * s * 0.1 - s * 0.07, y - s * 0.15, s * 0.14, s * 0.45);
+      ctx.fillStyle = '#ff8a1a'; for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x - face * s * 0.38 + d * s * 0.1 - s * 0.06, y + s * 0.3); ctx.lineTo(x - face * s * 0.38 + d * s * 0.1 + s * 0.06, y + s * 0.3); ctx.lineTo(x - face * s * 0.38 + d * s * 0.1, y + s * (0.45 + Math.random() * 0.2)); ctx.fill(); } break;
+    case 'glasses': case 'shades':
+      ctx.strokeStyle = acc === 'shades' ? '#111' : '#3a2a1a'; ctx.lineWidth = s * 0.03; ctx.fillStyle = acc === 'shades' ? '#111' : 'rgba(200,240,255,.4)';
+      for (const d of [-0.07, 0.07]) { ctx.beginPath(); ctx.arc(x + face * s * 0.08 + d * s * 1.1, y - s * 0.34, s * 0.07, 0, 7); ctx.fill(); ctx.stroke(); } break;
+    case 'mustache': ctx.fillStyle = '#3a2210'; ctx.beginPath(); ctx.ellipse(x + face * s * 0.06 - s * 0.06, y - s * 0.22, s * 0.08, s * 0.03, 0.3, 0, 7); ctx.ellipse(x + face * s * 0.06 + s * 0.06, y - s * 0.22, s * 0.08, s * 0.03, -0.3, 0, 7); ctx.fill(); break;
+    case 'bowtie': ctx.fillStyle = '#d8202a'; ctx.beginPath(); ctx.moveTo(x, y - s * 0.12); ctx.lineTo(x - s * 0.12, y - s * 0.19); ctx.lineTo(x - s * 0.12, y - s * 0.05); ctx.lineTo(x + s * 0.12, y - s * 0.19); ctx.lineTo(x + s * 0.12, y - s * 0.05); ctx.fill(); break;
+    case 'scarf': ctx.fillStyle = '#2a9aff'; ctx.fillRect(x - s * 0.33, y - s * 0.16, s * 0.66, s * 0.1); ctx.fillRect(x + s * 0.12, y - s * 0.1, s * 0.1, s * 0.25); break;
+    case 'balloon': { const by = y - s * 1.2 + Math.sin(t * 2) * s * 0.06, bx = x - s * 0.5;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - s * 0.3, y); ctx.lineTo(bx, by + s * 0.25); ctx.stroke();
+      ctx.fillStyle = '#ff3a6a'; ctx.beginPath(); ctx.ellipse(bx, by, s * 0.2, s * 0.25, 0, 0, 7); ctx.fill(); break; }
+    case 'pet': { const px = x - face * s * 0.75, py = y + s * 0.3 - Math.abs(Math.sin(t * 6)) * s * 0.1;
+      ctx.fillStyle = '#ffe23a'; ctx.beginPath(); ctx.ellipse(px, py, s * 0.16, s * 0.12, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px + face * s * 0.1, py - s * 0.12, s * 0.09, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ff8a1a'; ctx.beginPath(); ctx.moveTo(px + face * s * 0.17, py - s * 0.14); ctx.lineTo(px + face * s * 0.27, py - s * 0.11); ctx.lineTo(px + face * s * 0.17, py - s * 0.08); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.fillRect(px + face * s * 0.11, py - s * 0.15, s * 0.03, s * 0.03); break; }
+  }
+}
+
+export function person(ctx, x, y, s, color, face, ghost, sword, hat, skin, t = 0, acc = 'none') {
   ctx.save();
   ctx.globalAlpha = ghost ? 0.5 : 1;
+  accessory(ctx, x, y, s, acc, face, t, true);
   const head = () => { ctx.fillStyle = '#f2c79a'; ctx.beginPath(); ctx.arc(x, y - s * 0.35, s * 0.3, 0, 7); ctx.fill(); };
   switch (skin) {
     case 'b-suit': case 'b-rotten': case 'b-king': case 'b-peeled': {
@@ -133,8 +163,11 @@ export function person(ctx, x, y, s, color, face, ghost, sword, hat, skin, t = 0
       ctx.fillStyle = color;
       ctx.beginPath(); ctx.roundRect(x - s * 0.35, y - s * 0.2, s * 0.7, s * 0.65, s * 0.18); ctx.fill();
       head();
-      ctx.fillStyle = hat === 'none' || !hat ? '#4a2f1a' : hat === 'crown' ? '#ffd23a' : hat === 'halo' ? '#fff3a0' : '#2f6bff';
+      ctx.fillStyle = hat === 'none' || !hat ? '#4a2f1a' : HAT_2D[hat] || '#2f6bff';
       ctx.beginPath(); ctx.arc(x, y - s * 0.45, s * 0.28, Math.PI, 0); ctx.fill();
+      if (hat === 'tophat' || hat === 'chef') ctx.fillRect(x - s * 0.18, y - s * (hat === 'chef' ? 0.8 : 0.85), s * 0.36, s * 0.4);
+      if (hat === 'bunny') for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * s * 0.12, y - s * 0.8, s * 0.06, s * 0.2, d * 0.15, 0, 7); ctx.fill(); }
+      if (hat === 'cowboy' || hat === 'pirate') ctx.fillRect(x - s * 0.42, y - s * 0.5, s * 0.84, s * 0.07);
       eyes(ctx, x, y - s * 0.38, s, face);
     }
   }
@@ -145,6 +178,7 @@ export function person(ctx, x, y, s, color, face, ghost, sword, hat, skin, t = 0
     ctx.fillStyle = '#ffd23a'; ctx.beginPath(); ctx.moveTo(px - face * s * 0.08, py - s * 0.1); ctx.lineTo(px - face * s * 0.2, py - s * 0.06); ctx.lineTo(px - face * s * 0.08, py - s * 0.03); ctx.fill();
     ctx.fillStyle = '#111'; ctx.fillRect(px - face * s * 0.04, py - s * 0.1, s * 0.03, s * 0.03);
   }
+  accessory(ctx, x, y, s, acc, face, t, false);
   if (sword) {
     ctx.strokeStyle = '#dfe6f0'; ctx.lineWidth = s * 0.08; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x + face * s * 0.35, y + s * 0.1); ctx.lineTo(x + face * s * 0.85, y - s * 0.35); ctx.stroke();
@@ -287,7 +321,7 @@ export function drawBanana2D(ctx, VW, VH, s) {
     const x = sx(b.x + PW / 2), feet = sy(b.y + PH);
     ctx.fillStyle = 'rgba(0,0,0,.22)';
     ctx.beginPath(); ctx.ellipse(x, Math.max(feet, sy(groundY - T * 0.1)) + 4, ts * 0.32, ts * 0.12, 0, 0, 7); ctx.fill();
-    person(ctx, x, feet - ts * 0.35, ts * 0.9, b.color || DIMS[b.nd]?.color || '#fff', b.f || 1, b.ghost, b.sword, b.hat, b.skin, s.time);
+    person(ctx, x, feet - ts * 0.35, ts * 0.9, b.color || DIMS[b.nd]?.color || '#fff', b.f || 1, b.ghost, b.sword, b.hat, b.skin, s.time, b.acc);
     ctx.font = `700 ${Math.round(ts * 0.32)}px Rubik, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(0,0,0,.55)';

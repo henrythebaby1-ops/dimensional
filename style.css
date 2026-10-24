@@ -303,3 +303,9 @@ select { width: 100%; margin-top: 6px; background: #1b1830; border: 1px solid va
 .cut-planets { position: absolute; top: 40px; left: 0; right: 0; display: flex; justify-content: space-around; align-items: center; padding: 0 20px; z-index: 2; }
 .cut-planet { border-radius: 50%; box-shadow: 0 0 14px rgba(255,255,255,.35); animation: float 2s ease-in-out infinite alternate; }
 .cut-planet:last-child { box-shadow: 0 0 0 4px #ff8a3a, 0 0 24px #ff8a3a; }
+
+.cut-clock { position: absolute; top: 30px; left: 50%; width: 90px; height: 90px; margin-left: -45px; border-radius: 50%; border: 6px solid #ffd23a; background: #fff8e0; z-index: 2; box-shadow: 0 0 24px #ffd23a; }
+.cut-hand { position: absolute; left: 50%; top: 50%; width: 4px; height: 36px; margin-left: -2px; background: #222; transform-origin: 50% 0; animation: clockback 1s linear infinite; }
+@keyframes clockback { from { transform: rotate(180deg); } to { transform: rotate(-180deg); } }
+.cut-waves { position: absolute; left: 0; right: 0; bottom: 0; height: 45%; background: repeating-linear-gradient(170deg, #1a7ad8 0 18px, #2a9aff 18px 36px); opacity: .75; z-index: 1; animation: waves 3s ease-in-out infinite alternate; }
+@keyframes waves { from { transform: translateY(6px); } to { transform: translateY(-6px); } }

@@ -28,7 +28,7 @@ function rng(seed) {
 // hats from the shop; they sit in the face group so they flip with gravity
 const HAT_MATS = {};
 const hatMat = (c, o) => (HAT_MATS[c] ??= std(c, { flatShading: false, roughness: 0.4, ...o }));
-function makeHat(id) {
+export function makeHat(id) {
   const g = new THREE.Group();
   const top = 0.44;
   switch (id) {
@@ -70,6 +70,144 @@ function makeHat(id) {
       const visor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.1), hatMat(0x7fe7ff, { emissive: 0x7fe7ff, emissiveIntensity: 0.9 }));
       dome.position.y = top - 0.05; visor.position.set(0, top - 0.02, 0.3);
       g.add(dome, visor); break;
+    }
+    case 'beanie': {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.31, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatMat(0xff4a3a));
+      const pom = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), hatMat(0xffffff));
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.08, 16), hatMat(0xd8302a));
+      dome.position.y = top - 0.02; pom.position.y = top + 0.3; cuff.position.y = top;
+      g.add(dome, pom, cuff); break;
+    }
+    case 'flower': {
+      for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), hatMat(0xff7ac8)); const a = i / 6 * Math.PI * 2; p.position.set(0.16 + Math.cos(a) * 0.13, top + 0.12 + Math.sin(a) * 0.13, 0.12); p.scale.z = 0.5; g.add(p); }
+      const mid = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), hatMat(0xffd23a)); mid.position.set(0.16, top + 0.12, 0.16); g.add(mid); break;
+    }
+    case 'bunny': for (const sx of [-1, 1]) {
+      const ear = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.32, 4, 8), hatMat(0xffffff)); ear.position.set(sx * 0.13, top + 0.22, 0); ear.rotation.z = -sx * 0.15; g.add(ear);
+      const inner = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.24, 4, 6), hatMat(0xffa8c8)); inner.position.set(sx * 0.13, top + 0.22, 0.04); inner.rotation.z = -sx * 0.15; g.add(inner);
+    } break;
+    case 'chef': {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.14, 16), hatMat(0xffffff));
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 10), hatMat(0xffffff));
+      band.position.y = top + 0.06; puff.position.y = top + 0.28; puff.scale.y = 0.7;
+      g.add(band, puff); break;
+    }
+    case 'cowboy': {
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.24, 14), hatMat(0x8a5a2a));
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.04, 20), hatMat(0x8a5a2a));
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.245, 0.05, 14), hatMat(0x2a1a0a));
+      crown.position.y = top + 0.14; brim.position.y = top + 0.03; band.position.y = top + 0.06; brim.rotation.x = 0.08;
+      g.add(crown, brim, band); break;
+    }
+    case 'santa': {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.5, 16), hatMat(0xd8202a));
+      const trim = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.06, 8, 20), hatMat(0xffffff));
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), hatMat(0xffffff));
+      c.position.set(0, top + 0.26, 0); c.rotation.z = -0.35; trim.rotation.x = Math.PI / 2; trim.position.y = top + 0.03; ball.position.set(0.18, top + 0.46, 0);
+      g.add(c, trim, ball); break;
+    }
+    case 'propeller': {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatMat(0xffd23a));
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.14, 6), hatMat(0x222222));
+      const prop = new THREE.Group();
+      for (const [sx, c] of [[1, 0xff3a3a], [-1, 0x3a8aff]]) { const blade = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.07), hatMat(c)); blade.position.x = sx * 0.15; prop.add(blade); }
+      dome.position.y = top - 0.02; stick.position.y = top + 0.32; prop.position.y = top + 0.39;
+      g.userData.spin = prop;
+      g.add(dome, stick, prop); break;
+    }
+    case 'pirate': {
+      const shape = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.16, 3), hatMat(0x1a1a1a));
+      const skull = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), hatMat(0xffffff));
+      shape.position.y = top + 0.1; shape.rotation.y = Math.PI / 2; skull.position.set(0, top + 0.12, 0.22);
+      g.add(shape, skull); break;
+    }
+    case 'tophat': {
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 16), hatMat(0x151515));
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.04, 20), hatMat(0x151515));
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.07, 16), hatMat(0xc8102e));
+      crown.position.y = top + 0.23; brim.position.y = top + 0.03; band.position.y = top + 0.08;
+      g.add(crown, brim, band); break;
+    }
+    case 'viking': {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.33, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatMat(0x9aa4b0, { metalness: 0.7 }));
+      dome.position.y = top - 0.04; g.add(dome);
+      for (const sx of [-1, 1]) { const h = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.34, 8), hatMat(0xf4ead0)); h.position.set(sx * 0.36, top + 0.1, 0); h.rotation.z = -sx * 1.0; g.add(h); }
+      break;
+    }
+    case 'astro': {
+      const bubble = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), new THREE.MeshStandardMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.2, depthWrite: false }));
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.05, 8, 24), hatMat(0xdddddd, { metalness: 0.6 }));
+      bubble.position.y = 0.1; ring.rotation.x = Math.PI / 2; ring.position.y = -0.22;
+      g.add(bubble, ring); break;
+    }
+    default: return null;
+  }
+  return g;
+}
+
+// accessories from the shop: on the face, around the neck, or on the back
+export function makeAcc(id) {
+  const g = new THREE.Group();
+  switch (id) {
+    case 'glasses': case 'shades': {
+      const frame = hatMat(id === 'shades' ? 0x111111 : 0x3a2a1a), lens = id === 'shades' ? hatMat(0x111111, { metalness: 0.6, roughness: 0.15 }) : new THREE.MeshBasicMaterial({ color: 0xcff4ff, transparent: true, opacity: 0.35 });
+      for (const sx of [-1, 1]) {
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 6, 16), frame); rim.position.set(sx * 0.13, 0.14, 0.4); g.add(rim);
+        const gl = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), lens); gl.position.set(sx * 0.13, 0.14, 0.41); g.add(gl);
+      }
+      const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.02), frame); bridge.position.set(0, 0.15, 0.4); g.add(bridge);
+      break;
+    }
+    case 'mustache': for (const sx of [-1, 1]) { const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.12, 4, 6), hatMat(0x3a2210)); m.rotation.z = Math.PI / 2 + sx * 0.3; m.position.set(sx * 0.08, -0.02, 0.33); g.add(m); } break;
+    case 'bowtie': {
+      for (const sx of [-1, 1]) { const w = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.14, 4), hatMat(0xd8202a)); w.rotation.z = sx * Math.PI / 2; w.position.set(sx * 0.07, -0.2, 0.33); g.add(w); }
+      const k = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), hatMat(0xa01020)); k.position.set(0, -0.2, 0.34); g.add(k); break;
+    }
+    case 'scarf': {
+      const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.06, 8, 24), hatMat(0x2a9aff)); wrap.rotation.x = Math.PI / 2; wrap.position.y = -0.14; wrap.scale.set(1, 0.95, 1);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.04), hatMat(0x2a9aff)); tail.position.set(0.16, -0.3, 0.32); tail.rotation.z = 0.2;
+      g.add(wrap, tail); break;
+    }
+    case 'backpack': {
+      const bag = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.46, 0.18), hatMat(0xff9a2a)); bag.position.set(0, -0.08, -0.38);
+      const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.06), hatMat(0xd87a1a)); pocket.position.set(0, -0.2, -0.49);
+      g.add(bag, pocket); break;
+    }
+    case 'cape': {
+      const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.8, 1, 4), new THREE.MeshStandardMaterial({ color: 0xd8202a, side: THREE.DoubleSide, roughness: 0.6 }));
+      cape.position.set(0, -0.15, -0.34); cape.rotation.x = 0.25;
+      g.userData.flap = cape;
+      g.add(cape); break;
+    }
+    case 'balloon': {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 10), hatMat(0xff3a6a, { emissive: 0xff3a6a, emissiveIntensity: 0.15 })); b.scale.y = 1.2;
+      const str = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.9, 4), hatMat(0xffffff));
+      b.position.set(-0.45, 1.25, -0.1); str.position.set(-0.4, 0.75, -0.1); str.rotation.z = 0.08;
+      g.userData.bob = b;
+      g.add(b, str); break;
+    }
+    case 'wings': for (const sx of [-1, 1]) {
+      const w = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 8), hatMat(0xffffff, { emissive: 0xfff3c0, emissiveIntensity: 0.2 }));
+      w.scale.set(1, 0.6, 0.15); w.position.set(sx * 0.35, 0.05, -0.32); w.rotation.z = sx * 0.4;
+      (g.userData.wings ??= []).push(w); g.add(w);
+    } break;
+    case 'jetpack': {
+      for (const sx of [-1, 1]) {
+        const tank = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.3, 4, 10), hatMat(0xbfc8d4, { metalness: 0.7 })); tank.position.set(sx * 0.13, -0.05, -0.38); g.add(tank);
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 8), new THREE.MeshBasicMaterial({ color: 0xff8a1a })); flame.rotation.x = Math.PI; flame.position.set(sx * 0.13, -0.38, -0.38); (g.userData.flames ??= []).push(flame); g.add(flame);
+      }
+      break;
+    }
+    case 'pet': {
+      const duck = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8), hatMat(0xffe23a)); body.scale.set(1.2, 0.9, 1);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), hatMat(0xffe23a)); head.position.set(0.1, 0.15, 0);
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.1, 6), hatMat(0xff8a1a)); beak.rotation.z = -Math.PI / 2; beak.position.set(0.22, 0.14, 0);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 4), hatMat(0x111111)); eye.position.set(0.15, 0.18, 0.08);
+      duck.add(body, head, beak, eye);
+      duck.position.set(-0.7, -0.3, 0);
+      g.userData.bob = duck;
+      g.add(duck); break;
     }
     default: return null;
   }
@@ -331,6 +469,57 @@ export class Renderer3D {
           }
           if (D.key === 'sun') this.anim.pts = addPoints(400, 0xffa020, 0.4, 4), this.anim.vy = up * 3, this.anim.sway = 1;
           if (D.key === 'pluto' || D.key === 'jupiter') this.anim.pts = addPoints(700, 0xffffff, 0.2, 4), this.anim.vy = -up * 2, this.anim.sway = D.key === 'jupiter' ? 6 : 1;
+        }
+        break;
+      }
+      case 'dino': case 'egypt': case 'castle': case 'pirate': case 'west': case 'today': case 'future': case 'endtime': {
+        // a skyline of shapes from that age of history
+        const mats = { dino: [0x3a6a2a, 0x5a8a3a], egypt: [0xe0b860, 0xc8a050], castle: [0x8a8a92, 0x6a6a72], pirate: [0x8a5a2a, 0xf4ead0], west: [0xa85a2a, 0x2f6b2f],
+          today: [0x6a7a8a, 0x8a9aaa], future: [0x3a4aff, 0x3affff], endtime: [0x5a2a6a, 0xffd23a] }[D.key].map((c, i) => D.key === 'future' || D.key === 'endtime' ? glow(c, { emissiveIntensity: 0.4 }) : std(c));
+        this.anim = { spin: [] };
+        for (let i = 0; i < 26; i++) {
+          let m;
+          const x = (r() - 0.5) * 170, z = -25 - r() * 35;
+          switch (D.key) {
+            case 'dino': m = i % 3 ? new THREE.Mesh(new THREE.ConeGeometry(4 + r() * 4, 10 + r() * 14, 6), mats[0]) : new THREE.Mesh(new THREE.ConeGeometry(5, 14, 8, 1, true), mats[1]); break;   // volcanoes and ferns
+            case 'egypt': m = new THREE.Mesh(new THREE.ConeGeometry(5 + r() * 7, 8 + r() * 10, 4), mats[i % 2]); m.rotation.y = Math.PI / 4; break;   // pyramids
+            case 'castle': m = i % 2 ? new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.8, 10 + r() * 8, 8), mats[0]) : new THREE.Mesh(new THREE.BoxGeometry(6, 6 + r() * 4, 2), mats[1]); break;
+            case 'pirate': m = new THREE.Group(); { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 1.6, 2), mats[0]); const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 7, 6), mats[0]); const sail = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 4), mats[1]); mast.position.y = 3.5; sail.position.set(0, 4, 0.2); m.add(hull, mast, sail); } break;
+            case 'west': m = i % 2 ? new THREE.Mesh(new THREE.BoxGeometry(4 + r() * 6, 4 + r() * 8, 4), mats[0]) : new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 4 + r() * 3, 7), mats[1]); break;   // mesas and cacti
+            case 'today': case 'future': m = new THREE.Mesh(new THREE.BoxGeometry(3 + r() * 4, 8 + r() * (D.key === 'future' ? 26 : 16), 3 + r() * 3), mats[i % 2]); break;   // skyscrapers
+            case 'endtime': m = new THREE.Group(); { const face = new THREE.Mesh(new THREE.TorusGeometry(2 + r() * 3, 0.25, 6, 32), mats[1]); const hand = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.2, 0.25), mats[1]); hand.position.y = 1.1; const pivot = new THREE.Group(); pivot.add(hand); m.add(face, pivot); this.anim.spin.push(pivot); } m.position.y = -4 + r() * (H + 8); break;
+          }
+          if (D.key !== 'endtime') m.position.y = floorY + up * 3;
+          if (up < 0 && D.key !== 'endtime') m.rotation.x = Math.PI;
+          m.position.x = x; m.position.z = z;
+          this.decor.add(m);
+        }
+        if (D.key === 'pirate' || D.key === 'today') { const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 80), std(D.key === 'pirate' ? 0x2a8aff : 0x6a7a8a, { flatShading: false })); sea.rotation.x = up > 0 ? -Math.PI / 2 : Math.PI / 2; sea.position.set(0, floorY + up * 0.5, -40); this.decor.add(sea); }
+        if (D.key === 'future' || D.key === 'endtime') this.anim.pts = addPoints(800, D.key === 'future' ? 0x3affff : 0xffd23a, 0.2, 6), this.anim.vy = D.key === 'future' ? up * 4 : -up * 2, this.anim.sway = 1;
+        break;
+      }
+      case 'beach': case 'reef': case 'wreck': case 'kelp': case 'abyss': {
+        this.anim = { spin: [], pts: addPoints(D.key === 'beach' ? 100 : 900, 0xcff4ff, 0.18, 4), vy: D.key === 'beach' ? 0 : -up * 3, sway: 2 };   // rising bubbles
+        if (D.key === 'beach') {
+          const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 80), std(0x2a9aff, { flatShading: false }));
+          sea.rotation.x = up > 0 ? -Math.PI / 2 : Math.PI / 2; sea.position.set(0, floorY + up * 0.3, -45); this.decor.add(sea);
+          const trunk = std(0x8a5a2a), leaf = std(0x2f9a3a);
+          for (let i = 0; i < 14; i++) { const palm = new THREE.Group(); const t = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 8, 6), trunk); t.position.y = 4; t.rotation.z = (r() - 0.5) * 0.3; palm.add(t);
+            for (let k = 0; k < 5; k++) { const l = new THREE.Mesh(new THREE.ConeGeometry(0.6, 4, 4), leaf); l.position.y = 8; l.rotation.z = Math.PI / 2 + 0.4; l.rotation.y = k / 5 * Math.PI * 2; palm.add(l); }
+            palm.position.set((r() - 0.5) * 170, floorY, -15 - r() * 25); if (up < 0) palm.rotation.x = Math.PI; this.decor.add(palm); }
+          break;
+        }
+        const cols = { reef: [0xff6a8a, 0xffa83a, 0xc83aff, 0x3affd8], wreck: [0x6a4a2a, 0x4a321c], kelp: [0x2a8a3a, 0x4aaa3a], abyss: [0x1a3a8a, 0x3affff] }[D.key];
+        for (let i = 0; i < 40; i++) {
+          const c = cols[i % cols.length];
+          let m;
+          if (D.key === 'kelp') { m = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 10 + r() * 16, 5), std(c)); this.anim.spin.push(m); }
+          else if (D.key === 'abyss') { m = new THREE.Mesh(new THREE.SphereGeometry(0.2 + r() * 0.3, 8, 6), new THREE.MeshBasicMaterial({ color: c })); m.position.y = r() * H; }   // glowing deep-sea lights
+          else if (D.key === 'wreck') { m = new THREE.Mesh(new THREE.BoxGeometry(2 + r() * 8, 0.6 + r() * 2, 1), std(c)); m.rotation.z = (r() - 0.5) * 1.2; }
+          else m = new THREE.Mesh(i % 2 ? new THREE.SphereGeometry(0.8 + r() * 1.5, 8, 6) : new THREE.ConeGeometry(0.6 + r(), 2 + r() * 4, 6), std(c, { emissive: c, emissiveIntensity: 0.1 }));
+          m.position.x = (r() - 0.5) * 170; m.position.z = -12 - r() * 35;
+          if (D.key !== 'abyss') m.position.y = floorY + up * (D.key === 'kelp' ? 6 : 1);
+          this.decor.add(m);
         }
         break;
       }
@@ -972,6 +1161,21 @@ export class Renderer3D {
         if (g.userData.hatMesh) g.userData.face.add(g.userData.hatMesh);
         g.userData.hat = hat;
       }
+      const acc = b.acc || 'none';
+      if (g.userData.acc !== acc) {
+        if (g.userData.accMesh) g.userData.face.remove(g.userData.accMesh);
+        g.userData.accMesh = makeAcc(acc);
+        if (g.userData.accMesh) g.userData.face.add(g.userData.accMesh);
+        g.userData.acc = acc;
+      }
+      // little bits of life: spinning propellers, bobbing balloons and pets, flapping capes and wings, jet flames
+      const tt = performance.now() / 1000, moving = Math.min(1, Math.abs(b.vx || 0) / 200);
+      const hu = g.userData.hatMesh?.userData, au = g.userData.accMesh?.userData;
+      if (hu?.spin) hu.spin.rotation.y = tt * (8 + moving * 20);
+      if (au?.bob) au.bob.position.y = (acc === 'pet' ? -0.3 + Math.abs(Math.sin(tt * 6)) * 0.12 * (0.3 + moving) : 1.25 + Math.sin(tt * 2) * 0.06);
+      if (au?.flap) au.flap.rotation.x = 0.2 + moving * 0.9 + Math.sin(tt * 10) * 0.08 * moving;
+      if (au?.wings) au.wings.forEach((w, i) => { w.rotation.y = (i ? -1 : 1) * Math.sin(tt * 8) * 0.4; });
+      if (au?.flames) au.flames.forEach(f => { f.scale.y = 0.6 + Math.random() * 0.8; });
     }
     for (const [id, g] of this.bodies) if (!seen.has(id)) g.visible = false;
   }

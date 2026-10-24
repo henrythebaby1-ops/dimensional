@@ -373,3 +373,25 @@ SCENES.spaceEnd = [
   { text: 'The last anchor star breaks. The black hole collapses into a single point of light…', bg: 'dark', cast: ['planets'], fx: 'flash', ms: 3600 },
   { text: '…and the friends fall through it, out the other side, into a brand-new universe.', bg: 'tear', cast: ['friends'], ms: 3800 },
 ];
+
+// Through Time and Deep Sea
+CAST.clock = () => { const c = el('div', 'cut-clock'); c.append(el('div', 'cut-hand')); return c; };
+CAST.waves = () => el('div', 'cut-waves');
+SCENES.timeIntro = [
+  { text: 'Through Time. The friends found an old pocket watch in the attic…', bg: 'happy', cast: ['friends'], ms: 3200 },
+  { text: 'They wound it up — and the hands started spinning backwards!', bg: 'dark', cast: ['clock'], fx: 'shake', ms: 3200 },
+  { text: 'Now they have to travel through every age, from the dinosaurs to the end of time, to stop the Time Keeper.', bg: 'dark', cast: ['clock', 'friends'], ms: 4200 },
+];
+SCENES.timeEnd = [
+  { text: 'The Time Keeper\'s clock cracks in half. Every second ticks forward again.', bg: 'dark', cast: ['clock'], fx: 'flash', ms: 3400 },
+  { text: 'The friends land back in the attic, just in time for dinner.', bg: 'happy', cast: ['friends'], ms: 3400 },
+];
+SCENES.seaIntro = [
+  { text: 'Deep Sea. A day at the beach… until something huge pulled the boat under!', bg: 'happy', cast: ['waves'], ms: 3400 },
+  { text: 'The friends have to swim all the way down — past the reef, the shipwreck and the kelp — into the Abyss.', bg: 'dark', cast: ['friends', 'waves'], ms: 4200 },
+  { text: 'Tap jump to swim. Something with a lot of arms is waiting at the bottom…', bg: 'dark', cast: ['waves'], fx: 'shake', ms: 3200 },
+];
+SCENES.seaEnd = [
+  { text: 'The Kraken lets go and sinks into the dark.', bg: 'dark', cast: ['waves'], fx: 'flash', ms: 3200 },
+  { text: 'The friends swim up, up, up — and burst out into the sunshine.', bg: 'happy', cast: ['friends', 'waves'], ms: 3400 },
+];

@@ -467,7 +467,8 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   signals = {};
   const myIdx = ids.indexOf(me.id);
   P = myIdx < 0 ? null : newPlayer(level.ch2 ? 0 : rot ? (myIdx + idx) % n : myIdx, level.levelRole || me.role, level.ch2 || level.spread ? myIdx : undefined);
-  if (P && level.levelRole) setTimeout(() => toast(`This level: everyone is a ${ROLES[level.levelRole].icon} ${ROLES[level.levelRole].name}! ${ROLES[level.levelRole].desc}`, '#ffe23a'), 2000);
+  const lr = ROLES[level.levelRole];
+  if (P && lr) setTimeout(() => toast(`This level: everyone is a ${lr.icon} ${lr.name}! ${lr.desc}`, '#ffe23a'), 2000);
   if (P) { P.id = me.id; P.ch2 = ch2Roles.get(me.id); }
   if (P && level.ch2) setTimeout(() => P && toast(P.ch2 === 'dragger' ? '🧱 You are a BUILDER — drag the glowing blocks' : P.ch2 === 'walker' ? '🚶 You are a WALKER — push your Builders' : '🧱🚶 You can walk AND build', '#39ff88'), 1200);
   hunt = level.hunt ? { next: 1.5, left: MODES.hunt.time } : null;
@@ -656,9 +657,10 @@ function physics(p, inp, h) {
     if (!inp.has('jump') && g * p.vy < 0) gm *= 1.9;
     if (p.role === 'glider' && inp.has('jump') && g * p.vy > 0) { p.vy = g * Math.min(g * p.vy, 110); gm = 0; }   // float down   // short hops when jump is released
     p.vy += g * gm * h;
-    if (g * p.vy > D.maxFall) p.vy = g * D.maxFall;
+    const maxFall = pl.swim ? Math.min(D.maxFall, 240) : D.maxFall;
+    if (g * p.vy > maxFall) p.vy = g * maxFall;
 
-    if (p.onGround) { p.coyote = 0.1; p.airJumps = D.jumps - 1 + (p.role === 'jetpack' ? 1 : 0); } else p.coyote -= h;
+    if (p.onGround) { p.coyote = 0.1; p.airJumps = D.jumps - 1 + (p.role === 'jetpack' ? 1 : 0) + (pl.swim ? 8 : 0); } else p.coyote -= h;
     if (p.jumpBuf > 0) {
       if (p.coyote > 0) jump(p, D, g);
       else if (p.airJumps > 0) { p.airJumps--; jump(p, D, g); }
@@ -811,7 +813,7 @@ function stateOf(p, id, name) {
   return {
     id, l: levelIdx, x: Math.round(p.x), y: Math.round(p.y), vx: Math.round(p.vx), vy: Math.round(p.vy),
     d: p.dim, nd: p.native, g: gravOf(p), f: p.face, p: p.press, ro: p.role, e: p.exit, hp: p.hp, dead: p.dead > 0, name,
-    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt, profile.equip.skin] : p.cos, sh: p.shielding ? 1 : 0,
+    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt, profile.equip.skin, profile.equip.acc] : p.cos, sh: p.shielding ? 1 : 0,
   };
 }
 
@@ -846,7 +848,7 @@ function addBot() {
   const roles = Object.keys(ROLES);
   const rnd = a => a[Math.floor(Math.random() * a.length)].id;
   bots.push({ id: 'bot-' + Math.random().toString(36).slice(2, 7), name: '🤖 ' + nm, role: roles[Math.floor(Math.random() * roles.length)],
-    cos: [rnd(SHOP.hat), rnd(SHOP.trail), rnd(SHOP.bolt), rnd(SHOP.skin)] });
+    cos: [rnd(SHOP.hat), rnd(SHOP.trail), rnd(SHOP.bolt), rnd(SHOP.skin), rnd(SHOP.acc)] });
   send('bots', { list: bots });
   renderLobby();
 }
@@ -862,7 +864,7 @@ function setBots(list) {
   if (!Array.isArray(list)) return;
   bots = list.filter(b => b && isBot(b.id)).slice(0, MAX_PLAYERS).map(b => ({
     id: String(b.id), name: String(b.name || '🤖 Bot').slice(0, 14), role: ROLES[b.role] ? b.role : 'runner',
-    cos: Array.isArray(b.cos) ? b.cos.map(String).slice(0, 4) : ['none', 'none', 'default', 'default'],
+    cos: Array.isArray(b.cos) ? b.cos.map(String).slice(0, 5) : ['none', 'none', 'default', 'default', 'none'],
   }));
 }
 
@@ -1725,7 +1727,7 @@ function sendEmote(i) {
 // ---------- rewards: coins, stars and best times ----------
 let levelStartMs = Date.now(), myDeaths = 0;
 function completeLevel(mode, idx, lv, startMs, deaths) {
-  if (!['story', 'story2', 'story3', 'story4', 'daily', 'space'].includes(mode) || !lv) return;
+  if (!['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea'].includes(mode) || !lv) return;
   const ms = Date.now() - startMs;
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
@@ -2787,6 +2789,17 @@ async function showVictory() {
     sfx('win');
     return;
   }
+  if (gameMode === 'time' || gameMode === 'sea') {
+    const sea = gameMode === 'sea';
+    playStory(friendsForScene(), sea ? SCENES.seaEnd : SCENES.timeEnd);
+    addCoins(120);
+    title.textContent = sea ? 'DEEP SEA' : 'THROUGH TIME';
+    text.textContent = sea ? 'The Kraken sinks into the dark, and the friends swim back up into the sunlight. +120 🪙'
+      : 'The Time Keeper\'s clock shatters. Past, present and future are free again! +120 🪙';
+    big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
   if (gameMode === 'space') {
     playStory(friendsForScene(), SCENES.spaceEnd);
     addCoins(150);
@@ -2931,10 +2944,10 @@ function bodiesForFrame() {
     const r = remotes.get(id);
     if (!r || r.l !== levelIdx) continue;
     list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) || (Array.isArray(r.co) ? skinColor(r.co[3], time) : undefined),
-      hat: Array.isArray(r.co) ? r.co[0] : 'none', skin: Array.isArray(r.co) ? r.co[3] : 'default', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
+      hat: Array.isArray(r.co) ? r.co[0] : 'none', acc: Array.isArray(r.co) ? r.co[4] : 'none', skin: Array.isArray(r.co) ? r.co[3] : 'default', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
   }
   if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.face, vx: P.vx, ghost: false,
-    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), skin: profile.equip.skin, hat: profile.equip.hat, trail: profile.equip.trail,
+    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), skin: profile.equip.skin, acc: profile.equip.acc, hat: profile.equip.hat, trail: profile.equip.trail,
     sword: !!DIMS[P.dim].sword, shield: !!P.shielding });
   for (const [id, b] of botActors) { const e = list.find(x => x.id === id); if (e) { e.shield = !!b.p.shielding; } }
   if (level.ally && boss) { const ap = allyPos(); list.push({ id: 'ally', x: ap.x - PW / 2, y: ap.y - PH / 2, d: 0, nd: 0, g: 1, f: 1, vx: 0, ghost: false, visible: true, color: '#4f6f46', hat: 'helmet', trail: 'none' }); }
@@ -2983,7 +2996,7 @@ const TRAIL_COLORS = { sparkle: ['#ffffff', '#fff3a0'], hearts: ['#ff6ad5', '#ff
 function spawnTrails() {
   for (const b of bodiesForFrame()) {
     if (!b.trail || b.trail === 'none' || b.visible === false || Math.abs(b.vx || 0) < 40 || Math.random() > 0.55) continue;
-    const col = b.trail === 'rainbow' ? `hsl(${(time * 360 + b.x) % 360}, 90%, 60%)` : TRAIL_COLORS[b.trail]?.[Math.random() < 0.5 ? 0 : 1];
+    const col = b.trail === 'rainbow' ? `hsl(${(time * 360 + b.x) % 360}, 90%, 60%)` : (TRAIL_COLORS[b.trail] || SHOP.trail.find(t => t.id === b.trail)?.cols)?.[Math.random() < 0.5 ? 0 : 1];
     if (!col) continue;
     particles.push({ x: b.x + PW / 2 - Math.sign(b.vx) * 10, y: b.y + PH / 2 + (Math.random() - 0.5) * 14, z: -0.2,
       vx: -Math.sign(b.vx) * 30, vy: (Math.random() - 0.5) * 30, life: 0, max: 0.5, col, s: 5 });
@@ -3248,10 +3261,10 @@ $('start').onclick = async () => {
     send('intro4', { f });
     await playStory(f, SCENES.ch4intro);
   }
-  if (gameMode === 'space') {
-    const f = friendsForScene();
-    send('scene', { k: 'spaceIntro', f });
-    await playStory(f, SCENES.spaceIntro);
+  if (gameMode === 'space' || gameMode === 'time' || gameMode === 'sea') {
+    const f = friendsForScene(), k = gameMode + 'Intro';
+    send('scene', { k, f });
+    await playStory(f, SCENES[k]);
   }
   if (gameMode === 'story3') {
     const order = computeOrder(players());
@@ -3325,10 +3338,10 @@ let pendingStart = false;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
-  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { story: 1, story2: 1, story3: 1, story4: 1, space: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const h = document.createElement('h3');
   h.textContent = head;
@@ -3462,7 +3475,7 @@ function renderRecords() {
   const list = $('records-list');
   list.replaceChildren();
   let total = 0, max = 0;
-  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['space', 'Across the Worlds']]) {
+  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea']]) {
     const h = document.createElement('h3');
     h.textContent = title;
     list.append(h);

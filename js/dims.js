@@ -116,4 +116,19 @@ Object.assign(THEMES, {
   pluto: { key: 'pluto', sky: ['#05060f', '#3a4a6a'], ground: '#9ab0c8', dirt: '#7a90a8', edge: '#ffffff' },
   everything: { key: 'everything', sky: ['#2a0a4a', '#0a4a4a'], ground: '#3a2a5a', dirt: '#2a1e44', edge: '#ffffff' },
   blackhole: { key: 'blackhole', sky: ['#000000', '#120a1a'], ground: '#1a1a24', dirt: '#101018', edge: '#ff8a3a' },
+  // Through Time
+  dino: { key: 'dino', sky: ['#6a8a3a', '#ffd88a'], ground: '#5a7a2a', dirt: '#6b4a2a', edge: '#a8e05a' },
+  egypt: { key: 'egypt', sky: ['#4a9aff', '#ffe8b0'], ground: '#e0b860', dirt: '#c49a4a', edge: '#fff0b0' },
+  castle: { key: 'castle', sky: ['#3a5a9a', '#b8d0f0'], ground: '#7a7a82', dirt: '#5a5a62', edge: '#4f8f3a' },
+  pirate: { key: 'pirate', sky: ['#2a8aff', '#bff0ff'], ground: '#c8a86a', dirt: '#8a6a3a', edge: '#ffe08a' },
+  west: { key: 'west', sky: ['#ff8a3a', '#ffe0a0'], ground: '#c87a3a', dirt: '#9a5a2a', edge: '#e0a060' },
+  today: { key: 'today', sky: ['#7ac0ff', '#e8f4ff'], ground: '#5a5a62', dirt: '#3a3a42', edge: '#ffd23a' },
+  future: { key: 'future', sky: ['#0a0a2a', '#3a2a8a'], ground: '#1a2a4a', dirt: '#101a30', edge: '#3affff' },
+  endtime: { key: 'endtime', sky: ['#000000', '#3a0a3a'], ground: '#2a1a3a', dirt: '#1a0e26', edge: '#ffd23a' },
+  // Deep Sea
+  beach: { key: 'beach', sky: ['#3ab0ff', '#e8f8ff'], ground: '#f0d890', dirt: '#d8b870', edge: '#fff4c0' },
+  reef: { key: 'reef', sky: ['#0a6aa8', '#3ad8e8'], ground: '#ff8a7a', dirt: '#c86a5a', edge: '#ffd0e0' },
+  wreck: { key: 'wreck', sky: ['#043a5a', '#1a7aa0'], ground: '#6a4a2a', dirt: '#4a321c', edge: '#c8a86a' },
+  kelp: { key: 'kelp', sky: ['#03304a', '#0a8a7a'], ground: '#2a5a3a', dirt: '#1a3a26', edge: '#5aff9a' },
+  abyss: { key: 'abyss', sky: ['#000008', '#03142a'], ground: '#0a1a2a', dirt: '#06101c', edge: '#3a8aff' },
 });
