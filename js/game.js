@@ -72,8 +72,9 @@ let time = 0, sendT = 0, flash = { t: 0, col: '#fff' };
 let transitioning = false, rosterTimer = 0, recorded = false, hintText = '';
 
 const isHost = () => roster.length > 0 && roster[0].id === me.id;
-const rosterIds = () => roster.slice(0, MAX_PLAYERS).map(p => p.id);
-const nameOf = id => (id === me.id ? me.name : roster.find(p => p.id === id)?.name || remotes.get(id)?.name || '???');
+const players = () => [...roster, ...bots].slice(0, MAX_PLAYERS);
+const rosterIds = () => players().map(p => p.id);
+const nameOf = id => (id === me.id ? me.name : roster.find(p => p.id === id)?.name || bots.find(b => b.id === id)?.name || remotes.get(id)?.name || '???');
 const send = (t, d) => room?.send(t, d);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -99,7 +100,7 @@ function pressAction(a) {
   if (!P || P.dead > 0) return;
   if (a === 'jump') P.jumpBuf = 0.14;
   if (a === 'ping') { sendPing(); if (P.role === 'medic') healTeam(); }
-  if (a === 'dash' && DIMS[P.dim].dash && P.dashCd <= 0) {
+  if (a === 'dash' && (DIMS[P.dim].dash || P.role === 'ninja') && P.dashCd <= 0) {
     P.dashT = 0.16;
     P.dashCd = 0.7;
     burst(P.x + PW / 2, P.y + PH / 2, '#111111', 12, 160);
@@ -195,7 +196,7 @@ function touchesSpike(x, y) {
 const overlap = (x, y, w, h, o) => x < (o.x + o.w) * T && x + w > o.x * T && y < (o.y + o.h) * T && y + h > o.y * T;
 const laserOn = o => ((time + o.offset) % o.period) / o.period < o.duty && !(o.link && signals[o.link]);
 const gravOf = p => DIMS[p.dim].grav * (p.gflip ? -1 : 1);
-const maxHp = () => (me.role === 'tank' ? 5 : 3);
+const maxHp = p => (p?.role === 'tank' ? 5 : 3);
 const seesDark = () => me.role === 'scout' || (P && DIMS[P.dim].flat);
 
 // Crawlers patrol back and forth on a shared level clock, so everyone sees them in the same place.
@@ -266,15 +267,15 @@ function onSnapshot(d) {
 function goto(idx, res = null, to = null) {
   const ids = rosterIds();
   const rs = idx === 0 && levelIdx !== idx ? Date.now() : runStart || Date.now();
-  const players = roster.slice(0, MAX_PLAYERS);
-  const dk = computeOrder(players);
-  const rot = !players.some(p => p.dim);     // rotate dimensions each level unless someone picked one
+  const list = players();
+  const dk = computeOrder(list);
+  const rot = !list.some(p => p.dim);     // rotate dimensions each level unless someone picked one
   if (to) {   // catch one late or reconnecting player up without restarting everyone
-    send('goto', { l: idx, r: gameRoster, rs, m: gameMode, sc: scores, res, dk: lastDk, rot: lastRot, to });
+    send('goto', { l: idx, r: gameRoster, rs, m: gameMode, sc: scores, res, dk: lastDk, rot: lastRot, to, bots });
     return;
   }
   lastDk = dk; lastRot = rot;
-  send('goto', { l: idx, r: ids, rs, m: gameMode, sc: scores, res, dk, rot });
+  send('goto', { l: idx, r: ids, rs, m: gameMode, sc: scores, res, dk, rot, bots });
   startLevel(idx, ids, rs, gameMode, scores, res, dk, rot);
 }
 let lastDk = null, lastRot = true;
@@ -306,6 +307,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   signals = {};
   const myIdx = ids.indexOf(me.id);
   P = myIdx < 0 ? null : newPlayer(rot ? (myIdx + idx) % n : myIdx);
+  setupBots(ids, idx, n, rot);
   boss = level.boss ? newBoss(n) : null;
   setScreen('play');
   const hl = $('hud-level');
@@ -317,177 +319,194 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   else toast('Room is full — spectating');
 }
 
-function newPlayer(native) {
+function newPlayer(native, role = me.role) {
   const sp = spawnPoint(native);
-  return {
-    native, dim: native, x: sp.x, y: sp.y, vx: 0, vy: 0, face: 1, onGround: false, coyote: 0, role: me.role,
+  const p = {
+    native, dim: native, x: sp.x, y: sp.y, vx: 0, vy: 0, face: 1, onGround: false, coyote: 0, role,
     dashT: 0, dashCd: 0, healCd: 0,
-    jumpBuf: 0, airJumps: 0, hp: maxHp(), inv: 1, dead: 0, inRift: false, gflip: false, boltCd: 0, press: [], exit: false,
+    jumpBuf: 0, airJumps: 0, hp: 3, inv: 1, dead: 0, inRift: false, gflip: false, boltCd: 0, press: [], exit: false,
   };
+  p.hp = maxHp(p);
+  return p;
 }
 
-// ---------- local player ----------
-function updatePlayer(dt) {
-  hintText = '';
-  if (P.dead > 0) {
-    P.dead -= dt;
-    hintText = 'Reforming…';
-    if (P.dead <= 0) respawn();
+// ---------- actors: the local player and host-run bots share all of this ----------
+function updateActor(p, inp, dt) {
+  const local = p === P;
+  if (local) hintText = '';
+  if (p.dead > 0) {
+    p.dead -= dt;
+    if (local) hintText = 'Reforming…';
+    if (p.dead <= 0) respawn(p);
     return;
   }
-  P.inv = Math.max(0, P.inv - dt);
-  P.boltCd -= dt;
-  P.dashCd -= dt;
-  P.healCd -= dt;
+  p.inv = Math.max(0, p.inv - dt);
+  p.boltCd -= dt;
+  p.dashCd -= dt;
+  p.healCd -= dt;
   const steps = Math.ceil(dt / (1 / 120));
-  for (let i = 0; i < steps && P.dead <= 0; i++) physics(dt / steps);
-  P.jumpBuf -= dt;
-  if (P.dead > 0) return;
+  for (let i = 0; i < steps && p.dead <= 0; i++) physics(p, inp, dt / steps);
+  p.jumpBuf -= dt;
+  if (p.dead > 0) return;
 
-  P.press = [];
-  P.exit = false;
+  p.press = [];
+  p.exit = false;
   let inRift = false, inFlip = false;
   for (const o of level.objs) {
-    if (!overlap(P.x, P.y, PW, PH, o)) continue;
-    if ((o.type === 'plate' || o.type === 'pad') && o.dim === P.dim) P.press.push(o.id);
-    else if (o.type === 'exit') P.exit = true;
+    if (!overlap(p.x, p.y, PW, PH, o)) continue;
+    if ((o.type === 'plate' || o.type === 'pad') && o.dim === p.dim) p.press.push(o.id);
+    else if (o.type === 'exit') p.exit = true;
     else if (o.type === 'rift') inRift = true;
     else if (o.type === 'flip') inFlip = true;
-    else if (o.type === 'laser' && o.dim === P.dim && laserOn(o)) return die();
-    else if (o.type === 'key' && o.dim === P.dim && !grabbed.has(o.key)) {
-      if (P.native !== P.dim) grabKey(o.key, true);
-      else hintText = 'Only a visitor from another dimension can take your keystone.';
+    else if (o.type === 'laser' && o.dim === p.dim && laserOn(o)) return die(p);
+    else if (o.type === 'key' && o.dim === p.dim && !grabbed.has(o.key)) {
+      if (p.native !== p.dim) grabKey(o.key, true);
+      else if (local) hintText = 'Only a visitor from another dimension can take your keystone.';
     }
   }
-  if (inRift && !P.inRift) shiftDimension();
-  P.inRift = inRift;
-  if (inFlip && !P.inFlip) flipGravity();
-  P.inFlip = inFlip;
-  for (const o of level.mobs) {
-    if (o.dim !== P.dim || killed.has(o.id)) continue;
-    const m = mobPos(o);
-    if (P.x < m.x + MW - 4 && P.x + PW > m.x + 4 && P.y < m.y + MH && P.y + PH > m.y + 4) { hurt(); break; }
+  if (inRift && !p.inRift) shiftDimension(p);
+  p.inRift = inRift;
+  if (inFlip && !p.inFlip) flipGravity(p);
+  p.inFlip = inFlip;
+  if (p.role === 'magnet') {               // Magnet pulls in keystones from a distance
+    for (const k of level.objs) {
+      if (k.type !== 'key' || k.dim !== p.dim || grabbed.has(k.key) || p.native === p.dim) continue;
+      if (Math.hypot((k.x + 0.5) * T - p.x - PW / 2, (k.y + 0.5) * T - p.y - PH / 2) < T * 3.5) grabKey(k.key, true);
+    }
   }
-  if (touchesSpike(P.x, P.y) || P.y > H * T + 80 || P.y < -80 - PH) return die();
-  if (held.has('fire') && P.boltCd <= 0) fireBolt();
-  if (P.exit && !level.boss) hintText = 'Waiting for everyone at the portal…';
+  for (const o of level.mobs) {
+    if (p.role === 'ghost') break;          // Ghost: crawlers pass right through you
+    if (o.dim !== p.dim || killed.has(o.id)) continue;
+    const m = mobPos(o);
+    if (p.x < m.x + MW - 4 && p.x + PW > m.x + 4 && p.y < m.y + MH && p.y + PH > m.y + 4) { hurt(p); break; }
+  }
+  if (touchesSpike(p.x, p.y) || p.y > H * T + 80 || p.y < -80 - PH) return die(p);
+  if (inp.has('fire') && p.boltCd <= 0) fireBolt(p);
+  if (local && p.exit && !level.boss) hintText = 'Waiting for everyone at the portal…';
 }
 
-function physics(h) {
-  const D = DIMS[P.dim], g = gravOf(P);
-  if (collides(P.x, P.y, P.dim)) {          // a bridge or door appeared inside us
-    for (let k = 1; k <= 80; k++) if (!collides(P.x, P.y - g * k, P.dim)) { P.y -= g * k; break; }
+function physics(p, inp, h) {
+  const D = DIMS[p.dim], g = gravOf(p);
+  if (collides(p.x, p.y, p.dim)) {          // a bridge or door appeared inside us
+    for (let k = 1; k <= 80; k++) if (!collides(p.x, p.y - (g || 1) * k, p.dim)) { p.y -= (g || 1) * k; break; }
   }
-  let ix = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0);
+  let ix = (inp.has('right') ? 1 : 0) - (inp.has('left') ? 1 : 0);
   if (D.mirror) ix = -ix;                    // controls follow the screen, not the world
-  if (ix) P.face = ix;
-  const speed = D.speed * (P.role === 'runner' ? 1.2 : 1);
-  const a = P.onGround || D.fly ? D.accel : D.accel * 0.7;
+  if (ix) p.face = ix;
+  const speed = D.speed * (p.role === 'runner' ? 1.2 : 1);
+  const a = p.onGround || D.fly ? D.accel : D.accel * 0.7;
   const k = 1 - Math.pow(1 - a, h * 60);
-  P.vx += (ix * speed - P.vx) * k;
-  if (D.wind) P.vx += D.wind * Math.sin(levelT * 0.7) * h * 4;
+  p.vx += (ix * speed - p.vx) * k;
+  if (D.wind) p.vx += D.wind * Math.sin(levelT * 0.7) * h * 4;
 
-  if (P.dashT > 0) {                         // 2Dverse dash: a straight burst that ignores gravity
-    P.dashT -= h;
-    P.vx = P.face * 820;
-    P.vy = 0;
+  if (p.dashT > 0) {                         // 2Dverse dash: a straight burst that ignores gravity
+    p.dashT -= h;
+    p.vx = p.face * 820;
+    p.vy = 0;
   } else if (D.fly) {                        // floating dimensions steer up and down freely
-    const iy = (held.has('down') ? 1 : 0) - (held.has('up') || held.has('jump') ? 1 : 0);
-    P.vy += (iy * speed - P.vy) * k;
-    P.jumpBuf = 0;
+    const iy = (inp.has('down') ? 1 : 0) - (inp.has('up') || inp.has('jump') ? 1 : 0);
+    p.vy += (iy * speed - p.vy) * k;
+    p.jumpBuf = 0;
   } else {
     let gm = G * D.gravMul;
-    if (!held.has('jump') && g * P.vy < 0) gm *= 1.9;   // short hops when jump is released
-    P.vy += g * gm * h;
-    if (g * P.vy > D.maxFall) P.vy = g * D.maxFall;
+    if (!inp.has('jump') && g * p.vy < 0) gm *= 1.9;   // short hops when jump is released
+    p.vy += g * gm * h;
+    if (g * p.vy > D.maxFall) p.vy = g * D.maxFall;
 
-    if (P.onGround) { P.coyote = 0.1; P.airJumps = D.jumps - 1; } else P.coyote -= h;
-    if (P.jumpBuf > 0) {
-      if (P.coyote > 0) jump(D, g);
-      else if (P.airJumps > 0) { P.airJumps--; jump(D, g); }
+    if (p.onGround) { p.coyote = 0.1; p.airJumps = D.jumps - 1 + (p.role === 'jetpack' ? 1 : 0); } else p.coyote -= h;
+    if (p.jumpBuf > 0) {
+      if (p.coyote > 0) jump(p, D, g);
+      else if (p.airJumps > 0) { p.airJumps--; jump(p, D, g); }
     }
   }
 
-  const ox = P.x;
-  P.x += P.vx * h;
-  if (collides(P.x, P.y, P.dim)) {
-    P.x = P.vx > 0 ? Math.floor((P.x + PW) / T) * T - PW - 0.001 : (Math.floor(P.x / T) + 1) * T + 0.001;
-    if (collides(P.x, P.y, P.dim)) P.x = ox;
-    P.vx = 0;
-    if (D.climb && ix && !D.fly) P.vy = -g * 240;   // Jungleverse climbs walls
+  const ox = p.x;
+  p.x += p.vx * h;
+  p.hitWall = false;
+  if (collides(p.x, p.y, p.dim)) {
+    p.x = p.vx > 0 ? Math.floor((p.x + PW) / T) * T - PW - 0.001 : (Math.floor(p.x / T) + 1) * T + 0.001;
+    if (collides(p.x, p.y, p.dim)) p.x = ox;
+    p.vx = 0;
+    p.hitWall = true;
+    if (D.climb && ix && !D.fly) p.vy = -g * 240;   // Jungleverse climbs walls
   }
-  const oy = P.y, dy = P.vy * h;
-  P.onGround = false;
-  P.y += dy;
-  if (collides(P.x, P.y, P.dim)) {
-    P.y = dy > 0 ? Math.floor((P.y + PH) / T) * T - PH - 0.001 : (Math.floor(P.y / T) + 1) * T + 0.001;
-    if (collides(P.x, P.y, P.dim)) P.y = oy;
-    if (Math.sign(dy) === g) P.onGround = true;
-    P.vy = 0;
-    if (P.onGround && D.bounce && !held.has('down')) {   // Mushroomverse keeps bouncing
-      P.vy = -g * JV * 0.62;
-      P.onGround = false;
+  const oy = p.y, dy = p.vy * h;
+  p.onGround = false;
+  p.y += dy;
+  if (collides(p.x, p.y, p.dim)) {
+    p.y = dy > 0 ? Math.floor((p.y + PH) / T) * T - PH - 0.001 : (Math.floor(p.y / T) + 1) * T + 0.001;
+    if (collides(p.x, p.y, p.dim)) p.y = oy;
+    if (Math.sign(dy) === g) p.onGround = true;
+    p.vy = 0;
+    if (p.onGround && D.bounce && !inp.has('down')) {   // Mushroomverse keeps bouncing
+      p.vy = -g * JV * 0.62;
+      p.onGround = false;
     }
   }
 }
 
-function jump(D, g) {
-  P.vy = -g * JV * D.jumpMul * (P.role === 'jumper' ? 1.15 : 1);
-  P.jumpBuf = 0;
-  P.coyote = 0;
-  P.onGround = false;
-  burst(P.x + PW / 2, g > 0 ? P.y + PH : P.y, D.edge, 6, 90);
+function jump(p, D, g) {
+  p.vy = -g * JV * D.jumpMul * (p.role === 'jumper' ? 1.15 : 1);
+  p.jumpBuf = 0;
+  p.coyote = 0;
+  p.onGround = false;
+  burst(p.x + PW / 2, g > 0 ? p.y + PH : p.y, D.edge, 6, 90);
 }
 
-function die() {
-  if (P.dead > 0) return;
-  P.dead = 1.2;
-  P.vx = P.vy = 0;
-  burst(P.x + PW / 2, P.y + PH / 2, DIMS[P.native].color, 30, 260);
-  flash = { t: 0.25, col: '#ff3355' };
-  buzz(80);
-  sendState();
-  if (surv) { if (isHost()) loseLife(); else send('died', {}); }
+function die(p) {
+  if (p.dead > 0) return;
+  p.dead = 1.2;
+  p.vx = p.vy = 0;
+  burst(p.x + PW / 2, p.y + PH / 2, DIMS[p.native].color, 30, 260);
+  if (p === P) {
+    flash = { t: 0.25, col: '#ff3355' };
+    buzz(80);
+    sendState();
+  }
+  if (surv) { if (isHost()) loseLife(); else if (p === P) send('died', {}); }
 }
 
-function respawn() {
-  P.dim = P.native;
-  Object.assign(P, spawnPoint(P.native), { vx: 0, vy: 0, hp: maxHp(), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
+function respawn(p) {
+  p.dim = p.native;
+  Object.assign(p, spawnPoint(p.native), { vx: 0, vy: 0, hp: maxHp(p), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
 }
 
-function hurt() {
-  if (P.inv > 0 || P.dead > 0) return;
-  P.hp--;
-  P.inv = 1.3;
-  flash = { t: 0.2, col: '#ff3355' };
-  buzz(40);
-  if (P.hp <= 0) die();
+function hurt(p) {
+  if (p.inv > 0 || p.dead > 0) return;
+  p.hp--;
+  p.inv = 1.3;
+  if (p === P) { flash = { t: 0.2, col: '#ff3355' }; buzz(40); }
+  if (p.hp <= 0) die(p);
 }
 
 const buzz = ms => { try { if (isTouch) navigator.vibrate?.(ms); } catch {} };
 
-function shiftDimension() {
-  const from = DIMS[P.dim];
-  const nd = (P.dim + 1) % level.n;
+function shiftDimension(p) {
+  const from = DIMS[p.dim];
+  const nd = (p.dim + 1) % level.n;
   if (DIMS[nd].grav && from.grav && DIMS[nd].grav !== from.grav) {
-    P.y = H * T - P.y - PH;                // step through to the mirrored lane
-    P.vy = -P.vy;
+    p.y = H * T - p.y - PH;                // step through to the mirrored lane
+    p.vy = -p.vy;
   }
-  P.dim = nd;
-  flash = { t: 0.35, col: DIMS[nd].color };
-  burst(P.x + PW / 2, P.y + PH / 2, DIMS[nd].color, 30, 240);
-  buzz(30);
-  toast(`Shifted into ${DIMS[nd].name}!`, DIMS[nd].color);
+  p.dim = nd;
+  burst(p.x + PW / 2, p.y + PH / 2, DIMS[nd].color, 30, 240);
+  if (p === P) {
+    flash = { t: 0.35, col: DIMS[nd].color };
+    buzz(30);
+    toast(`Shifted into ${DIMS[nd].name}!`, DIMS[nd].color);
+  }
 }
 
-function flipGravity() {
-  P.gflip = !P.gflip;
-  P.vy *= 0.3;
-  const col = DIMS[P.dim].color;
-  flash = { t: 0.3, col };
-  burst(P.x + PW / 2, P.y + PH / 2, col, 24, 220);
-  buzz(30);
-  toast(gravOf(P) > 0 ? 'Gravity: down ↓' : 'Gravity: up ↑', col);
+function flipGravity(p) {
+  p.gflip = !p.gflip;
+  p.vy *= 0.3;
+  const col = DIMS[p.dim].color;
+  burst(p.x + PW / 2, p.y + PH / 2, col, 24, 220);
+  if (p === P) {
+    flash = { t: 0.3, col };
+    buzz(30);
+    toast(gravOf(p) > 0 ? 'Gravity: down ↓' : 'Gravity: up ↑', col);
+  }
 }
 
 function grabKey(key, local) {
@@ -503,8 +522,9 @@ function grabKey(key, local) {
 function healTeam() {
   if (P.healCd > 0) { toast(`Heal ready in ${Math.ceil(P.healCd)}s`); return; }
   P.healCd = 10;
-  P.hp = Math.min(maxHp(), P.hp + 1);
+  P.hp = Math.min(maxHp(P), P.hp + 1);
   send('heal', { id: me.id });
+  for (const b of botActors.values()) b.p.hp = Math.min(maxHp(b.p), b.p.hp + 1);
   toast('💉 You healed the team!', '#7affb0');
 }
 
@@ -519,12 +539,235 @@ function addPing(p) {
   pings.push({ x: p.x, y: p.y, name: nameOf(p.id), col: r ? DIMS[r.native ?? r.nd ?? 0].color : '#fff', t: 0 });
 }
 
+function stateOf(p, id, name) {
+  return {
+    id, l: levelIdx, x: Math.round(p.x), y: Math.round(p.y), vx: Math.round(p.vx), vy: Math.round(p.vy),
+    d: p.dim, nd: p.native, g: gravOf(p), f: p.face, p: p.press, ro: p.role, e: p.exit, hp: p.hp, dead: p.dead > 0, name,
+  };
+}
+
 function sendState() {
-  if (!P) return;
-  send('st', {
-    id: me.id, l: levelIdx, x: Math.round(P.x), y: Math.round(P.y), vx: Math.round(P.vx), vy: Math.round(P.vy),
-    d: P.dim, nd: P.native, g: gravOf(P), f: P.face, p: P.press, ro: P.role, e: P.exit, hp: P.hp, dead: P.dead > 0, name: me.name,
-  });
+  if (P) send('st', stateOf(P, me.id, me.name));
+  for (const [id, b] of botActors) send('st', stateOf(b.p, id, b.name));
+}
+
+// ---------- bots ----------
+// Bots are run by the host with the same physics as players and broadcast like players.
+const BOT_NAMES = ['Bolt', 'Pixel', 'Nova', 'Echo', 'Sprocket', 'Zip', 'Gizmo', 'Comet', 'Blip', 'Rusty', 'Orbit', 'Chip', 'Widget', 'Byte', 'Sparky', 'Dot', 'Flux', 'Nano', 'Turbo'];
+let bots = [];                    // [{ id, name, role }] chosen in the lobby by the host
+const botActors = new Map();      // id -> { p, inp, name, stuck, lastX, jumpHold }
+const isBot = id => typeof id === 'string' && id.startsWith('bot-');
+
+function addBot() {
+  if (!isHost() || roster.length + bots.length >= MAX_PLAYERS) return;
+  const used = new Set(bots.map(b => b.name));
+  const nm = BOT_NAMES.find(n => !used.has('🤖 ' + n)) || 'Bot';
+  const roles = Object.keys(ROLES);
+  bots.push({ id: 'bot-' + Math.random().toString(36).slice(2, 7), name: '🤖 ' + nm, role: roles[Math.floor(Math.random() * roles.length)] });
+  send('bots', { list: bots });
+  renderLobby();
+}
+
+function removeBot() {
+  if (!isHost() || !bots.length) return;
+  bots.pop();
+  send('bots', { list: bots });
+  renderLobby();
+}
+
+function setBots(list) {
+  if (!Array.isArray(list)) return;
+  bots = list.filter(b => b && isBot(b.id)).slice(0, MAX_PLAYERS).map(b => ({
+    id: String(b.id), name: String(b.name || '🤖 Bot').slice(0, 14), role: ROLES[b.role] ? b.role : 'runner',
+  }));
+}
+
+function setupBots(ids, idx, n, rot) {
+  botActors.clear();
+  if (!isHost()) return;
+  for (const b of bots) {
+    const i = ids.indexOf(b.id);
+    if (i < 0) continue;
+    botActors.set(b.id, { p: newPlayer(rot ? (i + idx) % n : i, b.role), inp: new Set(), name: b.name, stuck: 0, lastX: 0, jumpHold: 0, think: 0 });
+  }
+}
+
+// a new host picks up the bots where they were
+function adoptBots() {
+  for (const b of bots) {
+    if (botActors.has(b.id) || !gameRoster.includes(b.id)) continue;
+    const r = remotes.get(b.id);
+    const i = gameRoster.indexOf(b.id);
+    const p = newPlayer(r?.nd ?? i % level.n, b.role);
+    if (r) Object.assign(p, { x: r.x, y: r.y, dim: r.d ?? p.dim });
+    botActors.set(b.id, { p, inp: new Set(), name: b.name, stuck: 0, lastX: p.x, jumpHold: 0, think: 0 });
+  }
+}
+
+function updateBots(dt) {
+  if (!level || !botActors.size) return;
+  const now = performance.now();
+  for (const [id, b] of botActors) {
+    if (b.p.dead <= 0) botThink(b, dt);
+    updateActor(b.p, b.inp, dt);
+    // mirror the bot into remotes so signals, exits, HUD and labels treat it like a player
+    const st = stateOf(b.p, id, b.name);
+    remotes.set(id, { ...st, sx: b.p.x, sy: b.p.y, t: now, native: b.p.native });
+  }
+}
+
+// every human and bot currently playing, as { x, y, dim, dead }
+function allActors() {
+  const list = [];
+  if (P) list.push(P);
+  for (const id of gameRoster) {
+    if (id === me.id) continue;
+    const b = botActors.get(id);
+    if (b) { list.push(b.p); continue; }
+    const r = remotes.get(id);
+    if (r && r.l === levelIdx) list.push({ x: r.x, y: r.y, dim: r.d, dead: r.dead });
+  }
+  return list;
+}
+
+// which way gravity must point to stand at an object: toward the solid tile it rests on
+function needGrav(o) {
+  const below = level.grid[o.y + o.h]?.[o.x], above = level.grid[o.y - 1]?.[o.x];
+  if (below === '#' && above !== '#') return 1;
+  if (above === '#' && below !== '#') return -1;
+  return o.y >= MID ? 1 : -1;
+}
+
+function botGoal(b) {
+  const p = b.p, D = DIMS[p.dim];
+  const g = gravOf(p);
+  const cx = p.x + PW / 2;
+  const near = list => list.sort((a, c) => Math.abs((a.x + a.w / 2) * T - cx) - Math.abs((c.x + c.w / 2) * T - cx))[0];
+  const goTo = (o, extra = {}) => ({ x: (o.x + o.w / 2) * T, y: (o.y + o.h / 2) * T, o, ...extra });
+
+  if (level.race) {
+    const ex = near(level.objs.filter(o => o.type === 'exit' && (D.fly || needGrav(o) === g)));
+    return ex ? goTo(ex) : null;
+  }
+  if (surv || level.nest) {
+    const mobs = level.mobs.filter(o => !killed.has(o.id));
+    if (mobs.length) {
+      let best = null, bd = 1e9;
+      for (const o of mobs) {
+        const m = mobPos(o);
+        const sameLane = D.fly || (DIMS[o.dim].grav || 1) === g;
+        const d = Math.abs(m.x - cx) + (sameLane ? 0 : 5000);
+        if (d < bd) { bd = d; best = m; }
+      }
+      if (best && bd < 5000) {
+        const side = best.x > cx ? -1 : 1;
+        return { x: best.x + MW / 2 + side * T * 5, y: best.y + MH / 2, shootAt: best.x + MW / 2 };
+      }
+    }
+  }
+  if (boss) {
+    const pad = level.objs.find(o => o.type === 'pad' && o.dim === p.dim);
+    if (pad && boss.shatterT <= 0 && boss.exposed !== p.dim) return goTo(pad, { fire: true });
+    return { x: cx, y: p.y + PH / 2, fire: true };
+  }
+  const actors = allActors();
+  // 1. hold plates that a teammate still needs
+  const helping = [];
+  for (const o of level.objs) {
+    if (o.type !== 'plate' || o.dim !== p.dim) continue;
+    const ends = level.objs.filter(x => x.link === o.link && x.type !== 'plate');
+    const endX = Math.max(...ends.map(e => e.x + e.w)) * T;
+    const startX = Math.min(...ends.map(e => e.x)) * T;
+    const needers = actors.filter(a => a !== p && !a.dead && a.dim === o.tdim && a.x < endX + 8);
+    // only plates on my side of the obstacle
+    const mySide = (o.x * T < startX) === (cx < startX);
+    if (needers.length && mySide) helping.push(o);
+  }
+  const help = near(helping);
+  if (help) return goTo(help);
+  // 2. team pads: stand on mine in the first gate that is still closed
+  for (const gid of level.groups || []) {
+    if (latched.has('res' + gid)) continue;
+    const pad = level.objs.find(o => o.type === 'pad' && o.group === gid && o.dim === p.dim);
+    if (pad) return goTo(pad);
+  }
+  // 3. keystones: visit other dimensions through rifts
+  if (level.keyList && !signals.keys) {
+    const key = level.objs.find(o => o.type === 'key' && o.dim === p.dim && p.native !== p.dim && !grabbed.has(o.key));
+    if (key) return goTo(key);
+    const rift = near(level.objs.filter(o => o.type === 'rift' && (D.fly || needGrav(o) === g)));
+    if (rift) return goTo(rift);
+  }
+  // 4. crystals that I am allowed to break
+  const crystal = near(level.targets.filter(o => !latched.has(o.link) && (o.dim !== p.dim || D.flat)));
+  if (crystal) return { x: (crystal.x - 4) * T, y: p.y + PH / 2, shootAt: (crystal.x + 0.5) * T };
+  // 5. crawlers ahead of me
+  // 6. the exit
+  const ex = near(level.objs.filter(o => o.type === 'exit' && (D.fly || needGrav(o) === g)));
+  if (ex) return goTo(ex);
+  return null;
+}
+
+function botThink(b, dt) {
+  const p = b.p, D = DIMS[p.dim], inp = b.inp;
+  const g = gravOf(p);
+  inp.clear();
+  b.think -= dt;
+  if (b.think <= 0 || !b.goal) { b.goal = botGoal(b); b.think = 0.25; }
+  let goal = b.goal;
+  if (!goal) return;
+  const cx = p.x + PW / 2, cy = p.y + PH / 2;
+  // a goal in the other lane needs flipped gravity first: route through a gravity field
+  if (!D.fly && goal.o && needGrav(goal.o) !== g && goal.o.type !== 'exit') {
+    const field = level.objs.filter(o => o.type === 'flip').sort((a, c) => Math.abs(a.x * T - cx) - Math.abs(c.x * T - cx))[0];
+    if (field) goal = { x: (field.x + 0.5) * T, y: cy };
+  }
+  const dx = goal.x - cx;
+  let dir = Math.abs(dx) > 8 ? Math.sign(dx) : 0;
+
+  // shooting: crawlers in my lane ahead, crystals, the boss
+  const aim = goal.shootAt;
+  if (aim !== undefined && Math.abs(dx) < T * 2) { p.face = Math.sign(aim - cx) || 1; dir = 0; inp.add('fire'); }
+  if (goal.fire) inp.add('fire');
+  for (const o of level.mobs) {
+    if (killed.has(o.id)) continue;
+    const m = mobPos(o);
+    if (Math.abs(m.y + MH / 2 - cy) < T && Math.abs(m.x - cx) < T * 9) {
+      if (o.dim === p.dim && p.role !== 'ghost' && Math.abs(m.x - cx) < T * 3) dir = -Math.sign(m.x - cx) || dir;
+      if (!dir || Math.sign(m.x - cx) === p.face) { p.face = Math.sign(m.x - cx) || p.face; inp.add('fire'); }
+    }
+  }
+
+  if (D.fly) {
+    const dy = goal.y - cy;
+    if (dy < -8) inp.add('up'); else if (dy > 8) inp.add('down');
+    if (dir && collides(p.x + dir * 8, p.y, p.dim)) inp.add(g >= 0 ? 'up' : 'down');
+  } else if (dir) {
+    const tx = Math.floor((cx + dir * 22) / T);
+    const feet = g > 0 ? Math.floor((p.y + PH + 4) / T) : Math.floor((p.y - 4) / T);
+    const wall = collides(p.x + dir * 8, p.y, p.dim);
+    let gap = 0;
+    for (let i = 0; i < 5 && !solid(tx + dir * i, feet, p.dim); i++) gap++;
+    const bodyRow = Math.floor(cy / T);
+    const spike = [0, 1].some(i => /[\^v]/.test(level.grid[bodyRow]?.[tx + dir * i] || '') || /[\^v]/.test(level.grid[feet - g]?.[tx + dir * i] || ''));
+    const laser = level.objs.some(o => o.type === 'laser' && o.dim === p.dim && laserOn(o) && Math.abs((o.x + 0.5) * T - (cx + dir * 30)) < T * 1.2);
+    if (laser) dir = 0;                       // wait for my laser to switch off
+    else if (gap >= 4 && D.jumps <= 1) dir = 0;  // too wide: wait for a bridge
+    else if ((wall || gap || spike) && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.35; }
+    const above = g > 0 ? goal.y < p.y - T * 1.5 : goal.y > p.y + PH + T * 1.5;
+    if (above && Math.abs(dx) < T * 4 && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.35; }
+    if (!p.onGround && p.vy * g > 0 && (wall || gap) && p.airJumps > 0 && D.jumps > 1) p.jumpBuf = 0.14;
+  }
+  if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
+  if (dir) {
+    const key = D.mirror ? -dir : dir;      // mirrored dimensions swap controls
+    inp.add(key > 0 ? 'right' : 'left');
+  } else if (D.bounce) inp.add('down');      // stop bouncing so plates stay pressed
+
+  // unstick: if not getting anywhere, hop
+  if (dir && Math.abs(p.x - b.lastX) < 1) b.stuck += dt; else b.stuck = 0;
+  b.lastX = p.x;
+  if (b.stuck > 0.8 && p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.4; b.stuck = 0; }
 }
 
 // ---------- remotes ----------
@@ -724,22 +967,27 @@ function addBullets(list) {
 }
 
 function updateBullets(dt) {
+  const actors = [...(P ? [P] : []), ...[...botActors.values()].map(b => b.p)];
   for (const b of bullets) {
     b.x += b.vx * dt; b.y += b.vy * dt; b.life += dt;
-    if (!P || P.dead > 0 || P.inv > 0) continue;
-    if (b.k === 'o') {
-      const cx = clamp(b.x, P.x, P.x + PW), cy = clamp(b.y, P.y, P.y + PH);
-      if (Math.hypot(b.x - cx, b.y - cy) < b.r) { hurt(); b.life = 99; }
-    } else if (P.x < b.x + b.w / 2 && P.x + PW > b.x - b.w / 2 && P.y < b.y + b.h && P.y + PH > b.y) hurt();
+    for (const p of actors) {
+      if (p.dead > 0 || p.inv > 0) continue;
+      if (b.k === 'o') {
+        const cx = clamp(b.x, p.x, p.x + PW), cy = clamp(b.y, p.y, p.y + PH);
+        if (Math.hypot(b.x - cx, b.y - cy) < b.r) { hurt(p); b.life = 99; }
+      } else if (p.x < b.x + b.w / 2 && p.x + PW > b.x - b.w / 2 && p.y < b.y + b.h && p.y + PH > b.y) hurt(p);
+    }
   }
   bullets = bullets.filter(b => b.life < 7 && b.x > -100 && b.x < level.W * T + 100 && b.y > -100 && b.y < H * T + 100);
 }
 
-function fireBolt() {
-  P.boltCd = (boss ? 0.28 : 0.22) * (P.role === 'gunner' ? 0.55 : 1);
-  const g = gravOf(P), homing = !!boss;
-  const b = { x: P.x + PW / 2 + P.face * 10, y: P.y + PH / 2, vx: P.face * (homing ? 300 : 720), vy: homing ? -g * 320 : 0, d: P.dim, mine: true, life: 0, h: homing,
-    range: P.role === 'gunner' ? 2.4 : 1.6 };
+function fireBolt(p) {
+  const r = p.role;
+  p.boltCd = (boss ? 0.28 : 0.22) * (r === 'gunner' ? 0.55 : r === 'sniper' ? 1.6 : 1);
+  const g = gravOf(p), homing = !!boss;
+  const b = { x: p.x + PW / 2 + p.face * 10, y: p.y + PH / 2, vx: p.face * (homing ? 300 : r === 'sniper' ? 1000 : 720), vy: homing ? -g * 320 : 0,
+    d: p.dim, mine: true, life: 0, h: homing,
+    range: r === 'sniper' ? 2.6 : r === 'gunner' ? 2.4 : 1.6, pierce: r === 'sniper', bomb: r === 'bomber' };
   bolts.push(b);
   send('bolt', { x: b.x, y: b.y, vx: b.vx, vy: b.vy, d: b.d, h: homing });
 }
@@ -783,10 +1031,17 @@ function updateBolts(dt) {
       if (killed.has(o.id)) continue;
       const m = mobPos(o);
       if (b.x > m.x - 4 && b.x < m.x + MW + 4 && b.y > m.y - 6 && b.y < m.y + MH + 6) {
-        b.life = 99;
         killMob(o.id);
         send('kill', { id: o.id });
-        break;
+        if (b.bomb) {                      // Bomber: the blast takes out nearby crawlers too
+          burst(b.x, b.y, '#ffb347', 40, 380);
+          for (const o2 of level.mobs) {
+            if (killed.has(o2.id)) continue;
+            const m2 = mobPos(o2);
+            if (Math.hypot(m2.x - m.x, m2.y - m.y) < T * 3.5) { killMob(o2.id); send('kill', { id: o2.id }); }
+          }
+        }
+        if (!b.pierce) { b.life = 99; break; }   // Sniper shots keep going
       }
     }
   }
@@ -844,15 +1099,17 @@ function onMsg(t, d) {
     case 'need': if (isHost() && mode === 'play' && typeof d.id === 'string') goto(levelIdx, null, d.id); break;
     case 'goto':
       if (d.to && d.to !== me.id) break;
+      if (Array.isArray(d.bots)) setBots(d.bots);
       if (Array.isArray(d.r) && Number.isInteger(d.l)) startLevel(d.l, d.r.map(String).slice(0, MAX_PLAYERS), Number(d.rs) || Date.now(), d.m, d.sc, d.res, d.dk, d.rot !== false);
       break;
     case 'mode': if (MODES[d.m] && mode !== 'play') { gameMode = d.m; renderLobby(); } break;
+    case 'bots': if (!isHost()) { setBots(d.list); renderLobby(); } break;
     case 'wave': if (mode === 'play' && surv && Array.isArray(d.mobs)) { applyWave(d.w | 0, d.mobs.slice(0, 30)); surv.lives = d.lives | 0; } break;
     case 'surv': if (mode === 'play' && surv) { surv.wave = d.w | 0; surv.lives = d.lives | 0; } break;
     case 'died': if (mode === 'play' && isHost()) loseLife(); break;
     case 'heal':
       if (mode === 'play' && P && P.dead <= 0) {
-        P.hp = Math.min(maxHp(), P.hp + 1);
+        P.hp = Math.min(maxHp(P), P.hp + 1);
         toast(`💉 ${nameOf(String(d.id))} healed the team!`, '#7affb0');
       }
       break;
@@ -878,13 +1135,14 @@ function onMsg(t, d) {
 function onPresence(list) {
   roster = list;
   const ids = new Set(list.map(p => p.id));
-  for (const id of remotes.keys()) if (!ids.has(id)) remotes.delete(id);
+  for (const id of remotes.keys()) if (!ids.has(id) && !isBot(id)) remotes.delete(id);
   renderLobby();
-  if (mode === 'lobby' && isHost()) send('mode', { m: gameMode });
+  if (mode === 'lobby' && isHost()) { send('mode', { m: gameMode }); send('bots', { list: bots }); }
+  if (isHost() && pendingBots > 0) { while (pendingBots > 0) { pendingBots--; addBot(); } }
   if (mode === 'play' && isHost()) {
     // Someone new: let them watch until the next level. Someone gone for 5s: restart so puzzles stay solvable.
     clearTimeout(rosterTimer);
-    const missing = gameRoster.filter(id => !ids.has(id));
+    const missing = gameRoster.filter(id => !ids.has(id) && !isBot(id));
     for (const p of list) if (!gameRoster.includes(p.id) && !announced.has(p.id)) {
       announced.add(p.id);
       send('toast', { m: `${p.name} will join next level` });
@@ -894,7 +1152,7 @@ function onPresence(list) {
     if (missing.length) {
       rosterTimer = setTimeout(() => {
         const now = new Set(roster.map(p => p.id));
-        if (mode === 'play' && isHost() && gameRoster.some(id => !now.has(id))) {
+        if (mode === 'play' && isHost() && gameRoster.some(id => !now.has(id) && !isBot(id))) {
           send('toast', { m: 'A traveler left — restarting level' });
           toast('A traveler left — restarting level');
           goto(levelIdx);
@@ -927,6 +1185,8 @@ function enterRoom(code) {
 }
 
 function leaveRoom() {
+  bots = [];
+  botActors.clear();
   $('net').classList.add('hidden');
   room?.leave();
   room = null;
@@ -951,8 +1211,8 @@ function setScreen(m) {
 function renderLobby() {
   const ul = $('players');
   ul.replaceChildren();
-  const order = computeOrder(roster.slice(0, MAX_PLAYERS));
-  roster.forEach((p, i) => {
+  const order = computeOrder(players());
+  [...roster, ...bots].forEach((p, i) => {
     const li = document.createElement('li');
     const sw = document.createElement('span');
     sw.className = 'swatch';
@@ -972,7 +1232,10 @@ function renderLobby() {
     li.append(sw, nm, dm);
     ul.append(li);
   });
-  $('count').textContent = `(${Math.min(roster.length, MAX_PLAYERS)}/${MAX_PLAYERS})`;
+  $('count').textContent = `(${players().length}/${MAX_PLAYERS})`;
+  $('bot-row').classList.toggle('hidden', !isHost());
+  $('bot-remove').disabled = !bots.length;
+  $('bot-add').disabled = players().length >= MAX_PLAYERS;
   const host = isHost();
   for (const b of document.querySelectorAll('#modes .mode')) {
     b.classList.toggle('sel', b.dataset.mode === gameMode);
@@ -980,10 +1243,10 @@ function renderLobby() {
   }
   const min = MODES[gameMode].min;
   $('start').classList.toggle('hidden', !host);
-  $('start').disabled = roster.length < min;
+  $('start').disabled = players().length < min;
   $('start').textContent = `Start ${MODES[gameMode].name}`;
   $('lobby-note').textContent = !roster.length ? 'Connecting…'
-    : host ? (roster.length < min ? 'Share the code — this mode needs at least 2 travelers.' : 'Everyone here? Start when ready. Dimensions shuffle each level.')
+    : host ? (players().length < min ? 'Share the code or add a bot — this mode needs at least 2 travelers.' : 'Everyone here? Start when ready. Dimensions shuffle each level.')
     : `Waiting for the host to start ${MODES[gameMode].name}…`;
 }
 
@@ -1087,14 +1350,14 @@ function updateHud(dt) {
     $('dim-name').textContent = D.name + (P.dim !== P.native ? ' (visiting)' : '');
     $('dim-name').style.color = D.color;
     $('dim-desc').textContent = D.desc;
-    $('hearts').textContent = `${ROLES[P.role].icon} ` + '❤️'.repeat(Math.max(0, P.hp)) + '🖤'.repeat(Math.max(0, maxHp() - P.hp));
+    $('hearts').textContent = `${ROLES[P.role].icon} ` + '❤️'.repeat(Math.max(0, P.hp)) + '🖤'.repeat(Math.max(0, maxHp(P) - P.hp));
   } else {
     $('dim-name').textContent = 'Spectating';
     $('dim-desc').textContent = '';
     $('hearts').textContent = '';
   }
   $('hint').textContent = hintText;
-  $('tb-dash').classList.toggle('hidden', !(P && DIMS[P.dim].dash));
+  $('tb-dash').classList.toggle('hidden', !(P && (DIMS[P.dim].dash || P.role === 'ninja')));
 }
 
 // ---------- rendering ----------
@@ -1240,7 +1503,8 @@ function step(dt, draw) {
   if (mode === 'play' && level) {
     levelT += dt;
     computeSignals();
-    if (P) updatePlayer(dt);
+    if (P) updateActor(P, held, dt);
+    if (isHost()) { if (bots.length && botActors.size < bots.length) adoptBots(); updateBots(dt); }
     updateRemotes(dt);
     if (boss) {
       if (isHost()) hostBoss(dt);
@@ -1269,7 +1533,7 @@ $('create').onclick = () => {
 $('join').onclick = () => enterRoom($('code').value);
 $('code').addEventListener('keydown', e => { if (e.key === 'Enter') enterRoom($('code').value); });
 $('start').onclick = () => {
-  if (!isHost() || roster.length < MODES[gameMode].min) return;
+  if (!isHost() || players().length < MODES[gameMode].min) return;
   runStart = 0; levelIdx = -1; scores = {};
   goto(0);
 };
@@ -1282,6 +1546,13 @@ for (const b of document.querySelectorAll('#modes .mode')) {
   };
 }
 $('leave').onclick = leaveRoom;
+$('bot-add').onclick = addBot;
+$('bot-remove').onclick = removeBot;
+let pendingBots = 0;
+$('solo').onclick = () => {             // quick start: a fresh room with one bot buddy
+  pendingBots = 1;
+  $('create').click();
+};
 $('again').onclick = () => { send('lobby', {}); setScreen('lobby'); };
 $('copy-link').onclick = async () => {
   const url = location.href.split('#')[0] + '#' + room.code;

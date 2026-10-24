@@ -79,4 +79,10 @@ export const ROLES = {
   tank: { name: 'Tank', icon: '🛡️', desc: '5 hearts instead of 3' },
   scout: { name: 'Scout', icon: '🔭', desc: 'See through darkness' },
   medic: { name: 'Medic', icon: '💉', desc: 'Ping heals the whole team (10s cooldown)' },
+  ninja: { name: 'Ninja', icon: '🥷', desc: 'Dash (Shift) in any dimension' },
+  jetpack: { name: 'Jetpack', icon: '🚀', desc: 'One extra jump in mid-air' },
+  sniper: { name: 'Sniper', icon: '🎯', desc: 'Slow, very fast shots that pierce through crawlers' },
+  bomber: { name: 'Bomber', icon: '💣', desc: 'Shots explode and destroy nearby crawlers' },
+  ghost: { name: 'Ghost', icon: '👻', desc: 'Crawlers can\'t hurt you' },
+  magnet: { name: 'Magnet', icon: '🧲', desc: 'Grab keystones from 3 tiles away' },
 };

@@ -25,6 +25,7 @@
       </label>
       <div class="row">
         <button id="create" class="btn primary">Create room</button>
+        <button id="solo" class="btn">🤖 Play with a bot</button>
       </div>
       <div class="row">
         <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" class="code-input">
@@ -45,6 +46,7 @@
           <li>On a phone: drag on the left side to move, tap the buttons on the right. Play sideways! You can switch controls below.</li>
           <li>Floating dimensions fly with up/down (W/S). 2Dverse can dash with Shift.</li>
           <li>Pick a role and a dimension in the lobby, or leave it on Auto.</li>
+          <li>No friends online? The host can add 🤖 bots that hold plates, shoot and race.</li>
           <li>Each player is in their own dimension with its own physics — grassy, upside-down, icy, low-gravity, mirrored, dark…</li>
           <li>You can see everyone as ghosts, but you only touch things from <i>your</i> dimension.</li>
           <li>Plates, pads, rifts and keystones link dimensions together. Nobody can win alone.</li>
@@ -85,6 +87,10 @@
       <p id="pick-info" class="muted small"></p>
       <h3>Travelers <span id="count" class="muted"></span></h3>
       <ul id="players" class="players"></ul>
+      <div id="bot-row" class="row hidden">
+        <button id="bot-add" class="btn small-btn">🤖 Add bot</button>
+        <button id="bot-remove" class="btn small-btn">Remove bot</button>
+      </div>
       <p id="lobby-note" class="muted small"></p>
       <div class="row">
         <button id="start" class="btn primary">Start</button>
