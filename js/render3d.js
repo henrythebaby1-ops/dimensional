@@ -25,6 +25,51 @@ function rng(seed) {
   return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 }
 
+// hats from the shop; they sit in the face group so they flip with gravity
+const HAT_MATS = {};
+const hatMat = (c, o) => (HAT_MATS[c] ??= std(c, { flatShading: false, roughness: 0.4, ...o }));
+function makeHat(id) {
+  const g = new THREE.Group();
+  const top = 0.44;
+  switch (id) {
+    case 'cap': {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), hatMat(0x2f6bff));
+      const brim = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.04, 0.3), hatMat(0x2f6bff));
+      dome.position.y = top; brim.position.set(0.12, top + 0.02, 0.2);
+      g.add(dome, brim); break;
+    }
+    case 'party': {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.5, 16), hatMat(0xff4fc1));
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), hatMat(0xffe23a));
+      c.position.y = top + 0.25; ball.position.y = top + 0.52;
+      g.add(c, ball); break;
+    }
+    case 'headphones': {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.05, 8, 20, Math.PI), hatMat(0x222222));
+      band.position.y = top - 0.12;
+      for (const sx of [-1, 1]) { const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.12, 14), hatMat(0xff3355)); cup.rotation.z = Math.PI / 2; cup.position.set(sx * 0.36, top - 0.14, 0); g.add(cup); }
+      g.add(band); break;
+    }
+    case 'horns': for (const sx of [-1, 1]) { const h = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 8), hatMat(0xc8102e)); h.position.set(sx * 0.2, top + 0.12, 0); h.rotation.z = -sx * 0.4; g.add(h); } break;
+    case 'halo': { const h = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.04, 8, 24), hatMat(0xffe23a, { emissive: 0xffd23a, emissiveIntensity: 0.9 })); h.rotation.x = Math.PI / 2; h.position.y = top + 0.22; g.add(h); break; }
+    case 'wizard': {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.6, 16), hatMat(0x5b2bd6));
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.04, 20), hatMat(0x5b2bd6));
+      c.position.y = top + 0.32; c.rotation.z = 0.15; brim.position.y = top + 0.02;
+      g.add(c, brim); break;
+    }
+    case 'crown': {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.14, 12, 1, true), hatMat(0xffd23a, { metalness: 0.8, side: THREE.DoubleSide }));
+      band.position.y = top + 0.07;
+      g.add(band);
+      for (let i = 0; i < 5; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 4), hatMat(0xffd23a, { metalness: 0.8 })); const a = i / 5 * Math.PI * 2; sp.position.set(Math.cos(a) * 0.22, top + 0.2, Math.sin(a) * 0.22); g.add(sp); }
+      break;
+    }
+    default: return null;
+  }
+  return g;
+}
+
 // a canvas texture of Unicode letters, for the Unicode world and the Unicoder himself
 function glyphTexture(color, w, h, text, lines) {
   const c = document.createElement('canvas');
@@ -358,10 +403,14 @@ export class Renderer3D {
   }
 
   // ---------- level ----------
+  // the level's tiles changed (e.g. the floor collapsed): rebuild on the next frame
+  invalidate() { this.level = null; this.keepCam = true; }
+
   setLevel(level) {
     if (this.level === level) return;
     this.level = level;
-    this.camSnap = true;
+    this.camSnap = !this.keepCam;
+    this.keepCam = false;
     disposeTree(this.levelGroup);
     this.levelGroup.clear();
     this.objs = [];
@@ -507,6 +556,54 @@ export class Renderer3D {
         root.add(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, o.h, 6), mat(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: col }), 0.5)));
         break;
       }
+      case 'mover': {
+        e.solid = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h * 0.6, DEPTH * 0.9), mat(std(0xb8c2d6, { metalness: 0.6, roughness: 0.3, emissive: 0x6ec8ff, emissiveIntensity: 0.15 })));
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(o.w * 0.9, 0.08, DEPTH * 0.92), mat(glow(0xffd23a)));
+        stripe.position.y = o.h * 0.3 * (o.y >= MID ? 1 : -1);
+        root.add(e.solid, stripe);
+        break;
+      }
+      case 'bounce': {
+        const side = o.y >= MID ? 1 : -1;
+        e.spring = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.9, 0.3, 16), mat(glow(0xff3d8b, { emissiveIntensity: 0.5, flatShading: false })));
+        e.spring.position.y = -side * (o.h / 2 - 0.15);
+        e.side = side;
+        const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.4, 4), mat(glow(0xffffff)));
+        arrow.position.y = -side * 0.05;
+        if (side < 0) arrow.rotation.x = Math.PI;
+        e.arrow = arrow;
+        root.add(e.spring, arrow);
+        break;
+      }
+      case 'crumble': {
+        e.solid = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.96, DEPTH * 0.9), mat(std(0x9a6b3a, { roughness: 1 })));
+        const crack = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.98, 0.98, DEPTH * 0.92)), mat(new THREE.LineBasicMaterial({ color: 0x3a2410 })));
+        e.solid.add(crack);
+        root.add(e.solid);
+        break;
+      }
+      case 'cannon': {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 1), mat(std(0x333844, { metalness: 0.7 })));
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.8, 12), mat(std(0x1b1d24, { metalness: 0.8, flatShading: false })));
+        barrel.rotation.z = Math.PI / 2;
+        barrel.position.x = o.dir * 0.5;
+        root.add(body, barrel);
+        break;
+      }
+      case 'hill': {
+        root.position.y = H / 2;
+        root.add(new THREE.Mesh(new THREE.BoxGeometry(o.w, H - 2, DEPTH * 0.9), mat(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffd23a, depthWrite: false }), 0.16)));
+        e.crown = new THREE.Mesh(new THREE.TorusGeometry(o.w * 0.45, 0.08, 6, 30), mat(glow(0xffd23a, { emissiveIntensity: 1 })));
+        e.crown.rotation.x = Math.PI / 2;
+        root.add(e.crown);
+        break;
+      }
+      case 'coin': {
+        e.coin = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.08, 20), mat(glow(0xffd23a, { emissiveIntensity: 0.7, metalness: 0.8, roughness: 0.2, flatShading: false })));
+        e.coin.rotation.x = Math.PI / 2;
+        root.add(e.coin);
+        break;
+      }
       case 'flip': {
         const col2 = 0x9feaff;
         root.add(new THREE.Mesh(new THREE.BoxGeometry(o.w, H, DEPTH * 0.9), mat(new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: col2, depthWrite: false }), 0.12)));
@@ -576,6 +673,21 @@ export class Renderer3D {
           e.root.visible = !s.signals[o.link];
           e.shards.forEach((c, i) => { c.rotation.y = t * (1 + i * 0.2); });
           break;
+        case 'mover': e.root.position.x = X(s.moverX(o)) + o.w / 2; break;
+        case 'bounce': {
+          const k = 1 + Math.abs(Math.sin(t * 5)) * 0.25;
+          e.arrow.position.y = -e.side * 0.05 + e.side * Math.abs(Math.sin(t * 5)) * 0.25;
+          e.spring.scale.y = k;
+          break;
+        }
+        case 'crumble': {
+          const st = s.crumbleState(o);
+          e.root.visible = st !== 2;
+          e.root.position.x = o.x + 0.5 + (st === 1 ? Math.sin(t * 60) * 0.06 : 0);
+          break;
+        }
+        case 'hill': e.crown.rotation.z = t; e.crown.position.y = Math.sin(t * 2) * 3; break;
+        case 'coin': e.root.visible = !s.coinsTaken.has(o.id); e.coin.rotation.z = t * 3; break;
         case 'flip':
           for (const a of e.arrows) {
             const k = ((t * 0.35 + a.userData.i / 8) % 1);
@@ -634,6 +746,13 @@ export class Renderer3D {
       g.rotation.y = (b.f || 1) * 0.25;
       g.userData.mat.opacity = b.ghost ? 0.45 : 1;
       g.userData.mat.depthWrite = !b.ghost;
+      const hat = b.hat || 'none';
+      if (g.userData.hat !== hat) {
+        if (g.userData.hatMesh) g.userData.face.remove(g.userData.hatMesh);
+        g.userData.hatMesh = makeHat(hat);
+        if (g.userData.hatMesh) g.userData.face.add(g.userData.hatMesh);
+        g.userData.hat = hat;
+      }
     }
     for (const [id, g] of this.bodies) if (!seen.has(id)) g.visible = false;
   }
@@ -753,6 +872,7 @@ export class Renderer3D {
     mis.rotateZ(-Math.PI / 2);                      // point along +x, then rotate by velocity
     this.missileMesh = inst(mis, glow(0xff5a3a, { emissiveIntensity: 1.2 }), 60);
     this.rocketMesh = inst(new THREE.SphereGeometry(1, 14, 10), glow(0x7fe7ff, { emissiveIntensity: 1.4, flatShading: false }), 60);
+    this.pcoinMesh = inst(new THREE.CylinderGeometry(0.34, 0.34, 0.1, 20), glow(0xffd23a, { emissiveIntensity: 0.8, metalness: 0.8, roughness: 0.2, flatShading: false }), 30);
     this.ringMesh = inst(new THREE.TorusGeometry(1, 0.05, 6, 40), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0x9ff3ff, transparent: true, opacity: 0.8 }), 40);
     this.boltMesh = inst(new THREE.SphereGeometry(0.2, 8, 6), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff }), 200, true);
     this.partMesh = inst(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff }), 700, true);
@@ -830,14 +950,21 @@ export class Renderer3D {
         this.ringMesh.setMatrixAt(nr++, _m.compose(_p.set(X(b.x), Y(b.y), 0.2), _q, _s.set(r, r, 1)));
       }
     }
-    for (const [mesh, n] of [[this.missileMesh, nm], [this.rocketMesh, ns], [this.ringMesh, nr]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; }
+    let nc = 0;
+    for (const c of s.partyCoins || []) {
+      if (nc >= 30) break;
+      _q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, s.time * 3));
+      this.pcoinMesh.setMatrixAt(nc++, _m.compose(_p.set(X(c.x), Y(c.y), 0.3), _q, _s.set(1, 1, 1)));
+    }
+    _q.identity();
+    for (const [mesh, n] of [[this.missileMesh, nm], [this.rocketMesh, ns], [this.ringMesh, nr], [this.pcoinMesh, nc]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; }
     this.bulletMesh.count = nb; this.bulletMesh.instanceMatrix.needsUpdate = true;
     this.waveMesh.count = nw; this.waveMesh.instanceMatrix.needsUpdate = true;
     let n = 0;
     for (const b of s.bolts) {
       if (n >= 200) break;
       this.boltMesh.setMatrixAt(n, _m.compose(_p.set(X(b.x), Y(b.y), 0.3), _q, _s.set(1, 1, 1)));
-      this.boltMesh.setColorAt(n++, _c.set(DIMS[b.d]?.color || '#fff'));
+      this.boltMesh.setColorAt(n++, b.col === 'rainbow' ? _c.setHSL((s.time * 2 + n * 0.1) % 1, 0.9, 0.6) : _c.set(b.col || DIMS[b.d]?.color || '#fff'));
     }
     this.boltMesh.count = n;
     this.boltMesh.instanceMatrix.needsUpdate = true;

@@ -21,6 +21,13 @@
       <h1 class="logo">DIMENSIONAL</h1>
       <p class="tag">2–20 players. Every one of you in a different dimension. Work together anyway.</p>
       <p id="save-line" class="save-line"></p>
+      <div class="menu-top">
+        <span id="menu-coins" class="coins">🪙 0</span>
+        <button id="open-shop" class="btn small-btn">🛍️ Shop</button>
+        <button id="open-records" class="btn small-btn">⭐ Records</button>
+        <button id="mute-menu" class="btn small-btn" aria-label="Sound">🔊</button>
+      </div>
+      <button id="daily-btn" class="btn daily-btn">📅 <b>Daily Challenge</b> <span id="daily-desc"></span></button>
       <label class="field">Your name
         <input id="name" maxlength="14" placeholder="Traveler" autocomplete="off">
       </label>
@@ -48,6 +55,7 @@
           <li>Floating dimensions fly with up/down (W/S). 2Dverse can dash with Shift.</li>
           <li>Pick a role and a dimension in the lobby, or leave it on Auto.</li>
           <li>No friends online? The host can add 🤖 bots that hold plates, shoot and race.</li>
+          <li>Keys 1–8 send emotes and quick chat. Earn coins for hats, trails and new dimensions in the Shop!</li>
           <li>Each player is in their own dimension with its own physics — grassy, upside-down, icy, low-gravity, mirrored, dark…</li>
           <li>You can see everyone as ghosts, but you only touch things from <i>your</i> dimension.</li>
           <li>Plates, pads, rifts and keystones link dimensions together. Nobody can win alone.</li>
@@ -61,6 +69,10 @@
         <div class="board">
           <h3>Best survival runs</h3>
           <ol id="board-surv"><li class="muted">Loading…</li></ol>
+        </div>
+        <div class="board">
+          <h3>📅 Today's daily</h3>
+          <ol id="board-daily"><li class="muted">Loading…</li></ol>
         </div>
       </div>
     </div>
@@ -78,6 +90,11 @@
         <button class="mode" data-mode="story3"><b>Story Ch.3</b><span>The Floatter — missiles &amp; sound rockets</span></button>
         <button class="mode" data-mode="survival"><b>Survival</b><span>10 waves of crawlers</span></button>
         <button class="mode" data-mode="race"><b>Race</b><span>4 rounds, every traveler for themselves</span></button>
+        <button class="mode party" data-mode="tag"><b>🏃 Tag</b><span>Don't be IT</span></button>
+        <button class="mode party" data-mode="koth"><b>👑 King of the Hill</b><span>Hold the golden zone</span></button>
+        <button class="mode party" data-mode="chaos"><b>🌀 Coin Chaos</b><span>Grab coins, dimensions swap</span></button>
+        <button class="mode party" data-mode="lms"><b>💥 Last Standing</b><span>Shoot each other, floor falls</span></button>
+        <button class="mode" data-mode="daily"><b>📅 Daily</b><span>Today's challenge</span></button>
         <button class="mode" data-mode="bossrush"><b>Boss Rush</b><span>3 bosses in a row, each tougher</span></button>
         <button class="mode" data-mode="hunt"><b>Crawler Hunt</b><span>2 minutes — most crawlers shot wins</span></button>
       </div>
@@ -115,6 +132,7 @@
       <h1 id="win-title" class="logo">REALITY RESTORED</h1>
       <p id="win-text"></p>
       <div id="clear-time" class="room-code">0:00</div>
+      <p id="win-coins" class="win-coins"></p>
       <div id="board-win-wrap" class="board">
         <h3>Leaderboard</h3>
         <ol id="board-win"></ol>
@@ -138,10 +156,43 @@
       <div id="hearts"></div>
     </div>
     <div id="hint"></div>
+    <button id="mute" aria-label="Sound">🔊</button>
     <button id="fs" aria-label="Fullscreen">⛶</button>
   </div>
 
   <div id="toasts"></div>
+
+  <div id="emote-bar" class="hidden"></div>
+
+  <div id="banner" class="hidden">
+    <div id="banner-title">LEVEL COMPLETE</div>
+    <div id="banner-stars"></div>
+    <div id="banner-line"></div>
+    <div id="banner-sub"></div>
+    <div id="banner-coins"></div>
+  </div>
+
+  <section id="shop" class="panel-screen hidden">
+    <div class="panel shop-panel">
+      <div class="shop-head"><h2>🛍️ Shop</h2><span id="shop-coins" class="coins">🪙 0</span><button id="shop-close" class="btn small-btn">✕</button></div>
+      <div class="tabs" id="shop-tabs">
+        <button data-tab="hat" class="tab sel">Hats</button>
+        <button data-tab="trail" class="tab">Trails</button>
+        <button data-tab="bolt" class="tab">Shots</button>
+        <button data-tab="dim" class="tab">Dimensions</button>
+      </div>
+      <div id="shop-grid" class="shop-grid"></div>
+      <p class="muted small">Earn coins by finishing levels (more for ⭐), finding hidden coins, shooting crawlers, winning party games and doing the Daily Challenge.</p>
+    </div>
+  </section>
+
+  <section id="records" class="panel-screen hidden">
+    <div class="panel shop-panel">
+      <div class="shop-head"><h2>⭐ Records</h2><span id="records-total" class="coins"></span><button id="records-close" class="btn small-btn">✕</button></div>
+      <p class="muted small">⭐ finish · ⭐ no deaths · ⭐ beat the par time</p>
+      <div id="records-list"></div>
+    </div>
+  </section>
 
   <section id="cutscene" class="hidden">
     <div id="cut-stage" class="cut-stage"></div>
@@ -205,6 +256,7 @@ Restarting…</pre>
     </div>
     <div id="jump-zone"><div class="jump-hint">⤒<small>TAP TO JUMP</small></div></div>
     <div id="tbtns">
+      <button id="tb-emote" class="tb small" aria-label="Emotes">😀<small>CHAT</small></button>
       <button data-k="ping" class="tb small" aria-label="Ping">!<small>PING</small></button>
       <button data-k="dash" class="tb small hidden" id="tb-dash" aria-label="Dash">⇥<small>DASH</small></button>
       <button id="tb-auto" class="tb small chip" aria-label="Auto-fire">AUTO</button>

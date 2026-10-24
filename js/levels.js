@@ -85,6 +85,8 @@ class Builder {
 function crossing(n) {
   const b = new Builder(n, 72);
   b.shell();
+  b.both('bounce', {}, 59, 1, 2, 1);                                   // gadgets: a launch pad near the end
+  b.both('cannon', { dir: -1, period: 3.5, offset: 1 }, 70, 1, 1, 1);    // and a slow cannon guarding the portal
   for (let x = 26; x <= 35; x++) b.set(x, 0, '.');
   b.box(10, 12, 4, 4);
   b.box(46, 48, 4, 4);
@@ -110,6 +112,8 @@ function crossing(n) {
 function hop(n) {
   const b = new Builder(n, 86);
   b.shell();
+  b.both('bounce', {}, 35, 1, 2, 1);
+  b.both('bounce', {}, 57, 1, 2, 1);
   const rifts = [8, 38, 60];
   rifts.forEach(x => b.both('rift', {}, x, 1, 2, 3));
   b.both('door', { link: 'keys' }, 72, 1, 1, 12);
@@ -140,6 +144,8 @@ function hop(n) {
 function stairs(n) {
   const b = new Builder(n, 70);
   b.shell();
+  b.both('bounce', {}, 58, 1, 2, 1);
+  b.both('cannon', { dir: -1, period: 3, offset: 0 }, 68, 4, 1, 1);
   b.box(32, 33, 1, 9);
   b.box(54, 55, 1, 1, '^');
   // Stairs for dimension d only exist while the next dimension stands on a plate.
@@ -162,6 +168,7 @@ function stairs(n) {
 function relay(n) {
   const b = new Builder(n, 92);
   b.shell();
+  for (const x of [30, 31, 58, 59]) b.both('crumble', {}, x, 2, 1, 1);  // shaky bridges over the spikes
   b.box(30, 31, 1, 1, '^');
   b.box(58, 59, 1, 1, '^');
   // Your lasers are nearly always on, unless the next dimension holds your relay plate.
@@ -184,6 +191,8 @@ function relay(n) {
 function topsy(n) {
   const b = new Builder(n, 84);
   b.shell();
+  b.both('bounce', {}, 4, 1, 2, 1);
+  b.both('mover', { range: 10, freq: 0.12, phase: 0.5 }, 20, 6, 3, 1);
   for (const x of [9, 47]) b.both('flip', {}, x, 1, 2, 12);
   b.box(16, 18, 4, 4);
   b.box(56, 58, 4, 4);
@@ -209,6 +218,8 @@ function topsy(n) {
 function crystals(n) {
   const b = new Builder(n, 80);
   b.shell();
+  b.both('bounce', {}, 24, 1, 2, 1);
+  b.both('mover', { range: 10, freq: 0.1, phase: 0 }, 28, 5, 3, 1);     // a moving sniper's perch
   b.box(10, 12, 4, 4);
   b.box(64, 66, 4, 4);
   // Each dimension's gate is locked by a crystal its owner cannot break.
@@ -227,6 +238,7 @@ function crystals(n) {
 function shadows(n) {
   const b = new Builder(n, 84);
   b.shell();
+  b.both('cannon', { dir: -1, period: 4, offset: 2 }, 82, 5, 1, 1);     // something shooting in the dark…
   for (let x = 20; x <= 27; x++) b.set(x, 0, '.');
   for (let x = 50; x <= 57; x++) b.set(x, 0, '.');
   for (let d = 0; d < n; d++) {
@@ -251,6 +263,8 @@ function shadows(n) {
 function floatIsle(n) {
   const b = new Builder(n, 86);
   b.shell();
+  b.both('bounce', {}, 12, 1, 2, 1);
+  b.both('cannon', { dir: -1, period: 3, offset: 0.5 }, 84, 1, 1, 1);
   b.mid(30, 52);
   [32, 50].forEach(x => b.both('flip', {}, x, 1, 1, 12));
   b.both('flip', {}, 64, 1, 1, 12);
@@ -280,6 +294,8 @@ function nest(n, dark = false) {
   b.box(30, 33, 6, 6);
   b.box(44, 47, 4, 4);
   b.both('door', { link: 'nest' }, 58, 1, 1, 12);
+  b.both('bounce', {}, 24, 1, 2, 1);
+  b.both('bounce', {}, 52, 1, 2, 1);
   b.mobs([8, 20, 32, 44], 5, 1.8);
   b.mobs([14, 38], 7, 2.3);
   b.both('exit', {}, 70, 1, 3, 3);
@@ -307,9 +323,11 @@ function islands(n, race) {
   }
   b.box(x, W - 2, 1, 2);
   if (race) {
+    b.both('cannon', { dir: -1, period: 2.4, offset: 0 }, W - 2, 6, 1, 1);
     b.both('exit', {}, W - 7, 3, 3, 3);
     return b.done({ name: 'Island Hop', objective: 'RACE! Hop the islands, don\'t touch the spikes. First to the portal wins.', race: true });
   }
+  b.both('cannon', { dir: -1, period: 3.2, offset: 0 }, W - 2, 7, 1, 1);
   for (let d = 0; d < n; d++) {
     b.add('target', { dim: d, link: 'is' + d }, 1, x + 2 + Math.floor(d / 2), 1, 1, H - 2);
     b.addD('door', d, { link: 'is' + d }, W - 9, 3, 1, 10);
@@ -407,6 +425,9 @@ const hunted = (lv, name, objective, covers) => ({ ...addCovers(lv, covers), nam
 function radioSilence(n) {
   const b = new Builder(n, 92);
   b.shell();
+  b.both('bounce', {}, 40, 1, 2, 1);
+  b.both('bounce', {}, 68, 1, 2, 1);
+  b.both('mover', { range: 8, freq: 0.14, phase: 0 }, 50, 5, 3, 1);
   for (const x of [14, 30, 46, 62, 76]) b.box(x, x + 1, 1, 3);
   for (const x of [22, 54, 70]) b.box(x, x + 1, 1, 1, '^');
   b.mobs([38], 4, 1.4);
@@ -418,6 +439,8 @@ function radioSilence(n) {
 function floatterBoss(n) {
   const b = new Builder(n, 48);
   b.shell();
+  b.both('bounce', {}, 3, 1, 2, 1);
+  b.both('bounce', {}, 43, 1, 2, 1);
   b.box(6, 10, 4, 4);
   b.box(37, 41, 4, 4);
   b.box(20, 27, 6, 6);
@@ -427,6 +450,101 @@ function floatterBoss(n) {
     name: 'The Floatter', ch3: true, boss: true, floatter: true,
     objective: 'Face the Floatter! Hold F to fire — your shots home in. Hide behind cover; two hits and you\'re out.',
   });
+}
+
+
+// ---------- gadgets: bounce pads, moving platforms, crumbling floors, cannons ----------
+function clockwork(n) {
+  const b = new Builder(n, 92);
+  b.shell();
+  for (let x = 14; x <= 36; x++) b.set(x, 0, '.');                    // a bottomless pit…
+  b.both('mover', { range: 9, freq: 0.16, phase: 0 }, 14, 0, 3, 1);     // …crossed on platforms level with the floor
+  b.both('mover', { range: 8, freq: 0.16, phase: 1 }, 26, 0, 3, 1);
+  b.box(44, 50, 6, 6);
+  b.box(51, 52, 1, 7);
+  b.both('bounce', {}, 41, 1, 2, 1);
+  for (let x = 58; x <= 66; x++) { b.set(x, 0, '.'); b.both('crumble', {}, x, 0, 1, 1); }   // a bridge that falls away behind you
+  b.both('cannon', { dir: -1, period: 2.2, offset: 0 }, 88, 1, 1, 1);
+  b.both('cannon', { dir: -1, period: 2.2, offset: 1.1 }, 88, 4, 1, 1);
+  b.box(87, 88, 3, 3);
+  b.mobs([72], 5, 1.6);
+  b.both('exit', {}, 80, 1, 3, 3);
+  return b.done({
+    name: 'Clockwork',
+    objective: 'Ride the moving platforms over the spikes, bounce over the wall, sprint across the crumbling bridge and dodge the cannons!',
+  });
+}
+
+// ---------- party mini-games ----------
+function partyArena(n, kind) {
+  const b = new Builder(n, 64);
+  b.shell();
+  b.box(9, 13, 4, 4);
+  b.box(50, 54, 4, 4);
+  b.box(21, 25, 7, 7);
+  b.box(38, 42, 7, 7);
+  [17, 46].forEach(x => b.both('flip', {}, x, 1, 1, 12));
+  b.both('bounce', {}, 3, 1, 2, 1);
+  b.both('bounce', {}, 59, 1, 2, 1);
+  b.both('mover', { range: 9, freq: 0.12, phase: 0 }, 27, 4, 3, 1);
+  const info = {
+    tag: ['Tag', 'One traveler is IT. Touch someone to pass it on! Score a point for every second you are NOT it.'],
+    koth: ['King of the Hill', 'Stand inside the golden column to score. Push your luck — everyone wants it.'],
+    chaos: ['Coin Chaos', 'Grab the most coins! Every 15 seconds everyone gets thrown into a new dimension.'],
+    lms: ['Last One Standing', 'Shoot each other! 3 hearts, no respawns, and the floor is falling away. Last traveler wins.'],
+  }[kind];
+  if (kind === 'koth') b.raw('hill', {}, 30, 1, 4, H - 2);
+  return b.done({ name: info[0], objective: info[1], party: kind, spread: true });
+}
+
+// ---------- daily challenge: a different level and twist every day ----------
+export const DAILY_MODS = [
+  { id: 'lowgrav', name: 'Low gravity' },
+  { id: 'turbo', name: 'Turbo speed' },
+  { id: 'dark', name: 'Lights out' },
+  { id: 'swarm', name: 'Crawler swarm' },
+  { id: 'bouncy', name: 'Bouncy everything' },
+];
+const dailyPool = () => [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), topsy, shadows, clockwork, sprint, riftRush, gauntlet];
+
+export function dailyInfo(key = new Date().toISOString().slice(0, 10)) {
+  let h = 2166136261;
+  for (const c of key) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  h >>>= 0;
+  const pool = dailyPool();
+  return { key, make: pool[h % pool.length], mod: DAILY_MODS[(h >>> 7) % DAILY_MODS.length] };
+}
+
+function daily(n) {
+  const { key, make, mod } = dailyInfo();
+  const lv = make(n);
+  if (mod.id === 'swarm') {
+    for (let i = 0; i < 8; i++) {
+      const lanes = [...Array(n).keys()].filter(d => DIMS[d].grav);
+      if (!lanes.length) break;
+      const d = lanes[i % lanes.length];
+      lv.objs.push({ id: 'smob' + i, type: 'mob', dim: d, x: 10 + Math.floor(i * (lv.W - 24) / 8), y: DIMS[d].grav > 0 ? H - 2 : 1, w: 1, h: 1, range: 5, speed: 2, phase: i * 0.37 });
+    }
+  }
+  return {
+    ...lv, race: false, daily: true, mod: mod.id, dark: lv.dark || mod.id === 'dark',
+    name: `Daily ${key}: ${lv.name}`, objective: `Today: ${lv.name} with ${mod.name.toUpperCase()}! Everyone to the portal, as fast as you can.`,
+  };
+}
+
+// hidden coins: a few on top of platforms in every story level
+function addCoins(lv) {
+  const spots = [];
+  for (let x = 4; x < lv.W - 4; x++) for (let r = MID + 1; r < H - 2; r++) {
+    if (lv.grid[r][x] === '#' && lv.grid[r - 1][x] === '.' && lv.grid[r - 2][x] === '.' && lv.grid[r + 1][x] !== '#') spots.push([x, r - 1]);
+  }
+  const pick = [];
+  for (const sp of spots) if (!pick.some(q => Math.abs(q[0] - sp[0]) < Math.max(6, lv.W / 6))) pick.push(sp);
+  pick.slice(0, 4).forEach(([x, r], i) => {
+    lv.objs.push({ id: 'coin' + i, type: 'coin', dim: null, x, y: r, w: 1, h: 1 });
+    lv.objs.push({ id: 'coin' + i + 't', type: 'coin', dim: null, x, y: H - 1 - r, w: 1, h: 1 });
+  });
+  return lv;
 }
 
 // ---------- Race mode: every traveler for themselves ----------
@@ -439,6 +557,8 @@ function sprint(n) {
   b.box(62, 63, 1, 3);
   b.box(78, 80, 4, 4);
   b.mobs([44, 92], 5, 2);
+  b.both('bounce', {}, 52, 1, 2, 1);
+  b.both('cannon', { dir: -1, period: 2.6, offset: 0 }, 107, 1, 1, 1);
   b.both('exit', {}, 104, 1, 3, 3);
   return b.done({ name: 'Spike Sprint', objective: 'RACE! First traveler into the portal wins the round.', race: true });
 }
@@ -452,6 +572,7 @@ function riftRush(n) {
   b.box(40, 42, 4, 4);
   b.box(68, 70, 4, 4);
   b.mobs([88], 3, 1.5);
+  for (let x = 44; x <= 45; x++) b.both('crumble', {}, x, 2, 1, 1);
   b.both('exit', {}, 93, 1, 3, 3);
   return b.done({ name: 'Rift Rush', objective: 'RACE! Rifts scramble your dimension and gravity fields flip you. First to the portal wins.', race: true });
 }
@@ -459,6 +580,8 @@ function riftRush(n) {
 function gauntlet(n) {
   const b = new Builder(n, 96);
   b.shell();
+  b.both('bounce', {}, 10, 1, 2, 1);
+  b.both('bounce', {}, 82, 1, 2, 1);
   for (const x of [16, 28, 40, 52, 64, 76]) {
     for (let d = 0; d < n; d++) b.addD('laser', d, { period: 2, offset: (x * 0.13 + d * 0.31) % 2, duty: 0.5 }, x, 1, 1, 11);
   }
@@ -481,6 +604,9 @@ function hunt(n) {
 function arena(n) {
   const b = new Builder(n, 56);
   b.shell();
+  b.both('bounce', {}, 3, 1, 2, 1);
+  b.both('bounce', {}, 51, 1, 2, 1);
+  b.both('mover', { range: 6, freq: 0.15, phase: 0 }, 25, 4, 3, 1);
   b.box(8, 12, 4, 4);
   b.box(43, 47, 4, 4);
   b.box(24, 31, 7, 7);
@@ -491,6 +617,7 @@ function arena(n) {
 function resonance(n) {
   const b = new Builder(n, 100);
   b.shell();
+  for (const x of [28, 60, 92]) b.both('bounce', {}, x, 1, 2, 1);
   for (let s = 0; s < 3; s++) {
     const x0 = s * 32;
     b.both('door', { link: 'res' + s }, x0 + 31, 1, 1, 12);
@@ -517,6 +644,8 @@ function resonance(n) {
 function fracture(n, spectre = true, round = 0) {
   const b = new Builder(n, 46);
   b.shell();
+  b.both('bounce', {}, 16, 1, 2, 1);                                  // launch pads to dodge the boss
+  b.both('bounce', {}, 31, 1, 2, 1);
   b.box(7, 11, 4, 4);
   b.box(34, 38, 4, 4);
   b.box(20, 25, 7, 7);
@@ -536,7 +665,7 @@ function fracture(n, spectre = true, round = 0) {
 export const MODES = {
   story: {
     name: 'Story', min: 2,
-    levels: [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), topsy, shadows, n => nest(n, true), resonance, fracture],
+    levels: [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), clockwork, topsy, shadows, n => nest(n, true), resonance, fracture],
   },
   survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
   race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), gauntlet], min: 2 },
@@ -553,12 +682,18 @@ export const MODES = {
   },
   bossrush: { name: 'Boss Rush', levels: [0, 1, 2].map(r => n => fracture(n, false, r)), min: 1 },
   hunt: { name: 'Crawler Hunt', levels: [hunt], min: 1, time: 120 },
+  tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 2, time: 90 },
+  koth: { name: 'King of the Hill', levels: [n => partyArena(n, 'koth')], min: 1, time: 90 },
+  chaos: { name: 'Coin Chaos', levels: [n => partyArena(n, 'chaos')], min: 1, time: 90 },
+  lms: { name: 'Last One Standing', levels: [n => partyArena(n, 'lms')], min: 2, time: 150 },
+  daily: { name: 'Daily Challenge', levels: [daily], min: 1 },
 };
 export const LEVELS = MODES.story.levels;
 
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
-  const lv = m.levels[idx](n);
+  let lv = m.levels[idx](n);
+  if (['story', 'story2', 'story3', 'daily'].includes(mode) && !lv.boss) lv = addCoins(lv);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : lv.name;
   return lv;

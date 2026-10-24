@@ -47,3 +47,8 @@ alter table public.dim_gifts enable row level security;
 create policy "anyone can read gifts" on public.dim_gifts for select to anon, authenticated using (true);
 create policy "anyone can give a save" on public.dim_gifts for insert to anon, authenticated with check (true);
 create index if not exists dim_gifts_recent_idx on public.dim_gifts (created_at desc);
+
+-- v4: daily challenge clears
+alter table public.dim_clears drop constraint if exists dim_clears_mode_check;
+alter table public.dim_clears add constraint dim_clears_mode_check check (mode in ('story', 'survival', 'race', 'daily'));
+create index if not exists dim_clears_daily_idx on public.dim_clears (mode, created_at desc, time_ms);

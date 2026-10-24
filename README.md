@@ -33,6 +33,18 @@ auto-fire shoots for you (toggle with AUTO). Choose controls on the main menu
 - **Boss Rush**: three bosses in a row, each tougher.
 - **Crawler Hunt**: 2 minutes, most crawlers shot wins.
 
+**Party games:** 🏃 Tag · 👑 King of the Hill · 🌀 Coin Chaos (dimensions swap every 15s) ·
+💥 Last One Standing (aimed shots, collapsing floor).
+**📅 Daily Challenge:** one level + one twist per day (low gravity, turbo, lights out, crawler swarm,
+bouncy), today's leaderboard, and a coin streak bonus.
+
+**Rewards:** earn 🪙 coins from levels (⭐ stars for finishing, no deaths and beating par time), hidden
+coins, crawlers, party wins and dailies. Spend them in the 🛍️ Shop on hats, trails, shot colors and
+new dimensions (6 start unlocked; finishing chapters unlocks more). ⭐ Records shows your stars and best times.
+**Emotes:** keys 1–8 (😂 👍 💀 GG, "Over here!", "Help!", "Go go go!", "Wait!"), or 😀 on phones.
+**Sound:** music for every dimension and boss, plus sound effects (🔊 to mute).
+**Gadgets:** bounce pads, moving platforms, crumbling floors, cannons and hidden coins in the levels.
+
 **Bots:** the host can add 🤖 bots in the lobby (or press "Play with a bot"). Bots hold
 plates, take turns crossing, climb, collect keystones, shoot, race, build and push.
 

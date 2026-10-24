@@ -94,6 +94,7 @@ export class Room {
 
 export async function fetchLeaderboard(mode = 'story') {
   let q = sb.from('dim_clears').select('players,player_count,time_ms,score,created_at').eq('mode', mode);
+  if (mode === 'daily') q = q.gte('created_at', new Date().toISOString().slice(0, 10) + 'T00:00:00Z');   // today's runs only
   q = mode === 'survival' ? q.order('score', { ascending: false }).order('time_ms', { ascending: true }) : q.order('time_ms', { ascending: true });
   const { data, error } = await q.limit(mode === 'survival' ? 5 : 8);
   if (error) throw error;
