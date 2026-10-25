@@ -59,3 +59,9 @@ create index if not exists dim_clears_daily_idx on public.dim_clears (mode, crea
 --   rpc dim_signup(user, pass, save) / dim_login(user, pass) -> { token, username, save }
 --   rpc dim_me(token), dim_save(token, save), dim_logout(token)
 --   rpc dim_publish_level(token, name, data) (logged in, 10/hour), dim_level_played(id), dim_level_like(id)
+
+-- v6: friends (migration dim_friends)
+--   table dim_friends(a, b, accepted) (RLS on, no policies)
+--   rpc dim_friend_request(token, user) -> 'sent' | 'friends' (auto-accepts if they already asked you)
+--   rpc dim_friend_respond(token, user, accept) (decline/remove deletes the row), dim_friend_list(token) -> [{ u, ok, in }]
+--   who's online + invites use the Realtime presence channel 'dimensional:online'

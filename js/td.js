@@ -211,7 +211,7 @@ registerTD('colors', {
     s.t -= dt;
     if (s.ph === 'go' && s.t <= 0) {
       s.round++;
-      s.target = Math.floor(rng(this.seed + s.round * 31)() * COLORS.length);
+      s.target = (s.target + 1 + Math.floor(Math.random() * (COLORS.length - 1))) % COLORS.length;   // truly random, never the same color twice in a row
       s.ph = 'pick'; s.t = Math.max(1.4, 5 - s.round * 0.3);
       api.send({ k: 'st', s }); this.onState(api, s);
     } else if (s.ph === 'pick' && s.t <= 0) {

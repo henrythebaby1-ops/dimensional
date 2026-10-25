@@ -20,6 +20,8 @@ auto-fire shoots for you (toggle with AUTO). Choose controls on the main menu
 🌍 Public rooms (browse and join; hosts can tick "Public room" in the lobby) or join with a 4-letter code.
 👤 **Accounts**: sign up with a username and password to save your coins, stars and items in the cloud and
 log in on any device.
+👫 **Friends**: once you're logged in, add friends by username, accept requests, see who's 🟢 online and which
+room they're in, hit ▶ Join to hop into their game, or 📨 Invite them to yours (also from the lobby).
 🛠️ **Level Creator**: choose a 🧱 Platformer or a 🗺️ Top-down game. Build tab (tiles, coins, enemies, keys and doors,
 signs…), Draw tab (paint floors, draw your own 12×12 pixel sprites), and a Scratch-style Logic tab
 ("WHEN I touch 🪙 Coin DO Play sound", "Every 10 seconds DO Spawn an enemy"…). Test it, then 🌐 publish it.

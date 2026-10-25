@@ -12,7 +12,7 @@ import './td6.js';
 import './td7.js';
 import './td8.js';
 const MIDY = MID * T;
-import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
+import { friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH, drawPattern } from './render3d.js';
 import { drawBanana2D } from './banana2d.js';
@@ -3486,6 +3486,7 @@ function enterRoom(code) {
   });
   history.replaceState(null, '', '#' + code);
   $('room-code').textContent = code;
+  setTimeout(updateWhere, 500);
   setScreen('lobby');
 }
 
@@ -3518,6 +3519,7 @@ $('pause-restart').onclick = () => { if (!isHost()) return; setPaused(false); se
 $('pause-leave').onclick = () => { setPaused(false); send('pause', { on: false, by: me.name }); leaveRoom(); };
 
 function leaveRoom() {
+  setTimeout(updateWhere, 100);
   isPublic = false;
   board?.stop();
   bots = [];
@@ -4379,7 +4381,7 @@ for (const b of document.querySelectorAll('#modes .mode')) {
   b.onclick = () => {
     if (!isHost()) return;
     gameMode = b.dataset.mode;
-    send('mode', { m: gameMode, pub: isPublic });
+    send('mode', { m: gameMode, pub: isPublic }); updateWhere();
     renderLobby();
   };
 }
@@ -4409,7 +4411,9 @@ let pendingBots = 0;
 // ---------- accounts: log in anywhere, progress saved in the cloud ----------
 let account = null;                     // { username, token }
 function setAccount(a) {
+  const changed = account?.username !== a?.username;
   account = a;
+  if (changed) { online?.close(); online = a ? new OnlineBoard(a.username, { onChange: l => { onlineNow = l; if (!$('friends').classList.contains('hidden')) renderFriends(); }, onInvite: showInvite }) : null; updateWhere(); refreshFriends(); }
   try { a ? localStorage.setItem('dim-token', a.token) : localStorage.removeItem('dim-token'); } catch {}
   $('account-name').textContent = a ? a.username : 'Log in';
   $('name-field').classList.toggle('hidden', !!a);
@@ -4782,6 +4786,77 @@ for (const t of document.querySelectorAll('#community-tabs .tab[data-s]')) t.onc
 $('community-make').onclick = () => { $('community').classList.add('hidden'); $('open-maker').click(); };
 $('open-community').onclick = () => { $('community').classList.remove('hidden'); renderCommunity(); };
 $('community-close').onclick = () => $('community').classList.add('hidden');
+
+// ---------- friends: add by username, see who's online and where, join or invite ----------
+let online = null, onlineNow = {}, friends = [];
+async function refreshFriends() {
+  friends = [];
+  if (account) try { friends = await friendList(account.token) || []; } catch {}
+  const waiting = friends.filter(f => !f.ok && f.in).length;
+  $('friends-label').textContent = waiting ? `Friends (${waiting} new)` : 'Friends';
+  if (!$('friends').classList.contains('hidden')) renderFriends();
+}
+function updateWhere() { online?.where(room?.code || '', room ? MODES[gameMode]?.name : ''); }
+function renderFriends() {
+  const box = $('friends-body');
+  box.replaceChildren();
+  const p = (t, cls = 'muted small') => { const e = document.createElement('p'); e.className = cls; e.textContent = t; return e; };
+  if (!account) {
+    box.append(p('Log in or sign up to add friends — then you can see when they\'re online and join their games.', 'muted'));
+    const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = '👤 Log in / Sign up'; b.onclick = () => $('account').classList.remove('hidden');
+    box.append(b);
+    return;
+  }
+  const add = document.createElement('form'); add.className = 'friend-add';
+  const inp = document.createElement('input'); inp.placeholder = 'Friend\'s username'; inp.maxLength = 14;
+  const go = document.createElement('button'); go.className = 'btn primary small-btn'; go.textContent = '➕ Add';
+  add.append(inp, go);
+  add.onsubmit = async e => {
+    e.preventDefault();
+    const u = inp.value.trim();
+    if (!u) return;
+    try { const r = await friendRequest(account.token, u); toast(r === 'friends' ? `👫 You and ${u} are now friends!` : `📨 Friend request sent to ${u}`, '#39ff88'); inp.value = ''; refreshFriends(); }
+    catch (err) { toast(err.message || 'Could not add', '#ff3355'); }
+  };
+  box.append(add);
+  const row = (f, buttons, status) => {
+    const r = document.createElement('div'); r.className = 'friend';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = f.u;
+    const st = document.createElement('span'); st.className = 'st'; st.textContent = status; nm.append(st);
+    r.append(nm, ...buttons);
+    return r;
+  };
+  const btn = (t, cls, fn) => { const b = document.createElement('button'); b.className = 'btn small-btn ' + cls; b.textContent = t; b.onclick = fn; return b; };
+  const reqs = friends.filter(f => !f.ok && f.in), sent = friends.filter(f => !f.ok && !f.in), mine = friends.filter(f => f.ok);
+  if (reqs.length) { box.append(p('📨 Friend requests')); for (const f of reqs) box.append(row(f, [btn('✅ Accept', 'primary', async () => { await friendRespond(account.token, f.u, true).catch(() => {}); toast(`👫 You and ${f.u} are now friends!`, '#39ff88'); refreshFriends(); }), btn('✕', '', async () => { await friendRespond(account.token, f.u, false).catch(() => {}); refreshFriends(); })], 'wants to be your friend')); }
+  box.append(p(mine.length ? `👫 Your friends (${mine.filter(f => onlineNow[f.u.toLowerCase()]).length} online)` : 'No friends yet — add someone by their username!'));
+  const sorted = [...mine].sort((a, b) => !!onlineNow[b.u.toLowerCase()] - !!onlineNow[a.u.toLowerCase()]);
+  for (const f of sorted) {
+    const on = onlineNow[f.u.toLowerCase()];
+    const btns = [];
+    if (on?.room && on.room !== room?.code) btns.push(btn(`▶ Join ${on.room}`, 'primary', () => { $('friends').classList.add('hidden'); enterRoom(on.room); }));
+    if (on && room && on.room !== room.code) btns.push(btn('📨 Invite', '', () => { online.invite(f.u, room.code, MODES[gameMode]?.name || ''); toast(`📨 Invited ${f.u}`, '#39ff88'); }));
+    btns.push(btn('✕', '', async () => { if (!confirm(`Remove ${f.u} from your friends?`)) return; await friendRespond(account.token, f.u, false).catch(() => {}); refreshFriends(); }));
+    box.append(row(f, btns, on ? (on.room ? `🟢 playing ${on.mode || ''} in room ${on.room}` : '🟢 online') : '⚪ offline'));
+  }
+  if (sent.length) { box.append(p('⏳ Waiting for them to accept')); for (const f of sent) box.append(row(f, [], 'request sent')); }
+}
+function showInvite(d) {
+  const pop = $('invite-pop');
+  pop.replaceChildren();
+  const t = document.createElement('span'); t.textContent = `📨 ${String(d.from).slice(0, 14)} invited you to ${String(d.mode || 'a game').slice(0, 30)}!`;
+  const join = document.createElement('button'); join.className = 'btn primary small-btn'; join.textContent = '▶ Join';
+  join.onclick = () => { pop.classList.add('hidden'); if (/^[A-Z]{4}$/.test(d.room)) { if (mode === 'play' || mode === 'lobby') leaveRoom(); enterRoom(d.room); } };
+  const no = document.createElement('button'); no.className = 'btn small-btn'; no.textContent = '✕'; no.onclick = () => pop.classList.add('hidden');
+  pop.append(t, join, no);
+  pop.classList.remove('hidden');
+  sfx('ping');
+  setTimeout(() => pop.classList.add('hidden'), 20000);
+}
+$('open-friends').onclick = () => { $('friends').classList.remove('hidden'); renderFriends(); refreshFriends(); };
+$('lobby-friends').onclick = () => { $('friends').classList.remove('hidden'); renderFriends(); refreshFriends(); };
+$('friends-close').onclick = () => $('friends').classList.add('hidden');
+setInterval(() => { if (account && mode === 'menu') refreshFriends(); }, 30000);
 
 // ---------- public rooms and Quick Play ----------
 let isPublic = false, board = null;

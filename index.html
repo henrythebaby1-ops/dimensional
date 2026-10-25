@@ -51,6 +51,7 @@
         <button id="open-records" class="mini-tile"><i>⭐</i>Records</button>
         <button id="open-training" class="mini-tile"><i>🧪</i>Training</button>
         <button id="open-boards" class="mini-tile"><i>🏆</i>Leaderboards</button>
+        <button id="open-friends" class="mini-tile"><i>👫</i><span id="friends-label">Friends</span></button>
       </div>
       <details class="how">
         <summary>⚙️ Controls & how to play</summary>
@@ -159,6 +160,14 @@
     </div>
   </section>
 
+  <section id="friends" class="panel-screen hidden">
+    <div class="panel">
+      <div class="shop-head"><h2>👫 Friends</h2><button id="friends-close" class="btn small-btn">✕</button></div>
+      <div id="friends-body"></div>
+    </div>
+  </section>
+  <div id="invite-pop" class="invite-pop hidden"></div>
+
   <section id="account" class="panel-screen hidden">
     <div class="panel">
       <div class="shop-head"><h2>👤 Account</h2><button id="account-close" class="btn small-btn">✕</button></div>
@@ -184,6 +193,7 @@
       <p class="muted small">ROOM CODE</p>
       <div id="room-code" class="room-code">----</div>
       <button id="copy-link" class="btn small">Copy invite link</button>
+      <button id="lobby-friends" class="btn small">👫 Invite friends</button>
       <h3>Game mode</h3>
       <div id="modes" class="modes">
         <button class="mode" data-mode="story"><b>Story Ch.1</b><span>The Spectre — 13 co-op levels</span></button>

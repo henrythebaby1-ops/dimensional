@@ -542,3 +542,12 @@ button, .tile, .mini-tile, .mode, .tb, #stick-zone, #jump-zone { touch-action: m
 .block-sel, .block-in { width: auto !important; margin: 0 !important; padding: 5px 8px !important; border-radius: 8px; border: none; font-size: 14px !important; background: rgba(255,255,255,.92) !important; color: #111 !important; }
 .block-in { width: 140px !important; }
 html.r-box .block, html.r-box .kind-card, html.r-box .swatch, html.r-box .sprite-item, html.r-box .block-sel, html.r-box .block-in { border-radius: 0 !important; }
+
+/* friends */
+.friend-add { display: flex; gap: 8px; margin: 8px 0 12px; }
+.friend-add input { margin: 0; }
+.friend { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; margin: 6px 0; background: rgba(255,255,255,.05); }
+.friend .nm { flex: 1; font-weight: 700; }
+.friend .st { font-size: 12px; opacity: .75; display: block; font-weight: 400; }
+.invite-pop { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 9; background: var(--panel); border: 2px solid var(--accent); border-radius: 14px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+html.r-box .friend, html.r-box .invite-pop { border-radius: 0; }

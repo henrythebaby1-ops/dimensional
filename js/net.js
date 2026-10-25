@@ -181,3 +181,29 @@ export async function getLevel(id) {
 }
 export const levelPlayed = id => rpc('dim_level_played', { p_id: id }).catch(() => {});
 export const likeLevel = id => rpc('dim_level_like', { p_id: id });
+
+// ---------- friends ----------
+export const friendRequest = (token, user) => rpc('dim_friend_request', { p_token: token, p_user: user });
+export const friendRespond = (token, user, accept) => rpc('dim_friend_respond', { p_token: token, p_user: user, p_accept: accept });
+export const friendList = token => rpc('dim_friend_list', { p_token: token });
+
+// Who's online: logged-in players share their username and current room on one presence channel,
+// and friends can send each other invites over it.
+export class OnlineBoard {
+  constructor(username, { onChange, onInvite }) {
+    this.u = username;
+    this.info = { u: username, room: '', mode: '' };
+    this.ch = sb.channel('dimensional:online', { config: { presence: { key: username.toLowerCase() }, broadcast: { self: false } } });
+    this.ch.on('presence', { event: 'sync' }, () => onChange?.(this.list()))
+      .on('broadcast', { event: 'invite' }, ({ payload }) => { if (payload && String(payload.to).toLowerCase() === username.toLowerCase()) onInvite?.(payload); })
+      .subscribe(st => { if (st === 'SUBSCRIBED') { this.ok = true; this.ch.track(this.info); } });
+  }
+  list() {
+    const out = {};
+    for (const [k, metas] of Object.entries(this.ch.presenceState())) { const m = metas[metas.length - 1]; if (m) out[k] = { room: /^[A-Z]{4}$/.test(m.room || '') ? m.room : '', mode: String(m.mode || '').slice(0, 30) }; }
+    return out;
+  }
+  where(room, mode) { this.info = { ...this.info, room: room || '', mode: mode || '' }; if (this.ok) this.ch.track(this.info); }
+  invite(to, room, mode) { this.ch.send({ type: 'broadcast', event: 'invite', payload: { to, from: this.u, room, mode } }); }
+  close() { sb.removeChannel(this.ch); }
+}
