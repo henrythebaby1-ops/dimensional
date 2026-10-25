@@ -1224,6 +1224,7 @@ export const MODES = {
   colors: { name: 'Color Blocks', levels: [tdLevel('colors')], min: 1 },
   nights: { name: '99 Nights in the Dimensions', levels: [tdLevel('nights')], min: 1 },
   imposter: { name: 'Imposter', levels: [tdLevel('imposter')], min: 4 },
+  rails: { name: 'Emergency Response', levels: [tdLevel('rails')], min: 1 },
   chameleon: { name: 'Crazy Chameleon', levels: [tdLevel('chameleon')], min: 2 },
   sniper: { name: 'Who is the sniper god?', levels: [sniperIslands], min: 2, time: 120 },
   lms: { name: 'Last One Standing', levels: [n => partyArena(n, 'lms')], min: 2, time: 150 },

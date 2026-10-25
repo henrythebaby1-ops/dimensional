@@ -85,6 +85,9 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 - **🔪 Imposter** (top-down, Among Us style, 4+ players — bots fill in): crewmates hold E at their task markers;
   the imposter takes people out with F. Report a body (E) or hit the emergency button to meet, chat, and vote someone
   off. Crew wins by finishing tasks or ejecting the imposter; the imposter wins when it's 1 vs 1.
+- **🚑 Emergency Response** (top-down, Dead Rails style): ride a rescue train 3.4 km across a zombie wasteland to the
+  Safe Zone. Shovel coal into the engine (E), refill the coal car from town coal piles while the train waits at
+  stations, bring survivors aboard, and shoot zombies (F) — especially at night.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
