@@ -490,3 +490,11 @@ html.konami body { animation: konami 4s linear; }
 .vote-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 10px 0; }
 .vote-btn { width: 100%; }
 html.r-box .meeting { border-radius: 0; border: 4px solid #fff; box-shadow: 8px 8px 0 #000; }
+
+/* phones: never zoom the page (double-tap, pinch, or tapping a small text box) */
+html, body { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, .tile, .mini-tile, .mode, .tb, #stick-zone, #jump-zone { touch-action: manipulation; }
+#stick-zone, #jump-zone, .tb, #touch { touch-action: none; }
+@media (pointer: coarse) {
+  input, select, textarea, #chat-input, .code-input, .join-tile .code-input { font-size: 16px !important; }
+}

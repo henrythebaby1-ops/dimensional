@@ -157,6 +157,22 @@ function pressAction(a) {
   }
 }
 
+// Phones (iPhones especially) ignore "user-scalable=no", so block zoom gestures ourselves:
+// pinch (gesturestart / two-finger touchmove), double-tap, and double-click zoom.
+{
+  const noZoom = e => e.preventDefault();
+  document.addEventListener('gesturestart', noZoom, { passive: false });
+  document.addEventListener('gesturechange', noZoom, { passive: false });
+  document.addEventListener('dblclick', e => { if (!e.target.closest('input, textarea')) e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+  let lastEnd = 0;
+  document.addEventListener('touchend', e => {
+    const now = Date.now();
+    if (now - lastEnd < 350 && !e.target.closest('input, textarea, select, a, button, label')) e.preventDefault();   // a quick second tap must not zoom
+    lastEnd = now;
+  }, { passive: false });
+}
+
 // Touch: a floating thumb-stick on the left half, buttons on the right.
 // The stick is analog and follows your thumb if you drag past its edge, so it never "runs out".
 let analogX = 0, analogTarget = 0;
