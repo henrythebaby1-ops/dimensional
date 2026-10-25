@@ -64,6 +64,8 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 - **💀 Parallel World**: the opposite game — your goal is to DIE, and the world won't let you. Spikes bounce you,
   pits and lasers save you, crawlers are guardian angels that shove you away, and the 💀 Doom Gate drifts, shuts
   and blows a "life wind". Every human player has to get into the gate (bots are optional).
+- **🔺 Geometry Beats**: 8 more rhythm-dash levels (Neon Steps → Final Frequency, 120 to 176 BPM) with new tall blocks to
+  land on. No help gates, so they work solo. Beat all 8 for +50 🪙.
 - **Story Chapter 5 — The Conductor**: a Geometry Dash–style rhythm chapter that is still co-op. You run on your own
   and only jump; every obstacle sits on the beat of the song (a kick drum on every beat) and everyone gets the same
   snappy physics. One hit and you crash. 🟡 **Help orbs**: jump inside one to fly over a gap — it also opens a **gate in
@@ -119,7 +121,9 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 **Chapter styles:** Chapter 3 is a sky factory, Chapter 4 a war zone, party games are neon arcade.
 Some levels give everyone a special role (🪂 Glider, 🛡️ Shield, 🥷 Ninja, 🚀 Jetpack, 🎯 Sniper…).
 **Party games:** 💣 Hot Potato · 🏃 Tag · 👑 King of the Hill · 🌀 Coin Chaos (dimensions swap every 15s) ·
-💥 Last One Standing (aimed shots, collapsing floor).
+💥 Last One Standing (aimed shots, collapsing floor) · 🪑 Musical Chairs (grab a chair when the music stops) ·
+🗣️ Simon Says (only obey when Simon says — or freeze!) · 🙈 Hide and Seek (a dark house, hide in plants; found hiders
+join the seekers).
 **📅 Daily Challenge:** one level + one twist per day (low gravity, turbo, lights out, crawler swarm,
 bouncy), today's leaderboard, and a coin streak bonus.
 

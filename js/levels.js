@@ -841,7 +841,7 @@ export function dashScript(beats, seed, { tokens, density, pairEvery, reviveEver
     }
     if (k % reviveEvery === 0) { lanes[0][k] = lanes[1][k] = 'r'; continue; }
     for (const l of lanes) {
-      if (l[k] !== '.' || l[k - 1] === 'b' || l[k - 1] === 'p' || l[k - 1] === 'o') continue;
+      if (l[k] !== '.' || l[k - 1] === 'b' || l[k - 1] === 'h' || l[k - 1] === 'p' || l[k - 1] === 'o') continue;
       if (r() < density) l[k] = tokens[Math.floor(r() * tokens.length)];
     }
   }
@@ -863,6 +863,7 @@ function dashLevel(n, { name, bpm, beats, seed, tokens, density, pairEvery, revi
         case 'd': setL(g, xk + 1, 1, '^'); setL(g, xk + 2, 1, '^'); break;
         case 'g': for (let x = xk + 1; x <= xk + 2; x++) setL(g, x, 0, '.'); break;
         case 'b': for (let x = xk + 2; x <= xk + 4; x++) setL(g, x, 1, '#'); break;
+        case 'h': for (let x = xk + 2; x <= xk + 4; x++) { setL(g, x, 1, '#'); setL(g, x, 2, '#'); } break;
         case 'p': b.add('bounce', {}, g, xk, 1, 2, 1); for (const x of [xk + 3, xk + 4]) for (let ly = 1; ly <= 3; ly++) setL(g, x, ly, '#'); break;
         case 'o': for (let x = xk + 1; x <= xk + 4; x++) setL(g, x, 0, '.'); b.add('orb', { link: 'h' + k }, g, xk + 2, 2, 2, 2); break;
         case 'D': b.add('door', { link: 'h' + (k - 1), beatGate: true }, g, xk + 2, 1, 1, MID - 1); break;
@@ -888,6 +889,20 @@ const CH5 = [
   n => dashLevel(n, { name: 'The Conductor\'s Symphony', bpm: 170, beats: 80, seed: 71, tokens: 'sddgbbp', density: 0.78, pairEvery: 6, reviveEvery: 14,
     objective: 'The Conductor\'s final song. Full speed, gates every few beats. Carry each other to the end!' }),
 ];
+
+// ---------- Geometry Beats: more rhythm-dash levels, no help gates, so they work solo too ----------
+//   h  a tall block (2 high) to jump onto
+const GEO_TIP = 'Jump on the beat! Land ON the blocks, hop the spikes and gaps.';
+const GEO = [
+  ['Neon Steps', 120, 40, 101, 'ssgb', 0.4, 'Your first Geometry Beat. ' + GEO_TIP],
+  ['Pulse Runner', 130, 48, 202, 'ssdgb', 0.5, 'A little faster. Double spikes need an early jump!'],
+  ['Block Party', 136, 52, 303, 'sbbhg', 0.55, 'Tall blocks! Jump up onto them and ride across.'],
+  ['Bass Bridge', 142, 56, 404, 'sggdb', 0.6, 'Lots of gaps — don\'t fall into the bass.'],
+  ['Spike Parade', 150, 60, 505, 'ssddhb', 0.66, 'Spikes everywhere. Keep the rhythm.'],
+  ['Laser Lane', 158, 64, 606, 'sdgbhp', 0.7, 'Jump pads launch you over walls. Trust the beat.'],
+  ['Hyper Hop', 166, 72, 707, 'sddgbhp', 0.76, 'HYPER speed. Hold jump to keep hopping.'],
+  ['Final Frequency', 176, 84, 808, 'sddgbbhhp', 0.82, 'The hardest Geometry Beat. Every beat is a jump. Good luck!'],
+].map(([name, bpm, beats, seed, tokens, density, objective]) => n => dashLevel(n, { name, bpm, beats, seed, tokens, density, pairEvery: 999, reviveEvery: 10, objective }));
 
 // ---------- Story Chapter 6: the ship ----------
 // A real, terrible part of history: the transatlantic slave trade. In this rift the friends sneak aboard a ship,
@@ -1211,6 +1226,10 @@ export const MODES = {
   space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
   time: { name: 'Through Time', levels: TIME, min: 1, scenes: {} },
   story5: { name: 'Story Ch.5', levels: CH5, min: 1, dimOrder: ['verdant', 'inverted', 'neon', 'crystal', 'inferno', 'candy', 'frost', 'lunar', 'desert', 'tidal'], scenes: {} },
+  geo: { name: 'Geometry Beats', levels: GEO, min: 1, dimOrder: ['verdant', 'inverted', 'neon', 'crystal', 'inferno', 'candy', 'frost', 'lunar', 'desert', 'tidal'], scenes: {} },
+  chairs: { name: 'Musical Chairs', levels: [tdLevel('chairs')], min: 1 },
+  hide: { name: 'Hide and Seek', levels: [tdLevel('hide')], min: 1 },
+  simon: { name: 'Simon Says', levels: [tdLevel('simon')], min: 1 },
   story6: { name: 'Story Ch.6', levels: SHIP, min: 1, dimOrder: ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'tidal', 'neon', 'crystal', 'desert', 'candy'], scenes: {} },
   banana: { name: 'Into the Bananaverse', levels: BANANA, min: 1, oneDim: 'banana', scenes: {} },
   parallel: { name: 'Parallel World', levels: PARALLEL, min: 1, scenes: {} },
@@ -1260,7 +1279,7 @@ export function buildLevel(mode, idx, n) {
     : mode === 'space' ? `${['🌍', '🟡', '🔴', '☀️', '🪐', '🟠', '🧊', '🌈', '🕳️'][idx]} ${lv.name}`
     : mode === 'time' ? `${['🦖', '🏺', '🏰', '🏴‍☠️', '🤠', '🏙️', '🚀', '⌛', '⏰'][idx]} ${lv.name}`
     : mode === 'sea' ? `${['🏖️', '🪸', '⚓', '🌿', '🌑', '🦑'][idx]} ${lv.name}`
-    : mode === 'story5' ? `5-${idx + 1} · ${lv.name}` : mode === 'story6' ? `6-${idx + 1} · ${lv.name}`
+    : mode === 'geo' ? `🔺 ${idx + 1} · ${lv.name}` : mode === 'story5' ? `5-${idx + 1} · ${lv.name}` : mode === 'story6' ? `6-${idx + 1} · ${lv.name}`
     : mode === 'banana' ? `🍌 ${idx + 1} · ${lv.name}` : mode === 'parallel' ? `💀 ${idx + 1} · ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
   if (lv.party && !lv.theme) lv.theme = 'arcade';

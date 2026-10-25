@@ -13,6 +13,7 @@ import './td7.js';
 import './td8.js';
 import './td9.js';
 import './td10.js';
+import './td11.js';
 const MIDY = MID * T;
 import { friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -1498,7 +1499,7 @@ function botSay(b, why) {
 }
 
 // Chapter 5 bots read the beat script for their lane and jump exactly on the beat (and inside help orbs)
-const DASH_JUMPS = new Set(['s', 'd', 'g', 'b', 'o']);
+const DASH_JUMPS = new Set(['s', 'd', 'g', 'b', 'h', 'o']);
 function botThinkDash(b) {
   const p = b.p, inp = b.inp;
   inp.clear();
@@ -2498,7 +2499,7 @@ function sendEmote(i) {
 // ---------- rewards: coins, stars and best times ----------
 let levelStartMs = Date.now(), myDeaths = 0;
 function completeLevel(mode, idx, lv, startMs, deaths) {
-  if (!['story', 'story2', 'story3', 'story4', 'story5', 'story6', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) || !lv) return;
+  if (!['story', 'story2', 'story3', 'story4', 'story5', 'story6', 'geo', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) || !lv) return;
   const ms = Date.now() - startMs;
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
@@ -3814,6 +3815,14 @@ async function showVictory() {
     big.textContent = fmtTime(ms);
     return;
   }
+  if (gameMode === 'geo') {
+    title.textContent = 'GEOMETRY BEATS CLEARED';
+    text.textContent = 'All 8 rhythm levels beaten — you\'ve got the beat! +50 🪙';
+    big.textContent = fmtTime(ms);
+    if (!recorded) { recorded = true; addCoins(50); }
+    sfx('win');
+    return;
+  }
   if (gameMode === 'bossrush') {
     title.textContent = 'BOSS RUSH CLEARED';
     text.textContent = 'All three Fractures defeated back to back.';
@@ -4932,12 +4941,12 @@ let pendingStart = false, startAt = 0;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
-  ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['geo', '🔺 Geometry Beats', '8 rhythm-dash levels, works solo'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
   ['Roleplay', [['school', '🏫 School', 'Roleplay: classes, bells, detention'], ['city', '🏙️ City', 'Roleplay: money, cars, houses, cops & robbers'], ['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
   ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
-  ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb']]],
+  ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb'], ['chairs', '🪑 Musical Chairs', 'Grab a chair when the music stops'], ['simon', '🗣️ Simon Says', 'Only obey when Simon says'], ['hide', '🙈 Hide and Seek', 'Hide in the dark house (add bots)']]],
 ];
-const SOLO_BOTS = { towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay';
   const h = document.createElement('h3');
@@ -4962,7 +4971,7 @@ $('solo').onclick = () => { $('solo-list').classList.remove('mg-only'); $('solo-
 $('open-minigames').onclick = () => { $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
 
 // ---------- level gallery: a picture of every level, and play any of them ----------
-const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['story6', 'Ch.6 The Ship'], ['parkour', '🛹 Parkour'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
+const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['geo', '🔺 Geometry'], ['story6', 'Ch.6 The Ship'], ['parkour', '🛹 Parkour'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
   ['race', '🏁 Race maps'], ['bossrush', 'Boss Rush'], ['survival', 'Arenas'], ['tag', 'Party'], ['training', 'Training']];
 let galleryMode = 'story';
 const THUMB_COLS = { plate: '#ffe23a', pad: '#ffe23a', bridge: '#9feaff', door: '#ff8a3a', exit: '#ffffff', key: '#ffd23a', rift: '#ff6ad5', flip: '#9feaff', laser: '#ff3355', crystal: '#c9a0ff', target: '#c9a0ff',
@@ -5186,7 +5195,7 @@ function renderRecords() {
   const list = $('records-list');
   list.replaceChildren();
   let total = 0, max = 0;
-  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['story5', 'Chapter 5 — The Conductor'], ['story6', 'Chapter 6 — The Ship'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea'], ['banana', 'Into the Bananaverse'], ['parallel', 'Parallel World']]) {
+  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['story5', 'Chapter 5 — The Conductor'], ['geo', 'Geometry Beats'], ['story6', 'Chapter 6 — The Ship'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea'], ['banana', 'Into the Bananaverse'], ['parallel', 'Parallel World']]) {
     const h = document.createElement('h3');
     h.textContent = title;
     list.append(h);

@@ -219,7 +219,7 @@ registerTD('colors', {
       api.send({ k: 'st', s }); this.onState(api, s);
     } else if (s.ph === 'drop' && s.t <= 0) {
       const alive = api.ids().filter(id => !s.out[id]);
-      if (alive.length <= 1 || (api.ids().length === 1 && alive.length === 0)) {
+      if (api.ids().length > 1 ? alive.length <= 1 : alive.length === 0) {
         api.end({ title: '🎨 COLOR BLOCKS', winners: alive.length ? alive : [], scores: Object.fromEntries(api.ids().map(id => [id, s.out[id] ?? s.round])) });
         return;
       }
