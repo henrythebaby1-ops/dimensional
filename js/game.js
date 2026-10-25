@@ -8,7 +8,7 @@ import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, 
 import { Renderer3D, PW, PH } from './render3d.js';
 import { drawBanana2D } from './banana2d.js';
 import { unlockAudio, sfx, playMusic, playBeat, isMuted, setMuted } from './audio.js';
-import { replaceProfile, profileScore, profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
+import { SECRETS, hasSecret, addSecret, grantItem, replaceProfile, profileScore, profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
 
 const $ = id => document.getElementById(id);
 const autoTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -710,6 +710,14 @@ function updateActor(p, inp, dt) {
       }
     }
     else if (o.type === 'orb') p.inOrb = o;
+    else if (o.type === 'goldegg' && local && !(profile.goldEggs || []).includes(o.egg)) {
+      profile.goldEggs = [...(profile.goldEggs || []), o.egg];
+      addCoins(25);
+      burst((o.x + 0.5) * T, (o.y + 0.5) * T, '#ffd23a', 40, 300);
+      foundSecret('egg1');
+      toast(`🥚 Golden egg ${profile.goldEggs.length}/5! +25 🪙`, '#ffd23a');
+      if (profile.goldEggs.length >= 5 && foundSecret('eggs', 'free 👑 Crown and +300 🪙')) { grantItem('hat', 'crown'); addCoins(300); }
+    }
     else if (o.type === 'captive' && !freed.has(o.id) && (local || isBot(p.id))) freeCaptive(o.id, local ? me.name : botActors.get(p.id)?.name, true);
     else if (o.type === 'revive' && !reviveUsed.has(o.id) && p.dead <= 0) {
       reviveUsed.add(o.id);
@@ -774,6 +782,12 @@ function updateActor(p, inp, dt) {
     burst(p.x + PW / 2, p.y + PH / 2, '#ff3355', 16, 200);
     Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0 });
     if (local) { toast('🔴 You moved on RED — back to the start!', '#ff3355'); sfx('hit'); }
+  }
+  if (p.spinT > 0) p.spinT -= dt;           // /dance
+  if (local && !paused) {                   // easter egg: leave the controls alone long enough and you fall asleep
+    if (held.size || Math.abs(p.vx) > 5 || analogTarget) napT = 0;
+    else if ((napT += dt) > 45 && !napped) { napped = true; emoting.set(me.id, { i: 1, x: '💤 Zzz…', t: performance.now() }); send('chat', { id: me.id, n: me.name, t: '💤 Zzz…' }); foundSecret('nap'); toast('💤 You fell asleep…', '#9feaff'); }
+    if (napT === 0) napped = false;
   }
   if (local && p.pow && !hintText) hintText = `${POWER_TEXT[p.pow.kind].split(' (')[0]} ${Math.ceil(p.pow.t)}s`;
   if (inRift && !p.inRift) shiftDimension(p);
@@ -1014,6 +1028,7 @@ function respawn(p) {
 
 const POWER_COLORS = { speed: '#3affff', jump: '#9dff3a', shield: '#ffd23a', heal: '#ff6ad5' };
 const POWER_TEXT = { speed: '⚡ SPEED! (8s)', jump: '🦘 SUPER JUMP! (8s)', shield: '🛡️ INVINCIBLE! (8s)', heal: '💖 Full health!' };
+let napT = 0, napped = false;
 const powerTaken = new Map();       // power-up id -> level time it was taken (they come back after 12s)
 const powerGone = o => levelT - (powerTaken.get(o.id) ?? -99) < 12;
 
@@ -2176,9 +2191,31 @@ function onChat(id, name, text) {
   sfx('emote');
   if (isHost() && id !== me.id && !isBot(id)) botsHear(name, text);
 }
+// secret chat commands
+function chatCommand(text) {
+  const cmd = text.slice(1).split(' ')[0].toLowerCase();
+  const doIt = {
+    dance: () => { emoting.set(me.id, { i: 1, x: '💃 *dances*', t: performance.now() }); send('chat', { id: me.id, n: me.name, t: '💃 *dances*' }); if (P) { P.spinT = 2; } },
+    confetti: () => { confetti(); send('confetti', {}); },
+    flip: () => { $('game').classList.add('flipped'); setTimeout(() => $('game').classList.remove('flipped'), 5000); toast('🙃 Everything is upside down!', '#ffe23a'); },
+    secrets: () => toast(`🥚 You've found ${SECRETS.filter(([k]) => hasSecret(k)).length}/${SECRETS.length} secrets. Check ⭐ Records for hints.`, '#ffe23a'),
+    help: () => addChatLine('🤫', 'Secret commands: /dance /confetti /flip /secrets', '#ffe23a'),
+  }[cmd];
+  if (!doIt) { addChatLine('🤫', `Unknown command /${cmd}. Try /help`, '#ff8a3a'); return; }
+  doIt();
+  foundSecret('chat');
+}
+function confetti() {
+  const cols = ['#ff3d8b', '#ffe23a', '#39ff88', '#3a8aff', '#c83aff'];
+  for (const a of allActors()) for (let i = 0; i < 40; i++) {
+    particles.push({ x: a.x + PW / 2, y: a.y - 10, z: (Math.random() - 0.5), vx: (Math.random() - 0.5) * 420, vy: -Math.random() * 380, life: 0, max: 1.4, col: cols[i % 5], s: 6 });
+  }
+  sfx('win');
+}
 function sendChat(text) {
   text = cleanChat(text);
   if (!text || !room) return;
+  if (text.startsWith('/')) return chatCommand(text);
   send('chat', { id: me.id, n: me.name, t: text });
   onChat(me.id, me.name, text);
   if (isHost()) botsHear(me.name, text);
@@ -3125,6 +3162,7 @@ function onMsg(t, d) {
     case 'free': if (mode === 'play' && level?.ship && typeof d.id === 'string') freeCaptive(d.id, String(d.by || '').slice(0, 14), false); break;
     case 'help': if (mode === 'play' && level?.dash && typeof d.k === 'string') helpOpen.set(d.k, +d.u || 0); break;
     case 'revive': if (mode === 'play' && level?.dash) { if (typeof d.id === 'string') reviveUsed.add(d.id); reviveAt(+d.x || 0, String(d.by || 'A friend').slice(0, 14)); } break;
+    case 'confetti': if (mode === 'play') confetti(); break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
     case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
     case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
@@ -3237,8 +3275,12 @@ function setPaused(on, by) {
   if (on) sfx('click');
   last = performance.now();                 // don't "catch up" all the paused time when resuming
 }
+const pauseTimes = [];
 function togglePause() {
   if (mode !== 'play') return;
+  pauseTimes.push(performance.now());
+  while (pauseTimes.length && performance.now() - pauseTimes[0] > 10000) pauseTimes.shift();
+  if (pauseTimes.length >= 8) { pauseTimes.length = 0; foundSecret('pause'); toast('⏸ Stop pausing so much! 😵', '#ffe23a'); }
   const on = !paused;
   setPaused(on, me.name);
   send('pause', { on, by: me.name });
@@ -3622,7 +3664,7 @@ function bodiesForFrame() {
     list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) || (Array.isArray(r.co) ? skinColor(r.co[3], time) : undefined),
       hat: Array.isArray(r.co) ? r.co[0] : 'none', acc: Array.isArray(r.co) ? r.co[4] : 'none', skin: Array.isArray(r.co) ? r.co[3] : 'default', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
   }
-  if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.face, vx: P.vx, ghost: false,
+  if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.spinT > 0 ? (Math.sin(time * 18) > 0 ? 1 : -1) : P.face, vx: P.spinT > 0 ? Math.sin(time * 9) * 400 : P.vx, ghost: false,
     visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), skin: profile.equip.skin, acc: profile.equip.acc, hat: profile.equip.hat, trail: profile.equip.trail,
     sword: !!DIMS[P.dim].sword, shield: !!P.shielding });
   for (const [id, b] of botActors) { const e = list.find(x => x.id === id); if (e) { e.shield = !!b.p.shielding; } }
@@ -3658,7 +3700,7 @@ function drawGame(dt) {
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
     crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
-    moverX, coinsTaken, powerGone, levelT, reviveUsed, freed, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
+    moverX, coinsTaken, powerGone, levelT, reviveUsed, freed, goldEggs: profile.goldEggs || [], holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
     crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
   }, dt);
   drawOverlay(D);
@@ -4167,6 +4209,61 @@ onProfile(() => pushSave());
 }
 $('open-boards').onclick = () => $('boards-wrap').classList.toggle('hidden');
 
+// ---------- easter eggs ----------
+function foundSecret(id, extra = '') {
+  if (!addSecret(id)) return false;
+  const s = SECRETS.find(x => x[0] === id);
+  const n = SECRETS.filter(([k]) => hasSecret(k)).length;
+  sfx('star');
+  toast(`🥚 SECRET FOUND: ${s ? s[1] : id}! (${n}/${SECRETS.length})${extra ? ' — ' + extra : ''}`, '#ffe23a');
+  burst(P ? P.x + PW / 2 : 0, P ? P.y : 0, '#ffe23a', 30, 260);
+  return true;
+}
+// Konami code: ↑ ↑ ↓ ↓ ← → ← → B A
+{
+  const code = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
+  let at = 0;
+  addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    at = e.code === code[at] ? at + 1 : e.code === code[0] ? 1 : 0;
+    if (at === code.length) {
+      at = 0;
+      grantItem('skin', 'rainbow');
+      grantItem('trail', 'rainbow');
+      foundSecret('konami', 'free 🌈 Rainbow skin and trail!');
+      if (!document.documentElement.classList.contains('konami')) { document.documentElement.classList.add('konami'); setTimeout(() => document.documentElement.classList.remove('konami'), 4000); }
+    }
+  });
+}
+// click the logo 7 times and it falls apart
+{
+  let n = 0, t = 0;
+  const logo = document.querySelector('#menu .logo');
+  logo.style.cursor = 'pointer';
+  logo.onclick = () => {
+    const now = performance.now();
+    n = now - t < 900 ? n + 1 : 1;
+    t = now;
+    logo.classList.remove('wobble'); void logo.offsetWidth; logo.classList.add('wobble');
+    sfx('click');
+    if (n >= 7) {
+      n = 0;
+      logo.classList.add('smash');
+      setTimeout(() => logo.classList.remove('smash'), 2600);
+      sfx('boom');
+      if (foundSecret('logo', '+100 🪙')) addCoins(100);
+    }
+  };
+}
+// secret names
+$('name').addEventListener('change', () => {
+  const n = $('name').value.trim().toLowerCase();
+  if (n === 'spectre') { grantItem('skin', 'ghost'); foundSecret('spectre', 'the 👻 Ghost skin is yours'); toast('👻 The Spectre is watching…', '#b48cff'); }
+  if (n === 'peel' || n === 'captain peel') { grantItem('skin', 'b-pirate'); foundSecret('peel', 'free 🏴‍☠️ Pirate outfit'); }
+});
+// up past midnight
+if (new Date().getHours() < 5) setTimeout(() => { toast('🌙 It\'s really late… shouldn\'t you be asleep?', '#9feaff'); foundSecret('night'); }, 2500);
+
 // ---------- UI style: retro or modern, and the time-travel easter egg ----------
 // Retro is made of separate pieces so the easter egg can peel them off one at a time.
 const RETRO_PARTS = ['r-scan', 'r-pix', 'r-pal', 'r-font', 'r-box', 'r-px'];
@@ -4226,7 +4323,7 @@ setInterval(() => {
     document.documentElement.classList.add('drift');
     applyStyle(stage);
     toast(ERA_MSG[stage - 1], stage === ERA_AT.length ? '#ffe23a' : '#9feaff');
-    if (stage === ERA_AT.length) sfx('win');
+    if (stage === ERA_AT.length) { sfx('win'); foundSecret('modern'); }
   }
 }, 1000);
 applyStyle();
@@ -4643,6 +4740,19 @@ function renderRecords() {
       row.append(nm, st, bt);
       list.append(row);
     });
+  }
+  // secrets: found ones show their name, the rest only a hint
+  const sh = document.createElement('h3');
+  const found = SECRETS.filter(([id]) => hasSecret(id)).length;
+  sh.textContent = `🥚 Secrets found ${found}/${SECRETS.length}`;
+  list.append(sh);
+  for (const [id, name, hint] of SECRETS) {
+    const row = document.createElement('div');
+    row.className = 'rec';
+    const nm = document.createElement('span');
+    nm.textContent = hasSecret(id) ? `✅ ${name}` : `🔒 ??? — ${hint}`;
+    row.append(nm);
+    list.append(row);
   }
   const d = document.createElement('p');
   d.className = 'muted';

@@ -165,6 +165,35 @@ export function addCoins(n) {
 
 export const owns = (cat, id) => profile.owned.includes(`${cat}:${id}`);
 
+// ---------- secrets (easter eggs) ----------
+export const SECRETS = [
+  ['konami', 'Up Up Down Down', 'An old cheat code, typed anywhere'],
+  ['logo', 'Logo Smash', 'The title looks clickable…'],
+  ['spectre', 'Name of Fear', 'Call yourself by a villain\'s name'],
+  ['peel', 'Captain\'s Name', 'Call yourself by the banana captain\'s name'],
+  ['egg1', 'Go Left', 'Everyone runs right. What\'s behind you?'],
+  ['eggs', 'Egg Collector', 'Find all 5 golden eggs'],
+  ['nap', 'Nap Time', 'Don\'t touch anything for a while in a level'],
+  ['chat', 'Chat Wizard', 'Chat has secret commands that start with /'],
+  ['night', 'Night Owl', 'Play when you should be asleep'],
+  ['pause', 'Pause Party', 'Pause, unpause, pause, unpause…'],
+  ['modern', 'Time Traveler', 'Wait on the retro main menu'],
+];
+export const hasSecret = id => (profile.secrets || []).includes(id);
+export function addSecret(id) {
+  profile.secrets ??= [];
+  if (profile.secrets.includes(id)) return false;
+  profile.secrets.push(id);
+  save();
+  return true;
+}
+// a free item from a secret (owned and equipped)
+export function grantItem(cat, id) {
+  if (!owns(cat, id)) profile.owned.push(`${cat}:${id}`);
+  profile.equip[cat] = id;
+  save();
+}
+
 export function buy(cat, id) {
   const item = SHOP[cat]?.find(i => i.id === id);
   if (!item || owns(cat, id) || profile.coins < item.price) return false;

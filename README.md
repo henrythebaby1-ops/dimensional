@@ -101,6 +101,7 @@ new **Gadget Lab** race map.
 **📱 Phone controls:** the stick is analog and smoothed (small push = walk, full push = run, quick stop). In ⚙️ Settings:
 stick size, button size, floating or fixed stick, left-handed layout, see-through controls and vibration. Phones that
 struggle automatically draw the 3D world at a lower resolution to stay smooth.
+**🥚 Secrets:** there are 11 hidden easter eggs (old cheat codes, secret names, golden eggs, chat commands and more). ⭐ Records shows hints for the ones you haven't found.
 **⏸ Pause:** press Esc or P (or ⏸ on the screen). It freezes the game for everyone in the room; anyone can resume. The pause menu can restart the level (host), open Settings or leave.
 **⏭ Skip:** the host can skip a level; other players vote to skip.
 **🗺️ Levels:** a picture of every level in the game; press ▶ to play any of them.

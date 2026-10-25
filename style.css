@@ -473,3 +473,12 @@ html.r-box .seg button { border-radius: 0; border: 2px solid #fff; }
 #touch.lefty .jump-hint { right: auto; left: max(26px, env(safe-area-inset-left)); }
 #touch.lefty #tbtns { right: auto; left: calc(max(140px, calc(env(safe-area-inset-left) + 140px)) * var(--btn)); flex-direction: row-reverse; }
 #touch.lefty .stick-tip { left: auto; right: max(22px, env(safe-area-inset-right)); }
+
+/* easter eggs */
+.logo.wobble { animation: wobble .35s; }
+@keyframes wobble { 25% { transform: rotate(-3deg) scale(1.03); } 75% { transform: rotate(3deg) scale(1.03); } }
+.logo.smash { animation: smash 2.6s forwards; }
+@keyframes smash { 0% { transform: none; } 15% { transform: translateY(20px) rotate(8deg) scale(1.2); filter: hue-rotate(90deg); } 40% { transform: translateY(160px) rotate(-30deg) scale(.6); opacity: .2; } 70% { transform: translateY(-40px) rotate(380deg); opacity: 1; } 100% { transform: none; } }
+html.konami body { animation: konami 4s linear; }
+@keyframes konami { 0% { filter: hue-rotate(0); } 100% { filter: hue-rotate(720deg); } }
+#game.flipped { transform: rotate(180deg); transition: transform .6s; }

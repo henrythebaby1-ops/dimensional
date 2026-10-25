@@ -1159,6 +1159,12 @@ export class Renderer3D {
         if (o.type === 'revive') { const cross = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.1), mat(glow(0xffffff))); const c2 = cross.clone(); c2.rotation.z = Math.PI / 2; cross.position.z = c2.position.z = 0.3; root.add(cross, c2); }
         break;
       }
+      case 'goldegg': {
+        e.egg = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 14), mat(glow(0xffd23a, { emissiveIntensity: 0.9, metalness: 0.9, roughness: 0.15, flatShading: false })));
+        e.egg.scale.set(0.8, 1.05, 0.8);
+        root.add(e.egg);
+        break;
+      }
       case 'hole': {
         e.hole = new THREE.Mesh(new THREE.SphereGeometry(1.4, 24, 18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
         e.disk = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.35, 8, 48), mat(glow(0xff8a3a, { emissiveIntensity: 1.2 })));
@@ -1279,6 +1285,7 @@ export class Renderer3D {
         case 'fan': e.blades.rotation.y = t * 14; e.streaks.forEach(st => { st.position.y = ((((st.userData.k + t * 1.2) % 1) - 0.5) * o.h) * e.side * -1; }); break;
         case 'tele': e.ring.rotation.z = t * 2; e.disc.material.opacity = 0.25 + Math.sin(t * 4) * 0.1; break;
         case 'power': { const gone = s.powerGone?.(o); e.root.visible = !gone; e.gem.rotation.y = t * 2; e.gem.rotation.x = t; e.gem.position.y = Math.sin(t * 3) * 0.12; e.halo.rotation.x = t * 1.5; break; }
+        case 'goldegg': e.root.visible = !s.goldEggs?.includes(o.egg); e.egg.rotation.y = t * 2; e.egg.position.y = Math.sin(t * 3) * 0.1; break;
         case 'orb': case 'revive': {
           const beat = this.beatHz ? Math.pow(1 - ((s.levelT * this.beatHz) % 1), 3) : 0;   // pulse on every beat
           e.root.scale.setScalar(1 + beat * 0.25);

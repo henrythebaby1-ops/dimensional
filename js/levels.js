@@ -1161,6 +1161,7 @@ export const MODES = {
   daily: { name: 'Daily Challenge', levels: [daily], min: 1 },
 };
 export const LEVELS = MODES.story.levels;
+export const GOLDEN_EGGS = [['story', 4, 'e1'], ['space', 0, 'e2'], ['time', 5, 'e3'], ['sea', 0, 'e4'], ['training', 0, 'e5']];
 
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
@@ -1175,5 +1176,8 @@ export function buildLevel(mode, idx, n) {
     : mode === 'banana' ? `🍌 ${idx + 1} · ${lv.name}` : mode === 'parallel' ? `💀 ${idx + 1} · ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
   if (lv.party && !lv.theme) lv.theme = 'arcade';
+  // easter egg: a golden egg hidden BEHIND the start of a few levels (everyone always runs right)
+  const egg = GOLDEN_EGGS.find(([m, i]) => m === mode && i === idx);
+  if (egg) for (const [y, t] of [[H - 2, ''], [1, 't']]) lv.objs.push({ id: 'goldegg-' + egg[2] + t, egg: egg[2], type: 'goldegg', dim: null, x: 1, y, w: 1, h: 1 });
   return lv;
 }
