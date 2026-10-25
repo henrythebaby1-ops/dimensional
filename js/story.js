@@ -417,3 +417,23 @@ SCENES.parallelEnd = [
   { text: 'The last friend steps into the Doom Gate. Everything goes black…', bg: 'dark', cast: ['skull'], fx: 'fade', ms: 3200 },
   { text: '…and everyone wakes up at home, alive. That was the weirdest adventure yet.', bg: 'happy', cast: ['friends'], ms: 3600 },
 ];
+
+// Chapter 5: the Conductor
+CAST.conductor = () => {
+  const c = el('div', 'cut-conductor');
+  c.append(el('div', 'cond-hat'), el('div', 'cond-head'), el('div', 'cond-body'), el('div', 'cond-baton'));
+  for (let i = 0; i < 4; i++) { const n = el('div', 'cond-note'); n.textContent = ['♪', '♫', '♩', '♬'][i]; n.style.animationDelay = i * 0.3 + 's'; c.append(n); }
+  return c;
+};
+SCENES.story5Intro = [
+  { text: 'Chapter 5 — The Conductor. With the Spectre gone, the friends finally had some peace and quiet…', bg: 'happy', cast: ['friends'], ms: 3400 },
+  { text: '…until a tall figure made of music raised his baton. "SILENCE is so boring," said the CONDUCTOR.', bg: 'dark', cast: ['conductor'], ms: 3800 },
+  { text: 'He pulled them into the Rhythm Rift, where the world moves to his beat. Nobody can stop running.', bg: 'dark', cast: ['conductor', 'friends'], fx: 'shake', ms: 4000 },
+  { text: 'Jump to the beat. Hit the 🟡 yellow orbs to open your friend\'s gates. If someone crashes, a 💚 revive orb brings them back.', bg: 'happy', cast: ['friends'], ms: 4600 },
+  { text: 'If EVERYONE crashes… the song starts over. Stay together!', bg: 'red', cast: ['conductor'], ms: 3200 },
+];
+SCENES.story5End = [
+  { text: 'The last note rings out. The Conductor lowers his baton… and starts to clap.', bg: 'dark', cast: ['conductor'], fx: 'flash', ms: 3600 },
+  { text: '"Nobody has ever finished my song TOGETHER." The Rhythm Rift fades into a quiet hum.', bg: 'dark', cast: ['conductor', 'friends'], ms: 3800 },
+  { text: 'The friends walk home humming the same tune.', bg: 'happy', cast: ['friends'], ms: 3200 },
+];

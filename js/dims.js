@@ -118,6 +118,7 @@ Object.assign(THEMES, {
   pluto: { key: 'pluto', sky: ['#05060f', '#3a4a6a'], ground: '#9ab0c8', dirt: '#7a90a8', edge: '#ffffff' },
   everything: { key: 'everything', sky: ['#2a0a4a', '#0a4a4a'], ground: '#3a2a5a', dirt: '#2a1e44', edge: '#ffffff' },
   blackhole: { key: 'blackhole', sky: ['#000000', '#120a1a'], ground: '#1a1a24', dirt: '#101018', edge: '#ff8a3a' },
+  rhythm: { key: 'rhythm', sky: ['#08001a', '#3a0058'], ground: '#1a0a3a', dirt: '#120626', edge: '#ff2bd6' },
   // Through Time
   dino: { key: 'dino', sky: ['#6a8a3a', '#ffd88a'], ground: '#5a7a2a', dirt: '#6b4a2a', edge: '#a8e05a' },
   egypt: { key: 'egypt', sky: ['#4a9aff', '#ffe8b0'], ground: '#e0b860', dirt: '#c49a4a', edge: '#fff0b0' },

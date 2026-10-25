@@ -98,14 +98,15 @@ let song = null, songKey = null, step = 0, nextAt = 0, timer = null;
 
 function hash(s) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
 
-function makeSong(key, boss) {
+function makeSong(key, boss, bpm) {
   const h = hash(key);
   const names = Object.keys(SCALES);
   const scale = SCALES[boss ? 'minor' : names[h % names.length]];
   return {
     root: 45 + (h >>> 3) % 8,
     scale,
-    bpm: boss ? 150 : 96 + (h >>> 7) % 36,
+    bpm: bpm || (boss ? 150 : 96 + (h >>> 7) % 36),
+    beat: !!bpm,
     prog: [[0, 5, 3, 4], [0, 3, 4, 3], [5, 3, 0, 4], [0, 4, 5, 3]][(h >>> 11) % 4],
     arp: [[0, 2, 4, 2, 0, 2, 4, 6], [0, 4, 2, 4, 0, 4, 2, 4], [4, 2, 0, 2, 4, 6, 4, 2]][(h >>> 13) % 3],
     lead: (h >>> 17) % 2 ? 'square' : 'triangle',
@@ -125,6 +126,10 @@ function playStep(i, t) {
   tone(midi(note(chord + song.arp[beat]) + 12), 0.14, { type: song.lead, vol: 0.18, when, bus: musicBus });
   if (beat % 2 === 1) noise(0.04, { vol: 0.12, freq: 7000, when, bus: musicBus, type: 'highpass' });
   if (song.boss && beat % 2 === 0) tone(110, 0.1, { type: 'sine', to: 40, vol: 0.6, when, bus: musicBus });
+  if (song.beat) {                          // Chapter 5: a hard kick on every beat and a clap on the off-beats, so you can jump to it
+    if (beat % 2 === 0) tone(140, 0.12, { type: 'sine', to: 45, vol: 0.9, when, bus: musicBus });
+    if (beat % 4 === 2) noise(0.09, { vol: 0.3, freq: 1800, when, bus: musicBus });
+  }
 }
 
 function schedule() {
@@ -132,6 +137,15 @@ function schedule() {
   const spb = 60 / song.bpm / 2;
   if (nextAt < ac.currentTime - 0.3) nextAt = ac.currentTime + 0.05;
   while (nextAt < ac.currentTime + 0.15) { playStep(step++, nextAt); nextAt += spb; }
+}
+
+// Chapter 5: start a song at an exact tempo, right now, so the level's obstacles land on its beats
+export function playBeat(key, bpm) {
+  songKey = key + ':' + bpm;
+  song = makeSong(key, false, bpm);
+  step = 0;
+  if (ac) nextAt = ac.currentTime + 0.02;
+  if (!timer) timer = setInterval(schedule, 40);
 }
 
 export function playMusic(key, boss = false) {

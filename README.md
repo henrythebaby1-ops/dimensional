@@ -61,6 +61,12 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 - **💀 Parallel World**: the opposite game — your goal is to DIE, and the world won't let you. Spikes bounce you,
   pits and lasers save you, crawlers are guardian angels that shove you away, and the 💀 Doom Gate drifts, shuts
   and blows a "life wind". Every human player has to get into the gate (bots are optional).
+- **Story Chapter 5 — The Conductor**: a Geometry Dash–style rhythm chapter that is still co-op. You run on your own
+  and only jump; every obstacle sits on the beat of the song (a kick drum on every beat) and everyone gets the same
+  snappy physics. One hit and you crash. 🟡 **Help orbs**: jump inside one to fly over a gap — it also opens a **gate in
+  your friend's lane**. 💚 **Revive orbs**: crashed friends come back when someone still running flies through one.
+  If everybody crashes, the song restarts instantly. % progress bar, attempt counter and best %. 5 songs from 128 to
+  170 BPM: First Beat, Off the Beat, Call and Response, Double Time, The Conductor's Symphony.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode

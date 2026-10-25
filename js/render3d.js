@@ -528,6 +528,20 @@ export class Renderer3D {
         }
         break;
       }
+      case 'rhythm': {
+        // the Rhythm Rift: a neon equalizer that pumps on every beat
+        this.anim = { eq: [] };
+        const cols = [0xff2bd6, 0x3affff, 0xffe23a, 0x8a3dff];
+        for (let i = 0; i < 60; i++) {
+          const bar = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1, 1.4), glow(cols[i % 4], { emissiveIntensity: 0.8 }));
+          bar.position.set(-60 + i * 4.5, H / 2, -30 - (i % 3) * 6);
+          bar.userData.k = 0.3 + ((i * 37) % 10) / 10;
+          this.decor.add(bar);
+          this.anim.eq.push(bar);
+        }
+        addPoints(700, 0xffffff, 0.2, 10);
+        break;
+      }
       case 'hitbox': {
         // the world as a debug view: green grids and wireframe boxes
         const grid = new THREE.GridHelper(300, 150, 0x39ff88, 0x0f5a2a);
@@ -1048,6 +1062,14 @@ export class Renderer3D {
         root.add(e.gem, e.halo);
         break;
       }
+      case 'orb': case 'revive': {
+        const c = o.type === 'orb' ? 0xffe23a : 0x39ff88;
+        e.ring = new THREE.Mesh(new THREE.TorusGeometry(o.type === 'orb' ? 0.8 : 0.55, 0.12, 8, 32), mat(glow(c, { emissiveIntensity: 1.3 })));
+        e.core = new THREE.Mesh(new THREE.SphereGeometry(o.type === 'orb' ? 0.32 : 0.26, 14, 10), mat(glow(c, { emissiveIntensity: 1 }), 0.8));
+        root.add(e.ring, e.core);
+        if (o.type === 'revive') { const cross = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.1), mat(glow(0xffffff))); const c2 = cross.clone(); c2.rotation.z = Math.PI / 2; cross.position.z = c2.position.z = 0.3; root.add(cross, c2); }
+        break;
+      }
       case 'hole': {
         e.hole = new THREE.Mesh(new THREE.SphereGeometry(1.4, 24, 18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
         e.disk = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.35, 8, 48), mat(glow(0xff8a3a, { emissiveIntensity: 1.2 })));
@@ -1161,6 +1183,13 @@ export class Renderer3D {
         case 'fan': e.blades.rotation.y = t * 14; e.streaks.forEach(st => { st.position.y = ((((st.userData.k + t * 1.2) % 1) - 0.5) * o.h) * e.side * -1; }); break;
         case 'tele': e.ring.rotation.z = t * 2; e.disc.material.opacity = 0.25 + Math.sin(t * 4) * 0.1; break;
         case 'power': { const gone = s.powerGone?.(o); e.root.visible = !gone; e.gem.rotation.y = t * 2; e.gem.rotation.x = t; e.gem.position.y = Math.sin(t * 3) * 0.12; e.halo.rotation.x = t * 1.5; break; }
+        case 'orb': case 'revive': {
+          const beat = this.beatHz ? Math.pow(1 - ((s.levelT * this.beatHz) % 1), 3) : 0;   // pulse on every beat
+          e.root.scale.setScalar(1 + beat * 0.25);
+          e.ring.rotation.z = t * 2;
+          if (o.type === 'revive') e.root.visible = !s.reviveUsed?.has(o.id);
+          break;
+        }
         case 'hole': { const k = s.holeStrength ?? 1; e.root.visible = k > 0; e.root.scale.setScalar(0.5 + k * 0.5); e.disk.rotation.z = t * 2; break; }
         case 'rolepad': case 'dimpad': e.ring.rotation.z = t; e.ring.position.y += Math.sin(t * 3) * 0.002; break;
         case 'flip':
@@ -1623,6 +1652,11 @@ export class Renderer3D {
       pos.needsUpdate = true;
     }
     if (a.spin) for (const c of a.spin) c.rotation.y += dt * 0.3;
+    if (a.eq) {
+      const ph = this.beatT ?? time;
+      const beat = this.beatHz ? Math.pow(1 - ((ph * this.beatHz) % 1), 2) : 0.5;
+      for (const b of a.eq) b.scale.y = 2 + beat * 18 * b.userData.k + Math.sin(time * 3 + b.position.x) * 1.5;
+    }
     if (a.gears) for (const g of a.gears) g.rotation.z += dt * g.userData.spin;
     if (a.glitch && Math.random() < 0.3) {
       const c = a.glitch[Math.floor(Math.random() * a.glitch.length)];
@@ -1651,6 +1685,7 @@ export class Renderer3D {
     this.updateBoss(s.boss, s);
     this.updateDynamic(s);
     this.updateCrates(s);
+    this.beatT = s.levelT;
     this.animateDecor(dt, s.time);
     this.applyIllusion(s);
     this.updateCamera(s.camTarget, s.flipX, s.flipY, dt, s.D.flat, s.D.topdown);

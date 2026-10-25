@@ -438,3 +438,12 @@ html.drift * { transition: border-radius 4s, box-shadow 4s, background-color 4s,
 .pause-title { margin: 0; font-size: 28px; }
 html.r-font .pause-title { font-size: 20px; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .35; } }
+
+.cut-conductor { position: absolute; left: 50%; top: 18px; width: 90px; height: 150px; transform: translateX(-50%); z-index: 2; animation: float 1s ease-in-out infinite alternate; }
+.cond-hat { position: absolute; left: 25px; top: 0; width: 40px; height: 34px; background: #111; box-shadow: 0 30px 0 -12px #111, 0 0 12px #ff2bd6; }
+.cond-head { position: absolute; left: 22px; top: 30px; width: 46px; height: 40px; border-radius: 50%; background: #2a0a4a; box-shadow: inset 10px -6px 0 #ff2bd6, 0 0 16px #ff2bd6; }
+.cond-body { position: absolute; left: 15px; top: 68px; width: 60px; height: 80px; background: linear-gradient(#1a0a3a, #08001a); clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%); }
+.cond-baton { position: absolute; left: 70px; top: 60px; width: 4px; height: 56px; background: #fff; transform-origin: bottom; animation: baton 0.47s ease-in-out infinite alternate; box-shadow: 0 0 8px #fff; }
+@keyframes baton { from { transform: rotate(-40deg); } to { transform: rotate(30deg); } }
+.cond-note { position: absolute; left: 90px; top: 40px; color: #ffe23a; font-size: 24px; animation: note 1.2s linear infinite; text-shadow: 0 0 8px #ffe23a; }
+@keyframes note { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(60px, -50px); opacity: 0; } }

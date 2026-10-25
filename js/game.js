@@ -7,7 +7,7 @@ import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, 
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH } from './render3d.js';
 import { drawBanana2D } from './banana2d.js';
-import { unlockAudio, sfx, playMusic, isMuted, setMuted } from './audio.js';
+import { unlockAudio, sfx, playMusic, playBeat, isMuted, setMuted } from './audio.js';
 import { replaceProfile, profileScore, profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
 
 const $ = id => document.getElementById(id);
@@ -390,6 +390,7 @@ function mobPos(o) {
 }
 
 function spawnPoint(dim, slot) {
+  if (level.dash) { const g = DIMS[dim].grav || 1; return { x: level.checkpoints[0].x * T, y: g > 0 ? (H - 1) * T - PH - 0.01 : T + 0.01 }; }
   let cp = level.checkpoints[0];
   for (const c of level.checkpoints) if (!c.link || signals[c.link]) cp = c;
   const x = level.spread ? (4 + (((slot ?? laneIndex(dim)) * 9) % (level.W - 10))) * T : (cp.x + (slot ?? laneIndex(dim)) * 0.9) * T + 4;
@@ -401,6 +402,7 @@ function spawnPoint(dim, slot) {
 function computeSignals() {
   const s = {};
   for (const k of latched) s[k] = true;
+  for (const [k, u] of helpOpen) if (levelT < u) s[k] = true;
   if (level.keyList && level.keyList.every(k => grabbed.has(k))) s.keys = true;
   if (level.nest && level.mobs.length && level.mobs.every(o => killed.has(o.id))) s.nest = true;
   const pressed = new Set(P && P.dead <= 0 ? P.press : []);
@@ -494,6 +496,7 @@ function goto(idx, res = null, to = null) {
 let lastDk = null, lastRot = true;
 
 function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = null, rot = true) {
+  const restartingSame = mode === 'play' && level && idx === levelIdx && m === gameMode;
   // reaching the next level means the last one was cleared
   if (mode === 'play' && level && P && m === gameMode && idx === levelIdx + 1) completeLevel(gameMode, levelIdx, level, levelStartMs, myDeaths);
   levelStartMs = Date.now();
@@ -522,10 +525,19 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   if (gameMode === 'story' && ids.includes(me.id)) writeSave(idx + 1);
   const n = ids.length;
   const one = MODES[gameMode]?.oneDim;
-  if (one) setDimOrder([one]);                   // Into the Bananaverse: everyone in the same world
+  if (one) setDimOrder([one]);
+  if (MODES[gameMode]?.dimOrder) setDimOrder(MODES[gameMode].dimOrder);   // Chapter 5: plain lanes only, nothing that changes how you see or move
+  helpOpen.clear();
+  reviveUsed.clear();                   // Into the Bananaverse: everyone in the same world
   level = buildLevel(gameMode, idx, n);
   if (one) level.oneDim = one;
-  $('game').style.filter = level.parallel ? 'invert(1) hue-rotate(180deg)' : '';   // the parallel world is the photo-negative of ours
+  $('game').style.filter = level.parallel ? 'invert(1) hue-rotate(180deg)' : '';
+  if (level.dash) {
+    dashAttempt = restartingSame ? dashAttempt + 1 : 1;
+    playBeat('rhythm' + idx, level.dash.bpm);
+    renderer.beatHz = level.dash.bpm / 60;
+    if (dashAttempt > 1) setTimeout(() => toast(`Attempt ${dashAttempt}`, '#ffffff'), 50);
+  } else renderer.beatHz = 0;   // the parallel world is the photo-negative of ours
   if (level.ch2) setDimOrder(['unicode']);       // everyone is pulled into the Unicoder's world
   crates = level.crates?.length ? level.crates.map(c => ({ ...c, ox: c.x, oy: c.y, vy: 0, held: false })) : null;
   ch2Roles = level.ch2 ? assignCh2Roles(ids) : new Map();
@@ -605,7 +617,7 @@ function updateActor(p, inp, dt) {
   if (local) hintText = '';
   if (p.dead > 0) {
     p.dead -= dt;
-    if (local) hintText = 'Reforming…';
+    if (local) hintText = p.dashDead ? '💥 Crashed — a friend can bring you back at a 💚 revive orb' : 'Reforming…';
     if (p.dead <= 0) respawn(p);
     return;
   }
@@ -637,6 +649,7 @@ function updateActor(p, inp, dt) {
   p.press = [];
   p.exit = false;
   let inRift = false, inFlip = false, inFan = false, convey = 0;
+  p.inOrb = null;
   p.teleCd = Math.max(0, (p.teleCd || 0) - dt);
   p.boostT = Math.max(0, (p.boostT || 0) - dt);
   if (p.pow) { p.pow.t -= dt; if (p.pow.t <= 0) p.pow = null; }
@@ -669,11 +682,19 @@ function updateActor(p, inp, dt) {
     else if (o.type === 'bounce') {
       const g = gravOf(p);
       if (g && p.vy * g > -100) {
-        p.vy = -g * JV * 1.5;
+        p.vy = -g * (level.dash ? level.dash.jv * 1.45 : JV * 1.5);
         p.onGround = false;
         p.airJumps = DIMS[p.dim].jumps - 1;
         if (local) sfx('bounce');
       }
+    }
+    else if (o.type === 'orb') p.inOrb = o;
+    else if (o.type === 'revive' && !reviveUsed.has(o.id) && p.dead <= 0) {
+      reviveUsed.add(o.id);
+      const anyDown = allActors().some(a => a.dead);
+      send('revive', { x: p.x, id: o.id, by: local ? me.name : (botActors.get(p.id)?.name || '?') });
+      reviveAt(p.x, local ? me.name : (botActors.get(p.id)?.name || 'A friend'));
+      if (local) { sfx(anyDown ? 'win' : 'coin'); if (anyDown) toast('💚 You revived your friends!', '#39ff88'); }
     }
     else if (o.type === 'conveyor') convey = o.dir;
     else if (o.type === 'fan') inFan = true;
@@ -763,7 +784,72 @@ function updateActor(p, inp, dt) {
   if (local && p.exit && !level.boss) hintText = 'Waiting for everyone at the portal…';
 }
 
+// ---------- Chapter 5: the Rhythm Rift (Geometry Dash style) ----------
+// Everyone gets the same snappy physics, runs forward on their own, and crashes on any hit.
+const helpOpen = new Map();            // gate link -> level time it stays open until
+const reviveUsed = new Set();          // revive orbs work once per attempt
+let dashAttempt = 1, dashBest = {};
+try { dashBest = JSON.parse(localStorage.getItem('dim-dash-best') || '{}'); } catch {}
+function physicsDash(p, inp, h) {
+  const g = gravOf(p) || 1;
+  if (collides(p.x, p.y, p.dim)) { for (let k = 1; k <= 80; k++) if (!collides(p.x, p.y - g * k, p.dim)) { p.y -= g * k; break; } }
+  p.face = 1;
+  p.vx = level.dash.speed;
+  if (p.exit) { p.vx = 0; p.vy = 0; return; }              // made it: wait at the portal
+  p.vy += g * level.dash.grav * h;
+  if (g * p.vy > level.dash.jv * 1.6) p.vy = g * level.dash.jv * 1.6;
+  if (p.onGround) p.coyote = 0.05; else p.coyote -= h;
+  const wantJump = p.jumpBuf > 0 || inp.has('jump');        // hold to keep jumping, like Geometry Dash
+  if (p.inOrb && p.jumpBuf > 0 && !p.usedOrbs?.has(p.inOrb.id)) {   // a yellow help orb: jump in mid-air, and open your friend's gate
+    (p.usedOrbs ??= new Set()).add(p.inOrb.id);
+    p.vy = -g * level.dash.jv; p.jumpBuf = 0; p.onGround = false;
+    hitHelpOrb(p, p.inOrb);
+  } else if (wantJump && p.coyote > 0) {
+    p.vy = -g * level.dash.jv; p.jumpBuf = 0; p.coyote = 0; p.onGround = false;
+    if (p === P) sfx('jump');
+  }
+  const ox = p.x;
+  p.x += p.vx * h;
+  if (collides(p.x, p.y, p.dim)) { p.x = ox; p.hitWall = true; return die(p); }   // ran into a wall: crash
+  const oy = p.y, dy = p.vy * h;
+  p.onGround = false;
+  p.y += dy;
+  if (collides(p.x, p.y, p.dim)) {
+    p.y = dy > 0 ? Math.floor((p.y + PH) / T) * T - PH - 0.001 : (Math.floor(p.y / T) + 1) * T + 0.001;
+    if (collides(p.x, p.y, p.dim)) p.y = oy;
+    if (Math.sign(dy) === g) p.onGround = true;
+    p.vy = 0;
+  }
+}
+function hitHelpOrb(p, o) {
+  const until = levelT + 2.6 * 60 / level.dash.bpm;
+  helpOpen.set(o.link, until);
+  send('help', { k: o.link, u: until });
+  burst((o.x + 1) * T, (o.y + 1) * T, '#ffe23a', 24, 260);
+  if (p === P) { sfx('key'); toast('🟡 Gate opened for your friend!', '#ffe23a'); }
+}
+// someone alive ran through a revive orb: every crashed friend comes back right there, in their own lane
+function reviveAt(x, by) {
+  const back = q => {
+    if (!q || !q.dashDead) return;
+    const sp = spawnPoint(q.native, q.slot);
+    Object.assign(q, { x, y: sp.y, vx: level.dash.speed, vy: 0, dead: 0, dashDead: false, inv: 0.6 });
+    burst(x + PW / 2, q.y + PH / 2, '#39ff88', 24, 240);
+    if (q === P) { toast(`💚 ${by} brought you back!`, '#39ff88'); sfx('rift'); }
+  };
+  back(P);
+  if (isHost()) for (const b of botActors.values()) back(b.p);
+}
+const dashProgress = () => {
+  const ex = level.objs.find(o => o.type === 'exit');
+  const xs = allActors().map(a => a.x);
+  if (!ex || !xs.length) return 0;
+  return Math.max(0, Math.min(100, Math.round((Math.max(...xs) - DASH_START_X()) / ((ex.x - level.checkpoints[0].x) * T) * 100)));
+};
+const DASH_START_X = () => level.checkpoints[0].x * T;
+
 function physics(p, inp, h) {
+  if (level.dash) return physicsDash(p, inp, h);
   const D = DIMS[p.dim], g = gravOf(p);
   if (collides(p.x, p.y, p.dim)) {          // a bridge or door appeared inside us
     for (let k = 1; k <= 80; k++) if (!collides(p.x, p.y - (g || 1) * k, p.dim)) { p.y -= (g || 1) * k; break; }
@@ -864,6 +950,12 @@ function jump(p, D, g) {
 function die(p) {
   if (p.dead > 0) return;
   if (level?.parallel) return saved(p);
+  if (level?.dash) {
+    p.dead = 1e9; p.dashDead = true; p.vx = p.vy = 0;
+    burst(p.x + PW / 2, p.y + PH / 2, DIMS[p.native].color, 36, 320);
+    if (p === P) { flash = { t: 0.25, col: '#ff3355' }; buzz(80); sfx('die'); myDeaths++; sendState(); toast('💥 Crashed! Wait for a friend to hit a 💚 revive orb…', '#ff3355'); }
+    return;
+  }
   p.dead = 1.2;
   p.vx = p.vy = 0;
   burst(p.x + PW / 2, p.y + PH / 2, DIMS[p.native].color, 30, 260);
@@ -1264,7 +1356,24 @@ function botSay(b, why) {
     .finally(() => { botChat.busy = false; });
 }
 
+// Chapter 5 bots read the beat script for their lane and jump exactly on the beat (and inside help orbs)
+const DASH_JUMPS = new Set(['s', 'd', 'g', 'b', 'o']);
+function botThinkDash(b) {
+  const p = b.p, inp = b.inp;
+  inp.clear();
+  const lane = (gravOf(p) || 1) > 0 ? 0 : 1, script = level.dash.lanes[lane];
+  const beatPx = 4 * T, rel = p.x - level.checkpoints[0].x * T;
+  const k = Math.floor((rel + 3) / beatPx);              // the beat I've just reached (works even with big time steps)
+  if (b.lastBeat === undefined || k > b.lastBeat || rel < (b.lastRel ?? 0) - beatPx) {
+    if (DASH_JUMPS.has(script[k]) && rel - k * beatPx < beatPx * 0.3) p.jumpBuf = 0.08;
+    b.lastBeat = k;
+  }
+  b.lastRel = rel;
+  if (p.inOrb && !p.usedOrbs?.has(p.inOrb.id) && (gravOf(p) || 1) * p.vy > -300) p.jumpBuf = 0.08;   // past the top of the jump: hit the orb
+}
+
 function botThink(b, dt) {
+  if (level.dash) return botThinkDash(b);
   if (level.ch2) return botThinkCh2(b, dt);
   const p = b.p, D = DIMS[p.dim], inp = b.inp;
   const g = gravOf(p);
@@ -2077,7 +2186,7 @@ function sendEmote(i) {
 // ---------- rewards: coins, stars and best times ----------
 let levelStartMs = Date.now(), myDeaths = 0;
 function completeLevel(mode, idx, lv, startMs, deaths) {
-  if (!['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) || !lv) return;
+  if (!['story', 'story2', 'story3', 'story4', 'story5', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) || !lv) return;
   const ms = Date.now() - startMs;
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
@@ -2163,6 +2272,24 @@ function hostSpace(dt) {
 
 function hostChecks(dt) {
   if (transitioning) return;
+  if (level.dash) {
+    const acts = allActors();
+    if (acts.length && acts.every(a => a.dead)) {
+      transitioning = true;
+      send('toast', { m: '💥 Everyone crashed — again!' });
+      setTimeout(() => mode === 'play' && goto(levelIdx), 650);
+      return;
+    }
+    const ids = gameRoster;
+    const atEx = id => (id === me.id ? P?.exit : remotes.get(id)?.e);
+    const down = id => (id === me.id ? P?.dead > 0 : remotes.get(id)?.dead);
+    if (ids.some(atEx) && ids.every(id => atEx(id) || down(id))) {
+      transitioning = true;
+      send('toast', { m: 'RHYTHM COMPLETE!' }); toast('RHYTHM COMPLETE!', '#ffe23a');
+      setTimeout(() => mode === 'play' && gotoWithScene(levelIdx + 1), 1400);
+    }
+    return;
+  }
   if (level.space) hostSpace(dt);
   if (party) return hostParty(dt);
   if (surv) return hostSurvival(dt);
@@ -2943,6 +3070,8 @@ function onMsg(t, d) {
     case 'custom': if (d.d && typeof d.d === 'object' && Array.isArray(d.d.rows) && JSON.stringify(d.d).length < 60000) setCustom(d.d); break;
     case 'minion': if (mode === 'play' && boss?.banana && d.o && typeof d.o.id === 'string') addMinion({ id: d.o.id, type: 'mob', dim: 0, x: +d.o.x | 0, y: +d.o.y | 0, w: 1, h: 1, range: +d.o.range || 4, speed: +d.o.speed || 2, phase: +d.o.phase || 0 }); break;
     case 'pause': if (mode === 'play') setPaused(!!d.on, String(d.by || '').slice(0, 14)); break;
+    case 'help': if (mode === 'play' && level?.dash && typeof d.k === 'string') helpOpen.set(d.k, +d.u || 0); break;
+    case 'revive': if (mode === 'play' && level?.dash) { if (typeof d.id === 'string') reviveUsed.add(d.id); reviveAt(+d.x || 0, String(d.by || 'A friend').slice(0, 14)); } break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
     case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
     case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
@@ -3240,6 +3369,15 @@ async function showVictory() {
     sfx('win');
     return;
   }
+  if (gameMode === 'story5') {
+    playStory(friendsForScene(), SCENES.story5End);
+    addCoins(160);
+    title.textContent = 'CHAPTER 5 COMPLETE';
+    text.textContent = 'The Conductor drops his baton. For the first time, the friends finished a song together. +160 🪙';
+    big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
   if (gameMode === 'banana' || gameMode === 'parallel') {
     const ban = gameMode === 'banana';
     playStory(friendsForScene(), ban ? SCENES.bananaEnd : SCENES.parallelEnd);
@@ -3356,7 +3494,11 @@ function updateHud(dt) {
   if (level.keyList) prog = `Keystones ${level.keyList.filter(k => grabbed.has(k)).length}/${level.keyList.length}`;
   if (level.groups) prog = `Gates open ${level.groups.filter(g => latched.has('res' + g)).length}/${level.groups.length}`;
   if (level.nest) prog = `Crawlers left: ${level.mobs.filter(o => !killed.has(o.id)).length}`;
-  if (surv) prog = surv.wave ? `Wave ${surv.wave}/${MODES[gameMode].waves === Infinity ? '∞' : MODES[gameMode].waves} · Lives ${surv.lives} · Crawlers ${level.mobs.filter(o => !killed.has(o.id)).length}` : `Get ready… Lives ${surv.lives}`;
+  if (level.dash) {
+    const pct = dashProgress(), key = gameMode + '-' + levelIdx;
+    if (pct > (dashBest[key] || 0)) { dashBest[key] = pct; try { localStorage.setItem('dim-dash-best', JSON.stringify(dashBest)); } catch {} }
+    prog = `${pct}% · Attempt ${dashAttempt} · Best ${dashBest[key] || 0}%`;
+  } else if (surv) prog = surv.wave ? `Wave ${surv.wave}/${MODES[gameMode].waves === Infinity ? '∞' : MODES[gameMode].waves} · Lives ${surv.lives} · Crawlers ${level.mobs.filter(o => !killed.has(o.id)).length}` : `Get ready… Lives ${surv.lives}`;
   else if (level.race) prog = 'Points: ' + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
   else if (party) prog = `⏱ ${fmtTime(party.left * 1000).replace(/\.\d$/, '')}${party.kind === 'tag' && party.it ? ` · IT: ${nameOf(party.it)}` : ''} · `
     + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
@@ -3453,13 +3595,13 @@ function drawGame(dt) {
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
     crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
-    moverX, coinsTaken, powerGone, levelT, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
+    moverX, coinsTaken, powerGone, levelT, reviveUsed, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
     crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
   }, dt);
   drawOverlay(D);
   spawnTrails();
   // music follows your dimension, the boss, or the party game
-  playMusic(boss && !boss.hunter ? (boss.floatter ? 'floatter' : boss.unicoder ? 'unicoder' : boss.spectre ? 'spectre' : 'fracture')
+  if (!level.dash) playMusic(boss && !boss.hunter ? (boss.floatter ? 'floatter' : boss.unicoder ? 'unicoder' : boss.spectre ? 'spectre' : 'fracture')
     : party ? 'party-' + party.kind : D.key, !!boss && !boss.hunter);
 }
 
@@ -3807,7 +3949,7 @@ $('start').onclick = async () => {
     send('intro4', { f });
     await playStory(f, SCENES.ch4intro);
   }
-  if (['space', 'time', 'sea', 'banana', 'parallel'].includes(gameMode)) {
+  if (['space', 'time', 'sea', 'banana', 'parallel', 'story5'].includes(gameMode)) {
     const f = friendsForScene(), k = gameMode + 'Intro';
     send('scene', { k, f });
     await playStory(f, SCENES[k]);
@@ -4151,11 +4293,11 @@ let pendingStart = false, startAt = 0;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
-  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
   ['New mini games', [['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');
@@ -4180,7 +4322,7 @@ $('solo').onclick = () => { $('solo-list').classList.remove('mg-only'); $('solo-
 $('open-minigames').onclick = () => { $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
 
 // ---------- level gallery: a picture of every level, and play any of them ----------
-const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
+const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
   ['race', '🏁 Race maps'], ['bossrush', 'Boss Rush'], ['survival', 'Arenas'], ['tag', 'Party'], ['training', 'Training']];
 let galleryMode = 'story';
 const THUMB_COLS = { plate: '#ffe23a', pad: '#ffe23a', bridge: '#9feaff', door: '#ff8a3a', exit: '#ffffff', key: '#ffd23a', rift: '#ff6ad5', flip: '#9feaff', laser: '#ff3355', crystal: '#c9a0ff', target: '#c9a0ff',
@@ -4392,7 +4534,7 @@ function renderRecords() {
   const list = $('records-list');
   list.replaceChildren();
   let total = 0, max = 0;
-  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea'], ['banana', 'Into the Bananaverse'], ['parallel', 'Parallel World']]) {
+  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['story5', 'Chapter 5 — The Conductor'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea'], ['banana', 'Into the Bananaverse'], ['parallel', 'Parallel World']]) {
     const h = document.createElement('h3');
     h.textContent = title;
     list.append(h);

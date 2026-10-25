@@ -756,6 +756,76 @@ const PARALLEL = [
   n => parallel(clockwork(n), 'The Last Clock', 'The final Doom Gate: fast, flickering, windy and guarded by every angel. Die together to escape!', { range: 6, freq: 1, open: 1.5, shut: 2, repel: 1300 }, [30, 50, 70, 80, 90]),
 ];
 
+// ---------- Story Chapter 5: the Conductor's Rhythm Rift (Geometry Dash style, but co-op) ----------
+// Everyone runs forward on their own; every beat is exactly 4 tiles of running, so obstacles sit on the beat.
+// A level is a script with one letter per beat for each lane:
+//   .  nothing     s  spike       d  double spike    g  gap       b  block to hop onto
+//   p  jump pad + wall           o  HELP ORB over a long gap: press jump in the yellow ring — it opens a gate in the OTHER lane
+//   D  a gate in this lane, opened by the other lane's help orb one beat earlier      r  revive orb (brings back crashed friends)
+export const BEAT_TILES = 4, DASH_START = 3;
+function rng(seed) { let s = seed >>> 0 || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+export function dashScript(beats, seed, { tokens, density, pairEvery, reviveEvery }) {
+  const r = rng(seed), lanes = [[], []];
+  for (const l of lanes) for (let k = 0; k < beats; k++) l[k] = '.';
+  let pair = 0;
+  for (let k = 4; k < beats - 3; k++) {
+    if (k % pairEvery === 0) {                 // the co-op help: one lane's orb opens the other lane's gate
+      const A = pair++ % 2;
+      lanes[A][k] = 'o'; lanes[A][k + 1] = '.';
+      lanes[1 - A][k] = '.'; lanes[1 - A][k + 1] = 'D';
+      k += 2;
+      continue;
+    }
+    if (k % reviveEvery === 0) { lanes[0][k] = lanes[1][k] = 'r'; continue; }
+    for (const l of lanes) {
+      if (l[k] !== '.' || l[k - 1] === 'b' || l[k - 1] === 'p' || l[k - 1] === 'o') continue;
+      if (r() < density) l[k] = tokens[Math.floor(r() * tokens.length)];
+    }
+  }
+  return lanes.map(l => l.join(''));
+}
+function dashLevel(n, { name, bpm, beats, seed, tokens, density, pairEvery, reviveEvery, objective, script }) {
+  const lanes = script || dashScript(beats, seed, { tokens, density, pairEvery, reviveEvery });
+  const len = lanes[0].length;
+  const W = DASH_START + len * BEAT_TILES + 12;
+  const b = new Builder(n, W);
+  b.shell();
+  const setL = (g, x, ly, ch) => { if (x <= 0 || x >= W - 1 || ly < 0 || ly >= MID) return; b.grid[g > 0 ? H - 1 - ly : ly][x] = g > 0 ? ch : ch === '^' ? 'v' : ch; };
+  lanes.forEach((line, li) => {
+    const g = li === 0 ? 1 : -1;
+    [...line].forEach((c, k) => {
+      const xk = DASH_START + k * BEAT_TILES;
+      switch (c) {
+        case 's': setL(g, xk + 1, 1, '^'); break;
+        case 'd': setL(g, xk + 1, 1, '^'); setL(g, xk + 2, 1, '^'); break;
+        case 'g': for (let x = xk + 1; x <= xk + 2; x++) setL(g, x, 0, '.'); break;
+        case 'b': for (let x = xk + 2; x <= xk + 4; x++) setL(g, x, 1, '#'); break;
+        case 'p': b.add('bounce', {}, g, xk, 1, 2, 1); for (const x of [xk + 3, xk + 4]) for (let ly = 1; ly <= 3; ly++) setL(g, x, ly, '#'); break;
+        case 'o': for (let x = xk + 1; x <= xk + 4; x++) setL(g, x, 0, '.'); b.add('orb', { link: 'h' + k }, g, xk + 2, 2, 2, 2); break;
+        case 'D': b.add('door', { link: 'h' + (k - 1), beatGate: true }, g, xk + 2, 1, 1, MID - 1); break;
+        case 'r': b.add('revive', {}, g, xk + 2, 1, 1, 2); break;
+      }
+    });
+  });
+  b.both('exit', {}, W - 8, 1, 3, 3);
+  // every jump lasts 80% of a beat and rises 110px, whatever the tempo — so jumps always fit between beats
+  const air = 0.8 * 60 / bpm, rise = 110;
+  return b.done({ name, objective, theme: 'rhythm', checkpoints: [{ x: DASH_START }],
+    dash: { bpm, speed: BEAT_TILES * T * bpm / 60, lanes, jv: 4 * rise / air, grav: 8 * rise / (air * air) } });
+}
+const CH5 = [
+  n => dashLevel(n, { name: 'First Beat', bpm: 128, beats: 44, seed: 11, tokens: 'ssg', density: 0.45, pairEvery: 14, reviveEvery: 9,
+    objective: 'You run on your own — just JUMP to the beat (hold to keep jumping). 🟡 Yellow orb: jump INSIDE it to fly over the gap — it opens your friend\'s gate!' }),
+  n => dashLevel(n, { name: 'Off the Beat', bpm: 136, beats: 52, seed: 23, tokens: 'ssdgb', density: 0.55, pairEvery: 11, reviveEvery: 10,
+    objective: 'Crash and you become a ghost — a friend who runs through a 💚 revive orb brings you back. If EVERYONE crashes, the whole team restarts.' }),
+  n => dashLevel(n, { name: 'Call and Response', bpm: 144, beats: 60, seed: 37, tokens: 'sdgbp', density: 0.62, pairEvery: 8, reviveEvery: 11,
+    objective: 'More gates, more orbs. Your friend\'s gate only opens if YOU hit your orb. Listen to the kick drum.' }),
+  n => dashLevel(n, { name: 'Double Time', bpm: 156, beats: 68, seed: 53, tokens: 'sddgbp', density: 0.7, pairEvery: 7, reviveEvery: 12,
+    objective: 'Faster! Fewer revives. Every gate depends on someone else.' }),
+  n => dashLevel(n, { name: 'The Conductor\'s Symphony', bpm: 170, beats: 80, seed: 71, tokens: 'sddgbbp', density: 0.78, pairEvery: 6, reviveEvery: 14,
+    objective: 'The Conductor\'s final song. Full speed, gates every few beats. Carry each other to the end!' }),
+];
+
 // ---------- player-made levels ----------
 // A design is the floor lane only: rows[ly] is a string of tiles ('#' ground, '^' spikes, '.' air),
 // mirrored onto the ceiling lane like every built-in level. Objects sit in both lanes.
@@ -1028,6 +1098,7 @@ export const MODES = {
   },
   space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
   time: { name: 'Through Time', levels: TIME, min: 1, scenes: {} },
+  story5: { name: 'Story Ch.5', levels: CH5, min: 1, dimOrder: ['verdant', 'inverted', 'neon', 'crystal', 'inferno', 'candy', 'frost', 'lunar', 'desert', 'tidal'], scenes: {} },
   banana: { name: 'Into the Bananaverse', levels: BANANA, min: 1, oneDim: 'banana', scenes: {} },
   parallel: { name: 'Parallel World', levels: PARALLEL, min: 1, scenes: {} },
   custom: { name: 'Player level', levels: [n => customLevel(customData, n)], min: 1 },
@@ -1058,6 +1129,7 @@ export function buildLevel(mode, idx, n) {
     : mode === 'space' ? `${['🌍', '🟡', '🔴', '☀️', '🪐', '🟠', '🧊', '🌈', '🕳️'][idx]} ${lv.name}`
     : mode === 'time' ? `${['🦖', '🏺', '🏰', '🏴‍☠️', '🤠', '🏙️', '🚀', '⌛', '⏰'][idx]} ${lv.name}`
     : mode === 'sea' ? `${['🏖️', '🪸', '⚓', '🌿', '🌑', '🦑'][idx]} ${lv.name}`
+    : mode === 'story5' ? `5-${idx + 1} · ${lv.name}`
     : mode === 'banana' ? `🍌 ${idx + 1} · ${lv.name}` : mode === 'parallel' ? `💀 ${idx + 1} · ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
   if (lv.party && !lv.theme) lv.theme = 'arcade';
