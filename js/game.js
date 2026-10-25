@@ -130,6 +130,15 @@ addEventListener('keydown', e => {
   held.add(a);
 });
 addEventListener('keyup', e => { const a = KEYMAP[e.code]; if (a) held.delete(a); });
+// Sniper God: aim with the mouse, click to fire
+const mouseAim = { on: false, x: 0, y: 0 };
+addEventListener('mousemove', e => { mouseAim.on = true; mouseAim.x = e.clientX; mouseAim.y = e.clientY; });
+addEventListener('mousedown', e => {
+  if (mode !== 'play' || party?.kind !== 'sniper' || e.button !== 0 || e.target.closest('button, input, .panel')) return;
+  mouseAim.on = true; mouseAim.x = e.clientX; mouseAim.y = e.clientY;
+  held.add('fire');
+});
+addEventListener('mouseup', () => { if (party?.kind === 'sniper') held.delete('fire'); });
 addEventListener('blur', () => held.clear());
 
 function pressAction(a) {
@@ -344,7 +353,7 @@ const overlap = (x, y, w, h, o) => x < (o.x + o.w) * T && x + w > o.x * T && y <
 const laserOn = o => ((time + o.offset) % o.period) / o.period < o.duty && !(o.link && signals[o.link]);
 const gravOf = p => DIMS[p.dim].grav * (p.gflip ? -1 : 1);
 // Chapter 3: the Floatter's missiles and sound rockets two-shot you (Tanks get one more)
-const maxHp = p => (level?.ch3 ? (p?.role === 'tank' ? 3 : 2) : p?.role === 'tank' ? 5 : 3);
+const maxHp = p => party?.kind === 'sniper' ? 1 : (level?.ch3 ? (p?.role === 'tank' ? 3 : 2) : p?.role === 'tank' ? 5 : 3);
 const seesDark = () => me.role === 'scout' || (P && DIMS[P.dim].flat);
 
 // Crawlers patrol back and forth on a shared level clock, so everyone sees them in the same place.
@@ -407,6 +416,11 @@ function mobPos(o) {
 }
 
 function spawnPoint(dim, slot) {
+  if (level.sniper) {                      // Sniper God: alternate between the two islands
+    const k = slot ?? laneIndex(dim), left = k % 2 === 0, i = Math.floor(k / 2), g = DIMS[dim].grav || 1;
+    const x = (left ? 5 + (i * 4) % 14 : 51 + (i * 4) % 14) * T;
+    return { x, y: g > 0 ? (H - 3) * T - PH - 0.01 : 3 * T + 0.01 };
+  }
   if (level.dash) { const g = DIMS[dim].grav || 1; return { x: level.checkpoints[0].x * T, y: g > 0 ? (H - 1) * T - PH - 0.01 : T + 0.01 }; }
   let cp = level.checkpoints[0];
   for (const c of level.checkpoints) if (!c.link || signals[c.link]) cp = c;
@@ -1000,6 +1014,11 @@ function jump(p, D, g) {
 
 function die(p) {
   if (p.dead > 0) return;
+  if (party?.kind === 'sniper' && (p === P || isBot(p.id))) {   // Sniper God: whoever shot you (or "the void") gets the credit
+    const by = p.lastHitBy || '', v = p === P ? me.id : p.id;
+    send('snipe', { by, v });
+    onSnipe(by, v);
+  }
   if (level?.parallel) return saved(p);
   if (level?.dash) {
     p.dead = 1e9; p.dashDead = true; p.vx = p.vy = 0;
@@ -1021,6 +1040,7 @@ function die(p) {
 }
 
 function respawn(p) {
+  p.lastHitBy = null;
   if (party?.kind === 'lms' || party?.kind === 'potato') { p.dead = 1e9; if (p === P) toast('💀 You are out — spectating'); return; }
   p.dim = p.native;
   Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0, hp: maxHp(p), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
@@ -1888,7 +1908,7 @@ function carryStep(b, dt) {
 // ---------- party mini-games: Tag, King of the Hill, Coin Chaos, Last One Standing ----------
 let party = null;                  // { kind, left, it, itCd, scoreT, swapT, collapseT, collapseK, coinT, sendT }
 let partyCoins = new Map();        // id -> { x, y } (Coin Chaos)
-const SCORED = ['race', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato', 'meteor', 'paint', 'redlight'];
+const SCORED = ['race', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato', 'sniper', 'meteor', 'paint', 'redlight'];
 const paintMap = new Map();          // Paint the Floor: "x,row" -> who painted it
 
 function partyActors() {
@@ -1912,6 +1932,12 @@ function lineOfSight(a, b) {
 
 const touching = (a, b, m = 2) => a.x < b.x + PW + m && a.x + PW + m > b.x && a.y < b.y + PH + m && a.y + PH + m > b.y;
 
+function onSnipe(by, v) {
+  const fell = !by || by === v;
+  if (isHost() && !fell) scores[by] = (scores[by] || 0) + 1;
+  toast(fell ? `💨 ${nameOf(v)} fell off the island` : `🎯 ${nameOf(by)} sniped ${nameOf(v)}`, by === me.id ? '#ffe23a' : '#ffffff');
+  if (by === me.id && !fell) sfx('star');
+}
 function sendParty() {
   send('pt', { left: party.left, it: party.it, sc: scores, fu: party.fuse, lt: party.light });
 }
@@ -2138,6 +2164,11 @@ function partyGoal(b) {
     if (best && bd < 5000) return { x: best.x, y: best.y };
     const field = level.objs.filter(o => o.type === 'flip').sort((a, c) => Math.abs(a.x * T - cx) - Math.abs(c.x * T - cx))[0];
     return field ? { x: (p.inFlip ? field.x - 1.5 : field.x + field.w / 2) * T, y: cy } : null;
+  }
+  if (party.kind === 'sniper') {            // stay on my island, strafe behind cover, shoot when there's a clear line
+    const island = p.x < level.W * T / 2 ? [5, 20] : [51, 66];
+    const sx = (island[0] + (island[1] - island[0]) * (0.5 + 0.45 * Math.sin(levelT * 0.6 + p.x))) * T;
+    return { x: sx, y: cy, fire: !!nearest && lineOfSight(p, nearest) };
   }
   if (party.kind === 'redlight') {
     if (!party.light || (party.lightT !== undefined && party.light && party.lightT < 0.35)) return { x: cx, y: cy, stop: true };   // freeze (and stop a bit early)
@@ -2932,6 +2963,21 @@ function fireBolt(p, aimDir) {
     range: r === 'sniper' ? 2.6 : r === 'gunner' ? 2.4 : 1.6, pierce: r === 'sniper', bomb: r === 'bomber', by: p.id,
     col: boltColor(p === P ? profile.equip.bolt : p.cos?.[2]) };
   if (p === P) sfx('shoot');
+  // Sniper God: aim where the mouse points (phones and bots get aim assist), fast one-hit shots
+  if (party?.kind === 'sniper') {
+    p.boltCd = 1.1;
+    let tx, ty;
+    if (p === P && mouseAim.on && !isTouch) { const w = renderer.unproject(mouseAim.x, mouseAim.y); tx = w.x; ty = w.y; }
+    else { const t = nearestFoe(p); if (t) { tx = t.x + PW / 2; ty = t.y + PH / 2; } }
+    if (tx !== undefined) {
+      let a = Math.atan2(ty - b.y, tx - b.x);
+      if (p !== P) a += (Math.random() - 0.5) * 0.12;          // bots aren't perfect
+      b.vx = Math.cos(a) * 1500; b.vy = Math.sin(a) * 1500;
+      p.face = Math.sign(b.vx) || p.face;
+    }
+    b.range = 3; b.pierce = false;
+    if (p === P) sfx('cannon');
+  }
   // Last One Standing: shots aim at the nearest opponent, even across the gap between worlds
   if (party?.kind === 'lms') {
     const t = nearestFoe(p);
@@ -2942,7 +2988,7 @@ function fireBolt(p, aimDir) {
     }
   }
   bolts.push(b);
-  send('bolt', { x: b.x, y: b.y, vx: b.vx, vy: b.vy, d: b.d, h: homing, c: b.col });
+  send('bolt', { x: b.x, y: b.y, vx: b.vx, vy: b.vy, d: b.d, h: homing, c: b.col, by: b.by });
 }
 
 function updateBolts(dt) {
@@ -2979,12 +3025,13 @@ function updateBolts(dt) {
       continue;
     }
     if (!b.mine) continue;
-    if (party?.kind === 'lms') {
+    if (party?.kind === 'lms' || party?.kind === 'sniper') {
       const hitA = partyActors().find(a => a.id !== b.by && !a.dead && b.x > a.x - 4 && b.x < a.x + PW + 4 && b.y > a.y - 4 && b.y < a.y + PH + 4);
       if (hitA) {
         b.life = 99;
         burst(b.x, b.y, '#ff3355', 10, 160);
-        if (hitA.ref) hurt(hitA.ref); else send('pvp', { id: hitA.id, by: b.by });
+        if (hitA.ref) { hitA.ref.lastHitBy = b.by; hurt(hitA.ref); }
+        else if (party.kind === 'lms') send('pvp', { id: hitA.id, by: b.by });
         continue;
       }
     }
@@ -3201,7 +3248,8 @@ function onMsg(t, d) {
     case 'atk': if (mode === 'play' && boss && Array.isArray(d.b)) addBullets(d.b.slice(0, 80).map(x => Array.isArray(x) ? x.slice(0, 10) : []).filter(x => x.length >= 6)); break;
     case 'hit': if (mode === 'play' && isHost()) applyHit(d.d); break;
     case 'bdown': if (mode === 'play') { const k = bullets.find(x => x.id === d.id); if (k) { k.life = 99; burst(k.x, k.y, '#ffe23a', 14, 200); } } break;
-    case 'bolt': if (mode === 'play') bolts.push({ x: +d.x, y: +d.y, vx: +d.vx || 0, vy: +d.vy || 0, d: d.d | 0, mine: false, life: 0, h: !!d.h, col: typeof d.c === 'string' ? d.c.slice(0, 12) : undefined }); break;
+    case 'bolt': if (mode === 'play') bolts.push({ x: +d.x, y: +d.y, vx: +d.vx || 0, vy: +d.vy || 0, d: d.d | 0, mine: false, life: 0, h: !!d.h, col: typeof d.c === 'string' ? d.c.slice(0, 12) : undefined, by: typeof d.by === 'string' ? d.by : undefined, range: party?.kind === 'sniper' ? 3 : undefined }); break;
+    case 'snipe': if (mode === 'play' && party?.kind === 'sniper' && typeof d.by === 'string') onSnipe(d.by, String(d.v)); break;
     case 'kill': if (mode === 'play' && typeof d.id === 'string') killMob(d.id, d.by); break;
     case 'ping': if (mode === 'play') addPing({ x: +d.x, y: +d.y, id: String(d.id) }); break;
     case 'toast': if (typeof d.m === 'string') toast(d.m.slice(0, 60), '#ffe23a'); break;
@@ -3427,7 +3475,7 @@ async function showVictory() {
     const iWon = ranked.some(r => r[2] === me.id && r[1] === top);
     addCoins(iWon ? 40 : 10);
     sfx(iWon ? 'win' : 'click');
-    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO', meteor: 'METEOR SHOWER', paint: 'PAINT THE FLOOR', redlight: 'RED LIGHT, GREEN LIGHT' }[gameMode];
+    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO', sniper: '🎯 SNIPER GOD', meteor: 'METEOR SHOWER', paint: 'PAINT THE FLOOR', redlight: 'RED LIGHT, GREEN LIGHT' }[gameMode];
     $('win-coins').textContent = iWon ? '🏆 You won! +40 🪙' : '+10 🪙 for playing';
     big.textContent = winners.join(' & ');
     text.textContent = ranked.map(([n, p]) => `${n}: ${p}`).join(' · ');
@@ -3754,6 +3802,17 @@ function drawOverlay(D) {
     ctx.fillText(on ? '🟢 GO!' : '🔴 STOP!', VW / 2, isTouch ? 90 : 110);
     ctx.shadowBlur = 0;
     if (!on) { ctx.fillStyle = 'rgba(255,0,40,.08)'; ctx.fillRect(0, 0, VW, VH); }
+  }
+  if (party?.kind === 'sniper' && P && P.dead <= 0 && mouseAim.on && !isTouch) {   // laser sight and crosshair
+    const a = renderer.project(P.x + PW / 2, P.y + PH / 2);
+    ctx.strokeStyle = P.boltCd > 0 ? 'rgba(255,51,85,.25)' : 'rgba(255,51,85,.8)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mouseAim.x, mouseAim.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(mouseAim.x, mouseAim.y, 14, 0, 7); ctx.moveTo(mouseAim.x - 20, mouseAim.y); ctx.lineTo(mouseAim.x + 20, mouseAim.y); ctx.moveTo(mouseAim.x, mouseAim.y - 20); ctx.lineTo(mouseAim.x, mouseAim.y + 20); ctx.stroke();
+    ctx.lineWidth = 1;
   }
   drawLabels();
   if (boss) drawBossBar();
@@ -4484,10 +4543,10 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['New mini games', [['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
+  ['New mini games', [['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');
@@ -4557,7 +4616,7 @@ function renderGallery() {
   }
   const grid = $('gallery-grid');
   grid.replaceChildren();
-  const list = galleryMode === 'tag' ? ['tag', 'koth', 'chaos', 'lms', 'potato', 'hunt', 'meteor', 'paint', 'redlight'].map(m => [m, 0]) : MODES[galleryMode].levels.map((_, i) => [galleryMode, i]);
+  const list = galleryMode === 'tag' ? ['sniper', 'tag', 'koth', 'chaos', 'lms', 'potato', 'hunt', 'meteor', 'paint', 'redlight'].map(m => [m, 0]) : MODES[galleryMode].levels.map((_, i) => [galleryMode, i]);
   for (const [m, i] of list) {
     let lv;
     try { lv = buildLevel(m, i, 2); } catch { continue; }

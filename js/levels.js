@@ -503,6 +503,20 @@ function partyArena(n, kind) {
   return b.done({ name: info[0], objective: info[1], party: kind, spread: true });
 }
 
+// ---------- Who is the sniper god? Two floating islands over nothing ----------
+function sniperIslands(n) {
+  const W = 72;
+  const b = new Builder(n, W);
+  b.shell();
+  for (let x = 1; x < W - 1; x++) b.set(x, 0, '.');            // no ground: fall and you're out until you respawn
+  for (const [a, c] of [[3, 22], [49, 68]]) { b.box(a, c, 1, 2); b.box(a + 1, c - 1, 0, 0); }   // the two islands
+  for (const x of [8, 15, 55, 62]) b.box(x, x, 3, 4);          // cover
+  b.box(33, 38, 6, 6);                                          // a little rock in the middle to fight over
+  b.both('power', { kind: 'speed' }, 35, 7, 1, 1);
+  return b.done({ name: 'Who is the sniper god?', party: 'sniper', sniper: true, spread: true, theme: 'sky',
+    objective: 'Two floating islands. One shot = one hit. Aim with the mouse (phones aim for you), click or F to fire. Most kills becomes the SNIPER GOD!' });
+}
+
 // ---------- daily challenge: a different level and twist every day ----------
 export const DAILY_MODS = [
   { id: 'lowgrav', name: 'Low gravity' },
@@ -1157,6 +1171,7 @@ export const MODES = {
   tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 2, time: 90 },
   koth: { name: 'King of the Hill', levels: [n => partyArena(n, 'koth')], min: 1, time: 90 },
   chaos: { name: 'Coin Chaos', levels: [n => partyArena(n, 'chaos')], min: 1, time: 90 },
+  sniper: { name: 'Who is the sniper god?', levels: [sniperIslands], min: 2, time: 120 },
   lms: { name: 'Last One Standing', levels: [n => partyArena(n, 'lms')], min: 2, time: 150 },
   daily: { name: 'Daily Challenge', levels: [daily], min: 1 },
 };

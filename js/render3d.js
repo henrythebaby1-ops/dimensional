@@ -540,6 +540,21 @@ export class Renderer3D {
         }
         break;
       }
+      case 'sky': {
+        // sunset sky: big soft clouds drifting below and around the floating islands
+        const cloud = std(0xffffff, { flatShading: false, roughness: 1 });
+        this.anim = { spin: [] };
+        for (let i = 0; i < 30; i++) {
+          const c = new THREE.Group();
+          for (let k = 0; k < 4; k++) { const s = new THREE.Mesh(new THREE.SphereGeometry(1.5 + r() * 2, 10, 8), cloud); s.position.set(k * 2 - 3, r() * 1.2, r()); c.add(s); }
+          c.position.set((r() - 0.5) * 170, -8 + r() * (H + 16), -14 - r() * 30);
+          this.decor.add(c);
+        }
+        const sun = new THREE.Mesh(new THREE.SphereGeometry(10, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a }));
+        sun.position.set(30, H / 2, -90);
+        this.decor.add(sun);
+        break;
+      }
       case 'ship': {
         // a wooden slave ship at night: dark sea, masts with ropes, hanging lanterns, planks
         const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 90), std(0x0a1a2e, { flatShading: false }));
