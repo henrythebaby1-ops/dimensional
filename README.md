@@ -93,6 +93,14 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
   stations, bring survivors aboard, and shoot zombies (F) — especially at night.
 - **🧟 Zombie Infection**, **🚩 Capture the Flag**, **🏍️ Light Trails** (Tron light cycles), **💣 Blast Arena**
   (Bomberman style with power-ups) and **⚽ Dimension Soccer** — all top-down, all playable with bots.
+- **🏫 School (roleplay)**: Student, Teacher, Principal, Janitor, Nurse or Lunch Cook. The bell moves everyone through
+  the day (Homeroom, Math, Science, Lunch, Recess, PE, Reading, Art). Teachers write on the chalkboard (`/board`) and give
+  gold stars, the principal sends people to detention, staff ring the bell and run fire drills. Lockers, lunch trays,
+  a science experiment, library books with fun facts, a gym, a playground with swings and a slide.
+- **🏙️ City (roleplay)**: earn money every payday from your job, shop (candy to crowns), buy a house for $100 and lock it,
+  drive cars (E near one), play the arcade. Robbers rob the bank vault or pickpocket — police arrest wanted robbers and
+  lock them in jail. Firefighters put out fires that break out around town, the mayor speaks from City Hall, and day
+  turns into night with streetlights. `/cash`, `/pay <name> <amount>`, `/lock`.
 - **🛸 Area 51 (roleplay)**: pick a job (Guard, Scientist, Alien, Janitor, Agent, Tourist) and play it out. Keycard
   doors, alarm, blackout, intercom, UFO, alien cells, cafeteria, free wardrobe. Chat is the main thing: /me, /shout,
   /wave, /sit, /announce, /job.

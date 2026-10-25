@@ -1235,6 +1235,8 @@ export const MODES = {
   imposter: { name: 'Imposter', levels: [tdLevel('imposter')], min: 1 },
   rails: { name: 'Emergency Response', levels: [tdLevel('rails')], min: 1 },
   area51: { name: 'Area 51', levels: [tdLevel('area51')], min: 1 },
+  school: { name: 'School Roleplay', levels: [tdLevel('school')], min: 1 },
+  city: { name: 'City Roleplay', levels: [tdLevel('city')], min: 1 },
   towers: { name: 'Tower Defense', levels: [tdLevel('towers')], min: 1 },
   infect: { name: 'Zombie Infection', levels: [tdLevel('infect')], min: 1 },
   ctf: { name: 'Capture the Flag', levels: [tdLevel('ctf')], min: 1 },

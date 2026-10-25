@@ -11,6 +11,8 @@ import './td5.js';
 import './td6.js';
 import './td7.js';
 import './td8.js';
+import './td9.js';
+import './td10.js';
 const MIDY = MID * T;
 import { friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -2367,7 +2369,7 @@ function tdDraw() {
       dead: o.dead || look.dead, tag: look.tag || '', ring: look.ring || (o.id === me.id ? '#ffffff55' : ''),
     });
     const em = emoting.get(o.id);
-    if (em && performance.now() - em.t < (level.td === 'area51' ? 7000 : 2600)) {   // speech bubble
+    if (em && performance.now() - em.t < (tdMode?.roleplay ? 7000 : 2600)) {   // speech bubble
       const txt = String(em.x || EMOTES[em.i]);
       ctx.font = '700 12px Rubik, sans-serif'; ctx.textAlign = 'center';
       const lines = txt.length > 26 ? [txt.slice(0, txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) : 26), txt.slice(txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) + 1 : 26)] : [txt];
@@ -4931,11 +4933,11 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['Roleplay', [['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
+  ['Roleplay', [['school', '🏫 School', 'Roleplay: classes, bells, detention'], ['city', '🏙️ City', 'Roleplay: money, cars, houses, cops & robbers'], ['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
   ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb']]],
 ];
-const SOLO_BOTS = { towers: 2, area51: 7, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay';
   const h = document.createElement('h3');
