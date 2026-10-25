@@ -3,8 +3,8 @@
 // toasts, input) and calls its hooks every frame; each game is a "mode" object registered at the bottom.
 export const TS = 32;                       // one tile, in world pixels
 export const R = 11;                        // a body's radius
-export const TILE = { FLOOR: 0, WALL: 1, VOID: 2, TREE: 3, WATER: 4, ROCK: 5, BUSH: 6, TRACK: 7, WOOD: 8, STUMP: 9, SAND: 10, ROOM: 11 };
-const SOLID = new Set([TILE.WALL, TILE.TREE, TILE.WATER, TILE.ROCK]);
+export const TILE = { FLOOR: 0, WALL: 1, VOID: 2, TREE: 3, WATER: 4, ROCK: 5, BUSH: 6, TRACK: 7, WOOD: 8, STUMP: 9, SAND: 10, ROOM: 11, DOOR: 12, GLASS: 13 };
+const SOLID = new Set([TILE.WALL, TILE.TREE, TILE.WATER, TILE.ROCK, TILE.GLASS]);
 
 export function rng(seed) { let s = (seed >>> 0) || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
 
@@ -15,7 +15,11 @@ export class World {
   set(x, y, v) { if (this.in(x, y)) this.t[y * this.w + x] = v; }
   col(x, y) { return this.in(x, y) ? this.c[y * this.w + x] : 0; }
   setCol(x, y, v) { if (this.in(x, y)) this.c[y * this.w + x] = v; }
-  solidAt(px, py) { return SOLID.has(this.get(Math.floor(px / TS), Math.floor(py / TS))); }
+  solidAt(px, py) {
+    const x = Math.floor(px / TS), y = Math.floor(py / TS), t = this.get(x, y);
+    if (t === TILE.DOOR) return !this.isOpen?.(x, y);       // doors: solid unless the game says they're open
+    return SOLID.has(t);
+  }
   blocked(x, y, r = R) {
     for (const [dx, dy] of [[-r, -r], [r, -r], [-r, r], [r, r], [0, -r], [0, r], [-r, 0], [r, 0]]) if (this.solidAt(x + dx, y + dy)) return true;
     return false;
@@ -64,7 +68,7 @@ export function pathfind(world, from, to) {
     const cx = c % W, cy = (c - cx) / W;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = cx + dx, ny = cy + dy, n = ny * W + nx;
-      if (!world.in(nx, ny) || prev[n] !== -1 || SOLID.has(world.get(nx, ny))) continue;
+      if (!world.in(nx, ny) || prev[n] !== -1 || SOLID.has(world.get(nx, ny)) || (world.get(nx, ny) === TILE.DOOR && !world.passDoors && !world.isOpen?.(nx, ny))) continue;
       prev[n] = c;
       q.push(n);
     }
@@ -88,7 +92,7 @@ export function goTo(world, b, target, speed, dt) {
 // ---------- drawing ----------
 const TILE_COL = {
   [TILE.FLOOR]: '#3a4a3a', [TILE.WALL]: '#1c1f2b', [TILE.VOID]: '#05050a', [TILE.TREE]: '#2f6b2f', [TILE.WATER]: '#1f5a9a',
-  [TILE.ROCK]: '#6a6a72', [TILE.BUSH]: '#3f8f3a', [TILE.TRACK]: '#5a4a3a', [TILE.WOOD]: '#7a5a3a', [TILE.STUMP]: '#6b4a2a', [TILE.SAND]: '#d8b878', [TILE.ROOM]: '#4a5068',
+  [TILE.ROCK]: '#6a6a72', [TILE.DOOR]: '#8a6a3a', [TILE.GLASS]: '#9fe8ff', [TILE.BUSH]: '#3f8f3a', [TILE.TRACK]: '#5a4a3a', [TILE.WOOD]: '#7a5a3a', [TILE.STUMP]: '#6b4a2a', [TILE.SAND]: '#d8b878', [TILE.ROOM]: '#4a5068',
 };
 export function view(api) {
   const { VW, VH } = api.size();
@@ -116,7 +120,7 @@ export function drawTiles(ctx, world, v, colorFn) {
   }
 }
 // a traveler from above: shadow, round body, eyes looking where they're going, and a name tag
-export function drawBody(ctx, v, b, { color = '#6ee26e', name = '', alpha = 1, dead = false, tag = '', ring = '' } = {}) {
+export function drawBody(ctx, v, b, { color = '#6ee26e', name = '', alpha = 1, dead = false, tag = '', ring = '', fill = null } = {}) {
   const x = v.sx(b.x), y = v.sy(b.y), s = R * v.k * 1.15;
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -125,6 +129,7 @@ export function drawBody(ctx, v, b, { color = '#6ee26e', name = '', alpha = 1, d
   if (ring) { ctx.strokeStyle = ring; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, s * 1.35, 0, 7); ctx.stroke(); }
   ctx.fillStyle = dead ? '#888' : color;
   ctx.beginPath(); ctx.arc(x, y, s, 0, 7); ctx.fill();
+  if (fill && !dead) { ctx.save(); ctx.translate(x - s, y - s); ctx.scale(s / 32, s / 32); ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(32, 32, 32, 0, 7); ctx.fill(); ctx.restore(); }   // patterned skins
   ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.stroke();
   const fx = b.fx || 0, fy = b.fy ?? 1;
   ctx.fillStyle = '#fff';

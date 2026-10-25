@@ -1225,6 +1225,8 @@ export const MODES = {
   nights: { name: '99 Nights in the Dimensions', levels: [tdLevel('nights')], min: 1 },
   imposter: { name: 'Imposter', levels: [tdLevel('imposter')], min: 4 },
   rails: { name: 'Emergency Response', levels: [tdLevel('rails')], min: 1 },
+  area51: { name: 'Area 51', levels: [tdLevel('area51')], min: 1 },
+  towers: { name: 'Tower Defense', levels: [tdLevel('towers')], min: 1 },
   infect: { name: 'Zombie Infection', levels: [tdLevel('infect')], min: 2 },
   ctf: { name: 'Capture the Flag', levels: [tdLevel('ctf')], min: 2 },
   trails: { name: 'Light Trails', levels: [tdLevel('trails')], min: 2 },

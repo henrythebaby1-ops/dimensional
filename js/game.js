@@ -7,6 +7,8 @@ import './td2.js';
 import './td3.js';
 import './td4.js';
 import './td5.js';
+import './td6.js';
+import './td7.js';
 const MIDY = MID * T;
 import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -2272,6 +2274,15 @@ const tdApi = {
     return out;
   },
   size: () => ({ VW, VH }),
+  isBot: id => isBot(id),
+  // say something in chat as me (roleplay actions use this)
+  say(t) { const text = cleanChat(t).slice(0, 80); if (!text) return; send('chat', { id: me.id, n: me.name, t: text }); onChat(me.id, me.name, text); },
+  botSay(id, t) { const b = botActors.get(id); if (!b) return; const text = cleanChat(t).slice(0, 80); send('chat', { id, n: b.name, t: text }); onChat(id, b.name, text); },
+  chatLine: (icon, t) => addChatLine(icon, t, '#ffe23a'),
+  shopSkins: () => SHOP.skin.filter(s => !s.custom || profile.custom),
+  customCode: () => encodeCustom(profile.custom),
+  skinColorOf: (id, code) => skinColor(id, time, decodeCustom(code)),
+  skinPatternOf: (id, code) => skinPattern(id, decodeCustom(code)),
   focus: () => tdMode?.focus?.(tdApi) || (P ? { x: P.x, y: P.y } : { x: 0, y: 0 }),
   held: () => held,
   isHost: () => isHost(),
@@ -2326,6 +2337,12 @@ function tdFrame(dt, draw) {
   if (sendT <= 0) { sendT = 1 / SEND_HZ; sendState(); }
   if (draw) { tdDraw(); updateHud(dt); }
 }
+const patFills = {};
+function patternFill(p) {
+  const key = `${p.pat}|${p.c1}|${p.c2}`;
+  if (!patFills[key]) { const c = document.createElement('canvas'); c.width = c.height = 64; drawPattern(c.getContext('2d'), 64, p); patFills[key] = ctx.createPattern(c, 'repeat'); }
+  return patFills[key];
+}
 function tdDraw() {
   const v = tdView(tdApi);
   drawTiles(ctx, tdMode.world, v, (x, y, t) => tdMode.tileColor?.(x, y, t));
@@ -2334,13 +2351,23 @@ function tdDraw() {
     const look = tdMode.look?.(tdApi, o.id, me.id) || {};
     if (look.hidden) continue;
     const fx = o.id === me.id ? P.fx : Math.sign(o.vx || 0) * 0.8, fy = o.id === me.id ? P.fy : (o.vy ? Math.sign(o.vy) : 0.3);
+    const pat = look.pattern !== undefined ? look.pattern : look.color ? null : o.id === me.id ? skinPattern(profile.equip.skin) : (() => { const r = remotes.get(o.id); return Array.isArray(r?.co) ? skinPattern(r.co[3], decodeCustom(r.co[5])) : null; })();
     drawBody(ctx, v, { x: o.x, y: o.y, fx, fy }, {
+      fill: pat ? patternFill(pat) : null,
       color: look.color || (o.id === me.id ? skinColor(profile.equip.skin, time) : null) || chatColor(o.id),
       name: look.hideName ? '' : nameOf(o.id), alpha: look.alpha ?? (tdMode.isOut?.(o.id) ? 0.35 : 1),
       dead: o.dead || look.dead, tag: look.tag || '', ring: look.ring || (o.id === me.id ? '#ffffff55' : ''),
     });
     const em = emoting.get(o.id);
-    if (em && performance.now() - em.t < 2600) { ctx.font = '700 13px Rubik, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(em.x || EMOTES[em.i], v.sx(o.x), v.sy(o.y) - 44); }
+    if (em && performance.now() - em.t < (level.td === 'area51' ? 7000 : 2600)) {   // speech bubble
+      const txt = String(em.x || EMOTES[em.i]);
+      ctx.font = '700 12px Rubik, sans-serif'; ctx.textAlign = 'center';
+      const lines = txt.length > 26 ? [txt.slice(0, txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) : 26), txt.slice(txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) + 1 : 26)] : [txt];
+      const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, h = lines.length * 15 + 8, bx = v.sx(o.x), by = v.sy(o.y) - 52 - h;
+      ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.beginPath(); ctx.roundRect(bx - w / 2, by, w, h, 8); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(bx - 5, by + h); ctx.lineTo(bx + 5, by + h); ctx.lineTo(bx, by + h + 7); ctx.fill();
+      ctx.fillStyle = '#111'; lines.forEach((l, i) => ctx.fillText(l, bx, by + 15 + i * 15));
+    }
   }
   for (const p of particles) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.col; ctx.fillRect(v.sx(p.x), v.sy(p.y), 4, 4); }
   ctx.globalAlpha = 1;
@@ -2378,6 +2405,7 @@ function onChat(id, name, text) {
 // secret chat commands
 function chatCommand(text) {
   const cmd = text.slice(1).split(' ')[0].toLowerCase();
+  if (level?.td && mode === 'play' && tdMode?.chatCommand?.(tdApi, cmd, text)) return;   // game-specific commands (Area 51 roleplay)
   const doIt = {
     dance: () => { emoting.set(me.id, { i: 1, x: '💃 *dances*', t: performance.now() }); send('chat', { id: me.id, n: me.name, t: '💃 *dances*' }); if (P) { P.spinT = 2; } },
     confetti: () => { confetti(); send('confetti', {}); },
@@ -3495,7 +3523,8 @@ function leaveRoom() {
 function setScreen(m) {
   mode = m;
   if (m !== 'play' && paused) { paused = false; $('pause').classList.add('hidden'); }
-  if (m !== 'play') document.getElementById('meeting')?.classList.add('hidden');
+  if (m !== 'play') { document.getElementById('meeting')?.classList.add('hidden'); document.getElementById('rp-panel')?.classList.add('hidden'); }
+  if (m !== 'play' || level?.td !== 'area51') $('chat').classList.remove('rp');
   $('menu').classList.toggle('hidden', m !== 'menu');
   $('lobby').classList.toggle('hidden', m !== 'lobby');
   $('victory').classList.toggle('hidden', m !== 'victory');
@@ -4765,12 +4794,13 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['New mini games', [['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
+  ['Roleplay', [['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
+  ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { towers: 2, area51: 7, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
-  const mg = head === 'New mini games' || head === 'Versus bots';
+  const mg = head === 'New mini games' || head === 'Versus bots' || head === 'Roleplay';
   const h = document.createElement('h3');
   h.textContent = head;
   if (!mg) h.classList.add('not-mg');

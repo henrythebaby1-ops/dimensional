@@ -33,9 +33,8 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 
 ## Game modes
 - **Story Chapter 1 — The Spectre**: 13 co-op levels. An intro cutscene shows how the
-  Spectre tore the friends apart. The Spectre can't be beaten... unless you accept help.
-  At the end you choose: give up your saved game for the next group of players (the game
-  crashes and restarts), or keep it (you die). The help you got was another player's save.
+  Spectre tore the friends apart. The final Spectre fight is tough (more health, faster attacks,
+  homing missiles and grenades, and it gets ENRAGED) — and nobody comes to help.
 - **Story Chapter 2 — The Unicoder**: everyone is in one world, but the Unicoder (a being
   made of Unicode letters) split the team: **Builders** can't walk but drag blocks;
   **Walkers** walk and push Builders. 5 levels: Lowercase, Gap Fill, Stack Overflow,
@@ -90,6 +89,10 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
   stations, bring survivors aboard, and shoot zombies (F) — especially at night.
 - **🧟 Zombie Infection**, **🚩 Capture the Flag**, **🏍️ Light Trails** (Tron light cycles), **💣 Blast Arena**
   (Bomberman style with power-ups) and **⚽ Dimension Soccer** — all top-down, all playable with bots.
+- **🛸 Area 51 (roleplay)**: pick a job (Guard, Scientist, Alien, Janitor, Agent, Tourist) and play it out. Keycard
+  doors, alarm, blackout, intercom, UFO, alien cells, cafeteria, free wardrobe. Chat is the main thing: /me, /shout,
+  /wave, /sit, /announce, /job.
+- **🏰 Tower Defense**: build and upgrade Arrow, Cannon, Frost and Laser towers with shared coins. 20 waves, bosses.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
@@ -131,6 +134,7 @@ missiles, grenades, laser sweeps and solar flares (Shield bots block with their 
 **🧠 Ollama bot chat (optional):** if you run [Ollama](https://ollama.com) on your computer
 (`OLLAMA_ORIGINS=* ollama serve`), the host can tick "Bot chat with Ollama AI" in the lobby and bots say
 real AI-written lines. Their moves still come from their built-in brain.
+**🎨 Skin maker:** make your own two-color patterned skin in the Shop (free). 13 patterned skins too.
 **Skins:** 31 body colors in the 🛍️ Shop (Skins tab), including animated ones: Lava, Ocean Wave, Galaxy, Disco, Rainbow and Ghost.
 **More cosmetics:** 19 hats, 16 trails, 15 shot colors and 12 **accessories** (glasses, sunglasses, mustache,
 bow tie, scarf, backpack, hero cape, balloon, angel wings, jetpack, pet duck).

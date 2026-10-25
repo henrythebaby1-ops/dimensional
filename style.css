@@ -507,3 +507,9 @@ button, .tile, .mini-tile, .mode, .tb, #stick-zone, #jump-zone { touch-action: m
   input, select, textarea, #chat-input, .code-input, .join-tile .code-input { font-size: 16px !important; }
 }
 #skinmaker { z-index: 6; }
+
+/* roleplay: chat stays on screen */
+#chat.rp #chat-log div.old { opacity: .85; }
+#chat.rp #chat-log { max-height: 40vh; }
+#rp-panel .vote-btn { display: flex; flex-direction: column; gap: 2px; }
+#rp-panel .vote-btn small { font-size: 11px; }
