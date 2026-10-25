@@ -1,6 +1,7 @@
 import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, THEMES, setDimOrder, computeOrder } from './dims.js';
 import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo, TRAIN_ROLES, customLevel, setCustom, getCustom } from './levels.js';
-import { makeMaker } from './maker.js';
+import { makeMaker, paintSprite } from './maker2.js';
+import { createLogic } from './logic.js';
 import { startPixelIcons } from './pixels.js';
 import { MODES_TD, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
 import './td2.js';
@@ -9,6 +10,7 @@ import './td4.js';
 import './td5.js';
 import './td6.js';
 import './td7.js';
+import './td8.js';
 const MIDY = MID * T;
 import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -623,6 +625,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   partyCoins = new Map();
   if (party && P) P.slot = myIdx;
   setupBots(ids, idx, n, rot);
+  startCustomLogic();
   $('hud-dim').classList.toggle('hidden', !!level.td);      // dimensions don't matter in the top-down games
   if (level.td) startTD();
   boss = level.boss || level.hunter ? newBoss(n) : null;
@@ -967,7 +970,7 @@ function physics(p, inp, h) {
   p.shielding = p.role === 'shield' && inp.has('down') && p.onGround;
   if (p.shielding) ix = 0;                   // can't walk while holding the shield up
   const pl = level.planet || {};
-  let speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1) * (pl.speed || 1)
+  let speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1) * (pl.speed || 1) * (p.speedMul || 1)
     * (party?.kind === 'tag' && party.it === p.id ? 1.15 : 1) * (p.pow?.kind === 'speed' ? 1.45 : 1) * (p.boostT > 0 ? 1.9 : 1);
   if (p.boostT > 0 && !ix) ix = p.boostDir;
   let a = Math.min(pl.ice ? 0.035 : 1, p.onGround || D.fly ? D.accel : D.accel * 0.7);
@@ -2297,10 +2300,15 @@ const tdApi = {
 };
 function startTD() {
   tdMode = MODES_TD[level.td];
+  const rp = !!tdMode.roleplay;
+  $('chat').classList.toggle('rp', rp);
+  $('chat-form').classList.toggle('hidden', !rp);
+  $('chat-input').placeholder = rp ? '💬 Tap here to chat (or press T)…' : 'Say something… (Enter to send)';
   level.name = tdMode.name;
   level.objective = tdMode.objective;
   tdTickN = 0;
   tdMode.init(tdApi, (runStart || 1) % 2147483647);
+  if (tdMode.levelName) { level.name = tdMode.levelName(); level.objective = tdMode.levelGoal?.() || level.objective; }
 }
 // move a body with 8-direction input
 function tdMove(p, inp, dt, id) {
@@ -2461,7 +2469,7 @@ function openChat() {
 }
 function closeChat() {
   $('chat').classList.remove('open');
-  $('chat-form').classList.add('hidden');
+  $('chat-form').classList.toggle('hidden', !$('chat').classList.contains('rp'));   // roleplay maps keep the chat box on screen
   $('chat-input').blur();
 }
 $('chat-form').onsubmit = e => {
@@ -3376,6 +3384,9 @@ function onMsg(t, d) {
     case 'help': if (mode === 'play' && level?.dash && typeof d.k === 'string') helpOpen.set(d.k, +d.u || 0); break;
     case 'revive': if (mode === 'play' && level?.dash) { if (typeof d.id === 'string') reviveUsed.add(d.id); reviveAt(+d.x || 0, String(d.by || 'A friend').slice(0, 14)); } break;
     case 'confetti': if (mode === 'play') confetti(); break;
+    case 'cwin': if (isHost() && level?.custom && !transitioning) { transitioning = true; setTimeout(() => mode === 'play' && goto(levelIdx + 1), 1200); } break;
+    case 'chide': if (level?.custom) for (const o of level.objs) if ((o.thing || o.type) === d.t) o.hidden = !!d.on; break;
+    case 'cmob': if (level?.custom && d.o && typeof d.o.id === 'string') addMinion({ id: d.o.id, type: 'mob', dim: d.o.dim | 0, x: d.o.x | 0, y: d.o.y | 0, w: 1, h: 1, range: 4, speed: 1.6, phase: 0 }); break;
     case 'td': if (mode === 'play' && level?.td && tdMode && d && typeof d === 'object') tdMode.onMsg?.(tdApi, d); break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
     case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
@@ -3432,7 +3443,7 @@ function onPresence(list) {
   if (mode === 'lobby' && isHost()) { send('mode', { m: gameMode, pub: isPublic }); send('bots', { list: bots }); }
   advertiseRoom();
   if (isHost() && pendingBots > 0) { while (pendingBots > 0) { pendingBots--; addBot(); } }
-  if (isHost() && pendingStart && mode === 'lobby') { pendingStart = false; setTimeout(() => mode === 'lobby' && !$('start').disabled && $('start').click(), 400); }
+  if (isHost() && pendingStart && mode === 'lobby') { pendingStart = false; $('start').click(); }   // Solo: straight into the game
   if (mode === 'play' && isHost()) {
     // Someone new: let them watch until the next level. Someone gone for 5s: restart so puzzles stay solvable.
     clearTimeout(rosterTimer);
@@ -3524,7 +3535,7 @@ function setScreen(m) {
   mode = m;
   if (m !== 'play' && paused) { paused = false; $('pause').classList.add('hidden'); }
   if (m !== 'play') { document.getElementById('meeting')?.classList.add('hidden'); document.getElementById('rp-panel')?.classList.add('hidden'); }
-  if (m !== 'play' || level?.td !== 'area51') $('chat').classList.remove('rp');
+  if (m !== 'play') { $('chat').classList.remove('rp'); $('chat-form').classList.add('hidden'); }
   $('menu').classList.toggle('hidden', m !== 'menu');
   $('lobby').classList.toggle('hidden', m !== 'lobby');
   $('victory').classList.toggle('hidden', m !== 'victory');
@@ -3587,7 +3598,7 @@ function renderLobby() {
   $('story-start-wrap').classList.toggle('hidden', !(host && gameMode === 'story' && sv && sv.level > 1));
   if (sv) $('story-start').options[1].textContent = `Continue from my save (level ${Math.min(sv.level, modeLevels().length)})`;
   $('lobby-note').textContent = !roster.length ? 'Connecting…'
-    : host ? (players().length < min ? 'Share the code or add a bot — this mode needs at least 2 travelers.' : 'Everyone here? Start when ready. Dimensions shuffle each level.')
+    : host ? (players().length < min ? 'Share the code or add a bot — or just start!' : 'Everyone here? Start when ready. Dimensions shuffle each level.')
     : `Waiting for the host to start ${MODES[gameMode].name}…`;
 }
 
@@ -4236,6 +4247,19 @@ function step(dt, draw) {
     if (level.parallel) moveDoom();
     updateTags();
     if (P && autoMe) { autoMe.p = P; botThink(autoMe, dt); }   // local test autopilot
+    if (customLogic && P) {                  // Level Creator rules: what am I touching right now?
+      customLogic.tick(dt);
+      const now = new Set();
+      for (const o of level.objs) {
+        if (o.hidden || !overlap(P.x, P.y, PW, PH, o)) continue;
+        const t = o.thing || o.type;
+        now.add(o.id);
+        if (!logicTouch.has(o.id)) customLogic.touched(t);
+      }
+      logicTouch = now;
+      const coinsLeft = level.objs.some(o => o.type === 'coin' && !coinsTaken.has(o.id));
+      if (!coinsLeft && !level.coinsDone && level.objs.some(o => o.type === 'coin')) { level.coinsDone = true; customLogic.coinsDone(); }
+    }
     updateCrates(dt);
     updateDrag(dt);
     if (P) updateActor(P, held, dt);
@@ -4640,13 +4664,51 @@ applyStyle();
 startPixelIcons();
 
 // ---------- level maker and player-made levels ----------
+const TOP_PAL = ['#3d7f33', '#6ee26e', '#c9a46a', '#8a8a92', '#3a8aff', '#9fe8ff', '#ff3355', '#ff8a1a', '#ffe23a', '#c83aff', '#ff6ad5', '#ffffff', '#1c1f2b', '#6b4a2a', '#2a2a5a', '#000000'];
+function drawTopThumb(cv, d) {                 // a little picture of a top-down creation
+  const W = d.W | 0 || 36, H = d.H | 0 || 24, k = Math.max(2, Math.floor(Math.min(440 / W, 160 / H)));
+  cv.width = W * k; cv.height = H * k;
+  const g = cv.getContext('2d');
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ch = (d.rows?.[y] || '')[x] || '.';
+    g.fillStyle = ch === '.' ? TOP_PAL[parseInt((d.cols?.[y] || '')[x] || '0', 16)] : { '#': '#1c1f2b', '~': '#1f5a9a', o: '#05050a', T: '#2f6b2f', R: '#8a8a92' }[ch] || '#333';
+    g.fillRect(x * k, y * k, k, k);
+  }
+  for (const o of d.objs || []) {
+    if (o.t === 'sprite') { const sp = (d.sprites || []).find(s => s.id === o.s); if (sp) paintSprite(g, { px: String(sp.px).padEnd(144, '.') }, o.x * k, o.y * k, k); continue; }
+    g.fillStyle = { start: '#ffffff', goal: '#ffe23a', coin: '#ffd23a', enemy: '#c83aff', key: '#ffd23a', door: '#8a6a3a', sign: '#fff3a0' }[o.t] || '#fff';
+    g.fillRect(o.x * k, o.y * k, k, k);
+  }
+}
+// logic rules in player-made platformer levels
+let customLogic = null, logicTouch = new Set();
+function startCustomLogic() {
+  customLogic = null; logicTouch = new Set();
+  if (!level?.custom || !level.rules?.length) return;
+  const typeOf = o => o.thing || o.type;
+  const firstOf = t => level.objs.find(o => typeOf(o) === t && !o.hidden && (o.y >= MID) === ((gravOf(P) || 1) > 0)) || level.objs.find(o => typeOf(o) === t && !o.hidden);
+  customLogic = createLogic(level.rules, {
+    say: (_, v) => toast(`💬 ${v}`, '#ffffff'),
+    coins: (_, v) => toast(`+${v} points`, '#ffd23a'),
+    tp: t => { const o = firstOf(t); if (o && P) { P.x = (o.x + 0.5) * T - PW / 2; P.y = o.y >= MID ? (o.y - 1) * T - 2 : (o.y + o.h) * T + 2; P.vx = P.vy = 0; sfx('rift'); } },
+    win: () => { if (isHost()) { if (!transitioning) { transitioning = true; toast('🏆 You won!', '#ffe23a'); setTimeout(() => mode === 'play' && goto(levelIdx + 1), 1200); } } else send('cwin', {}); },
+    hurt: () => P && die(P),
+    sound: (_, v) => sfx(v),
+    speed: (_, v) => { if (P) P.speedMul = Math.max(0.2, Math.min(3, v || 1)); },
+    hide: t => { for (const o of level.objs) if (typeOf(o) === t) o.hidden = true; send('chide', { t, on: true }); },
+    show: t => { for (const o of level.objs) if (typeOf(o) === t) o.hidden = false; send('chide', { t, on: false }); },
+    door: () => {},
+    enemy: t => { const o = firstOf(t); if (o && P) { const m = { id: 'cm' + Math.random().toString(36).slice(2, 7), type: 'mob', dim: P.dim, x: o.x, y: (DIMS[P.dim].grav || 1) > 0 ? H - 2 : 1, w: 1, h: 1, range: 4, speed: 1.6, phase: 0 }; addMinion(m); send('cmob', { o: m }); } },
+  });
+  customLogic.start();
+}
 let customId = null;
 function playCustom(d, id = null) {
   setCustom(d);
   customId = id;
   if (id) levelPlayed(id);
   for (const s of ['maker', 'community', 'gallery']) $(s).classList.add('hidden');
-  gameMode = 'custom';
+  gameMode = d?.kind === 'topdown' ? 'tdcustom' : 'custom';
   startAt = 0;
   pendingBots = 0;
   pendingStart = true;
@@ -4659,7 +4721,8 @@ $('open-maker').onclick = () => {
     onTest: d => playCustom({ ...d, author: account?.username || me.name }),
     onPublish: async d => {
       if (!account) { toast('Log in (or sign up) to publish levels', '#ff8a3a'); $('account').classList.remove('hidden'); return; }
-      if (!d.objs.some(o => o.t === 'exit')) { toast('Add a 🌀 portal first!', '#ff8a3a'); return; }
+      const finish = d.kind === 'topdown' ? d.objs.some(o => o.t === 'goal') || (d.rules || []).some(r => r.a === 'win') : d.objs.some(o => o.t === 'exit');
+      if (!finish) { toast(d.kind === 'topdown' ? 'Add a 🏁 Goal (or a "Win the level" rule) first!' : 'Add a 🌀 portal first!', '#ff8a3a'); return; }
       try {
         const id = await publishLevel(account.token, (d.name || 'My level').slice(0, 30), d);
         sfx('win');
@@ -4682,12 +4745,11 @@ async function renderCommunity() {
   try { liked = JSON.parse(localStorage.getItem('dim-liked') || '[]'); } catch {}
   for (const L of list) {
     const d = { ...L.data, name: L.name, author: L.author };
-    let lv;
-    try { lv = customLevel(d, 2); } catch { continue; }
     const card = document.createElement('div');
     card.className = 'lvl-card';
     const cv = document.createElement('canvas');
-    drawThumb(cv, lv);
+    if (d.kind === 'topdown') drawTopThumb(cv, d);
+    else { let lv; try { lv = customLevel(d, 2); } catch { continue; } drawThumb(cv, lv); }
     const nm = document.createElement('b');
     nm.textContent = L.name;
     const meta = document.createElement('span');
@@ -4793,14 +4855,14 @@ let pendingStart = false, startAt = 0;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
-  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
   ['Roleplay', [['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
   ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
-  ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
+  ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb']]],
 ];
 const SOLO_BOTS = { towers: 2, area51: 7, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
-  const mg = head === 'New mini games' || head === 'Versus bots' || head === 'Roleplay';
+  const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay';
   const h = document.createElement('h3');
   h.textContent = head;
   if (!mg) h.classList.add('not-mg');
@@ -4812,7 +4874,7 @@ for (const [head, list] of SOLO) {
     b.onclick = () => {
       $('solo-pick').classList.add('hidden');
       gameMode = m;
-      pendingBots = SOLO_BOTS[m] || 0;
+      pendingBots = 0;                        // no forced bots: add them in the lobby if you want them
       pendingStart = true;
       $('create').click();
     };
@@ -4889,7 +4951,7 @@ function renderGallery() {
       $('gallery').classList.add('hidden');
       gameMode = m;
       startAt = i;
-      pendingBots = SOLO_BOTS[m] || (MODES[m].min > 1 ? MODES[m].min - 1 : 0);
+      pendingBots = 0;
       pendingStart = true;
       $('create').click();
     };

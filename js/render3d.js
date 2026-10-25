@@ -1205,6 +1205,19 @@ export class Renderer3D {
         root.add(pole, e.cloth);
         break;
       }
+      case 'sprite': {                           // a pixel-art sprite drawn in the Level Creator
+        const sp = this.level?.sprites?.[o.s];
+        const c = document.createElement('canvas'); c.width = c.height = 12;
+        const PAL = ['#3d7f33', '#6ee26e', '#c9a46a', '#8a8a92', '#3a8aff', '#9fe8ff', '#ff3355', '#ff8a1a', '#ffe23a', '#c83aff', '#ff6ad5', '#ffffff', '#1c1f2b', '#6b4a2a', '#2a2a5a', '#000000'];
+        const g = c.getContext('2d');
+        if (sp) for (let i = 0; i < 144; i++) { const ch = sp.px[i]; if (ch !== '.') { g.fillStyle = PAL[parseInt(ch, 16)] || '#fff'; g.fillRect(i % 12, Math.floor(i / 12), 1, 1); } }
+        const tex = new THREE.CanvasTexture(c); tex.magFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat(new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })));
+        plane.position.z = 0.7;
+        if (!(o.y >= MID)) plane.scale.y = -1;
+        root.add(plane);
+        break;
+      }
       case 'goldegg': {
         e.egg = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 14), mat(glow(0xffd23a, { emissiveIntensity: 0.9, metalness: 0.9, roughness: 0.15, flatShading: false })));
         e.egg.scale.set(0.8, 1.05, 0.8);
@@ -1260,6 +1273,7 @@ export class Renderer3D {
     for (let i = this.objs.length; i < s.level.objs.length; i++) this.objs.push(this.makeObj(s.level.objs[i]));
     for (const e of this.objs) {
       const o = e.o;
+      if (o.hidden !== undefined) e.root.visible = !o.hidden;   // the Level Creator's "make disappear"
       const own = o.dim === null || o.dim === s.myDim;
       switch (o.type) {
         case 'plate': case 'pad': {

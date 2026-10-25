@@ -45,6 +45,7 @@ function doorLevel(x, y) {
 
 registerTD('area51', {
   name: 'Area 51',
+  roleplay: true,
   objective: 'ROLEPLAY! Pick a job at the Locker Room board, talk in chat (T), and play it out. E = use doors and things, F = your job action. Try /me, /shout, /sit, /wave, /announce, /job.',
   init(api, seed) {
     this.world = baseMap();
@@ -58,7 +59,6 @@ registerTD('area51', {
     });
     this.lineT = {};
     this.toastJob(api);
-    document.getElementById('chat')?.classList.add('rp');
   },
   spawn(api, id, job) {
     if (job === 'alien') { const [cx, cy] = CELLS[Math.abs(hash(id)) % 3]; api.place(id, (cx + 1.5) * TS, (cy + 1.5) * TS); return; }

@@ -954,7 +954,15 @@ export function customLevel(d, n) {
   b.box(0, 0, 0, MID - 1);                  // walls at both ends so nobody falls off the world
   b.box(W - 1, W - 1, 0, MID - 1);
   let exit = false;
+  const sprites = Object.fromEntries((Array.isArray(d?.sprites) ? d.sprites : []).slice(0, 8).map(s => [String(s.id), { id: String(s.id), name: String(s.name || '').slice(0, 16), px: String(s.px || '').padEnd(144, '.').slice(0, 144), solid: !!s.solid }]));
   for (const o of (Array.isArray(d?.objs) ? d.objs : []).slice(0, 300)) {
+    if (o?.t === 'sprite') {                        // drawn sprites (solid ones also become ground)
+      const x = o.x | 0, ly = o.ly | 0, sp = sprites[o.s];
+      if (!sp || x < 1 || x >= W - 1 || ly < 0 || ly >= MID) continue;
+      if (sp.solid) b.set(x, ly, '#');
+      b.both('sprite', { s: sp.id, thing: 's:' + sp.id }, x, ly, 1, 1);
+      continue;
+    }
     const tool = MAKER_TOOLS[o?.t];
     const x = o?.x | 0, ly = o?.ly | 0;
     if (!tool || x < 1 || x >= W - 1 || ly < 0 || ly >= MID) continue;
@@ -963,7 +971,7 @@ export function customLevel(d, n) {
     b.both(tool.type || o.t, { ...(tool.props || {}) }, x, ly, tool.w, tool.h);
   }
   if (!exit) b.both('exit', {}, W - 5, 1, 3, 3);
-  return b.done({ name: String(d?.name || 'Player level').slice(0, 30), objective: `A level made by ${String(d?.author || 'a player').slice(0, 20)}. Reach the portal!`, custom: true });
+  return b.done({ name: String(d?.name || 'Player level').slice(0, 30), objective: `A level made by ${String(d?.author || 'a player').slice(0, 20)}. Reach the portal!`, custom: true, sprites, rules: Array.isArray(d?.rules) ? d.rules : [] });
 }
 let customData = null;
 export const setCustom = d => { customData = d; };
@@ -1171,13 +1179,13 @@ export const TRAIN_ROLES = ['runner', 'jumper', 'gunner', 'tank', 'scout', 'medi
 
 export const MODES = {
   story: {
-    name: 'Story', min: 2,
+    name: 'Story', min: 1,
     levels: [crossing, stairs, n => nest(n), hop, crystals, relay, floatIsle, n => islands(n, false), clockwork, topsy, shadows, n => nest(n, true), resonance, fracture],
   },
   survival: { name: 'Survival', levels: [arena], min: 1, waves: 10 },
   endless: { name: 'Endless', levels: [n => ({ ...arena(n), name: 'Endless Arena' })], min: 1, waves: Infinity },
   trial: { name: 'Time Trial', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet, gadgetLab].map(f => n => ({ ...f(n), race: false, trial: true })), min: 1 },
-  race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet, gadgetLab], min: 2 },
+  race: { name: 'Race', levels: [sprint, riftRush, n => islands(n, true), bounceHouse, cannonAlley, gauntlet, gadgetLab], min: 1 },
   story2: { name: 'Story Ch.2', levels: [lowercase, gapFill, stackOverflow, escapeSeq, unicoderBoss], min: 1 },
   story3: {
     name: 'Story Ch.3', min: 1,
@@ -1203,38 +1211,39 @@ export const MODES = {
   space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
   time: { name: 'Through Time', levels: TIME, min: 1, scenes: {} },
   story5: { name: 'Story Ch.5', levels: CH5, min: 1, dimOrder: ['verdant', 'inverted', 'neon', 'crystal', 'inferno', 'candy', 'frost', 'lunar', 'desert', 'tidal'], scenes: {} },
-  story6: { name: 'Story Ch.6', levels: SHIP, min: 2, dimOrder: ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'tidal', 'neon', 'crystal', 'desert', 'candy'], scenes: {} },
+  story6: { name: 'Story Ch.6', levels: SHIP, min: 1, dimOrder: ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'tidal', 'neon', 'crystal', 'desert', 'candy'], scenes: {} },
   banana: { name: 'Into the Bananaverse', levels: BANANA, min: 1, oneDim: 'banana', scenes: {} },
   parallel: { name: 'Parallel World', levels: PARALLEL, min: 1, scenes: {} },
   custom: { name: 'Player level', levels: [n => customLevel(customData, n)], min: 1 },
+  tdcustom: { name: 'Player game', levels: [tdLevel('tdcustom')], min: 1 },
   sea: { name: 'Deep Sea', levels: SEA, min: 1, scenes: {} },
   training: { name: 'Training Grounds', levels: [n => training(n, TRAIN_ROLES)], min: 1 },
   potato: { name: 'Hot Potato', levels: [n => ({ ...partyArena(n, 'tag'), name: 'Hot Potato', party: 'potato',
-    objective: 'Someone holds the 💣. Touch a friend to pass it! When the fuse runs out, whoever holds it is OUT. Last one standing wins.' })], min: 2, time: 300 },
+    objective: 'Someone holds the 💣. Touch a friend to pass it! When the fuse runs out, whoever holds it is OUT. Last one standing wins.' })], min: 1, time: 300 },
   bossrush: { name: 'Boss Rush', levels: [0, 1, 2].map(r => n => fracture(n, false, r)), min: 1 },
   hunt: { name: 'Crawler Hunt', levels: [hunt], min: 1, time: 120 },
   meteor: { name: 'Meteor Shower', levels: [n => partyArena(n, 'meteor')], min: 1, time: 75 },
   paint: { name: 'Paint the Floor', levels: [n => partyArena(n, 'paint')], min: 1, time: 75 },
   redlight: { name: 'Red Light, Green Light', levels: [n => ({ ...sprint(n), name: 'Red Light, Green Light', party: 'redlight', race: false, spread: false,
     objective: '🟢 GO = run to the portal. 🔴 STOP = freeze! Anyone moving on red goes back to the start. First to the portal wins.' })], min: 1, time: 150 },
-  tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 2, time: 90 },
+  tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 1, time: 90 },
   koth: { name: 'King of the Hill', levels: [n => partyArena(n, 'koth')], min: 1, time: 90 },
   chaos: { name: 'Coin Chaos', levels: [n => partyArena(n, 'chaos')], min: 1, time: 90 },
   parkour: { name: 'Parkour', levels: PARKOUR, min: 1, dimOrder: ['verdant', 'neon', 'inferno', 'desert', 'jungle', 'storm', 'frost', 'hitbox'] },
   colors: { name: 'Color Blocks', levels: [tdLevel('colors')], min: 1 },
   nights: { name: '99 Nights in the Dimensions', levels: [tdLevel('nights')], min: 1 },
-  imposter: { name: 'Imposter', levels: [tdLevel('imposter')], min: 4 },
+  imposter: { name: 'Imposter', levels: [tdLevel('imposter')], min: 1 },
   rails: { name: 'Emergency Response', levels: [tdLevel('rails')], min: 1 },
   area51: { name: 'Area 51', levels: [tdLevel('area51')], min: 1 },
   towers: { name: 'Tower Defense', levels: [tdLevel('towers')], min: 1 },
-  infect: { name: 'Zombie Infection', levels: [tdLevel('infect')], min: 2 },
-  ctf: { name: 'Capture the Flag', levels: [tdLevel('ctf')], min: 2 },
-  trails: { name: 'Light Trails', levels: [tdLevel('trails')], min: 2 },
-  blast: { name: 'Blast Arena', levels: [tdLevel('blast')], min: 2 },
-  soccer: { name: 'Dimension Soccer', levels: [tdLevel('soccer')], min: 2 },
-  chameleon: { name: 'Crazy Chameleon', levels: [tdLevel('chameleon')], min: 2 },
-  sniper: { name: 'Who is the sniper god?', levels: [sniperIslands], min: 2, time: 120 },
-  lms: { name: 'Last One Standing', levels: [n => partyArena(n, 'lms')], min: 2, time: 150 },
+  infect: { name: 'Zombie Infection', levels: [tdLevel('infect')], min: 1 },
+  ctf: { name: 'Capture the Flag', levels: [tdLevel('ctf')], min: 1 },
+  trails: { name: 'Light Trails', levels: [tdLevel('trails')], min: 1 },
+  blast: { name: 'Blast Arena', levels: [tdLevel('blast')], min: 1 },
+  soccer: { name: 'Dimension Soccer', levels: [tdLevel('soccer')], min: 1 },
+  chameleon: { name: 'Crazy Chameleon', levels: [tdLevel('chameleon')], min: 1 },
+  sniper: { name: 'Who is the sniper god?', levels: [sniperIslands], min: 1, time: 120 },
+  lms: { name: 'Last One Standing', levels: [n => partyArena(n, 'lms')], min: 1, time: 150 },
   daily: { name: 'Daily Challenge', levels: [daily], min: 1 },
 };
 export const LEVELS = MODES.story.levels;

@@ -513,3 +513,32 @@ button, .tile, .mini-tile, .mode, .tb, #stick-zone, #jump-zone { touch-action: m
 #chat.rp #chat-log { max-height: 40vh; }
 #rp-panel .vote-btn { display: flex; flex-direction: column; gap: 2px; }
 #rp-panel .vote-btn small { font-size: 11px; }
+
+#chat.rp #chat-form { display: flex; }
+#chat.rp #chat-input { background: rgba(10,8,24,.85); }
+.touch #chat.rp { top: auto; bottom: 150px; width: 52vw; }
+
+/* Level Creator 2.0 */
+.kind-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 14px; }
+.kind-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 10px; border-radius: 14px; border: 2px solid var(--line); background: rgba(255,255,255,.06); color: #fff; cursor: pointer; font: inherit; }
+.kind-card i { font-style: normal; font-size: 40px; }
+.kind-card b { font-size: 18px; }
+.kind-card small { opacity: .75; font-size: 12px; }
+.kind-card:hover { border-color: var(--accent); }
+.kind-chip { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.1); font-weight: 700; font-size: 13px; }
+.color-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 6px 0; }
+.swatch { width: 26px; height: 26px; border-radius: 6px; border: 2px solid rgba(255,255,255,.3); cursor: pointer; padding: 0; }
+.swatch.sel { border-color: #fff; transform: scale(1.15); }
+.sprite-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
+.sprite-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: #fff; cursor: pointer; }
+.sprite-item.sel { border-color: var(--accent); background: rgba(255,106,213,.15); }
+.sprite-item canvas { width: 36px; height: 36px; image-rendering: pixelated; }
+.pixel-pad { width: 288px; height: 288px; max-width: 80vw; max-height: 80vw; image-rendering: pixelated; border-radius: 10px; touch-action: none; cursor: crosshair; display: block; margin: 6px auto; }
+.rule { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.block { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border-radius: 10px; color: #fff; font-weight: 700; }
+.block.when { background: #c88a1a; }
+.block.do { background: #3a6ad8; }
+.block b { font-family: inherit; letter-spacing: 1px; }
+.block-sel, .block-in { width: auto !important; margin: 0 !important; padding: 5px 8px !important; border-radius: 8px; border: none; font-size: 14px !important; background: rgba(255,255,255,.92) !important; color: #111 !important; }
+.block-in { width: 140px !important; }
+html.r-box .block, html.r-box .kind-card, html.r-box .swatch, html.r-box .sprite-item, html.r-box .block-sel, html.r-box .block-in { border-radius: 0 !important; }
