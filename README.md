@@ -71,6 +71,10 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
   history plainly (the transatlantic slave trade, and resistance such as the 1839 Amistad revolt). In 5 co-op levels
   (The Coast, The Cargo Hold, Below Deck, The Storm, Turn the Ship Around) you unlock every captive in both lanes —
   the way off the ship stays locked until everyone is free. Guards can only be knocked out for a few seconds.
+- **🎯 Who is the sniper god?**: free-for-all sniping across two floating islands. Aim with the mouse (aim assist on
+  phones), click or F to fire, one hit = out. Most kills in 2 minutes is crowned the Sniper God.
+- **🛹 Parkour**: skateboard races across procedurally built rooftops with low gravity. Rolling momentum, grind rails,
+  boost pads, launch ramps, personal checkpoint flags, and air tricks (hold DOWN in the air).
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode

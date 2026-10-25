@@ -798,6 +798,21 @@ function updateActor(p, inp, dt) {
     if (local) { toast('🔴 You moved on RED — back to the start!', '#ff3355'); sfx('hit'); }
   }
   if (p.spinT > 0) p.spinT -= dt;           // /dance
+  if (level.skate) {                        // Parkour tricks: hold DOWN in the air to spin; land it for a trick
+    if (!p.onGround && inp.has('down')) { p.trickT = (p.trickT || 0) + dt; p.spinT = 0.1; }
+    if (p.onGround && p.trickT > 0) {
+      if (p.trickT > 0.35 && local) {
+        const tricks = ['Kickflip!', '360 Spin!', 'Heelflip!', 'Ollie North!', '540 McTwist!', 'Tre Flip!'];
+        const k = Math.min(tricks.length - 1, Math.floor(p.trickT / 0.35) - 1);
+        toast(`🛹 ${tricks[k]} +${k + 1} 🪙`, '#ffe23a'); addCoins(k + 1); sfx('star');
+      }
+      p.trickT = 0;
+    }
+    if (level.parkour) for (const c of level.checkpoints) if (c.personal && p.x > c.x * T && (p.cpX || 0) < c.x) {   // personal checkpoint flags
+      p.cpX = c.x; p.cpRoof = c.roof;
+      if (local) { toast('🚩 Checkpoint!', '#39ff88'); sfx('key'); }
+    }
+  }
   if (local && !paused) {                   // easter egg: leave the controls alone long enough and you fall asleep
     if (held.size || Math.abs(p.vx) > 5 || analogTarget) napT = 0;
     else if ((napT += dt) > 45 && !napped) { napped = true; emoting.set(me.id, { i: 1, x: '💤 Zzz…', t: performance.now() }); send('chat', { id: me.id, n: me.name, t: '💤 Zzz…' }); foundSecret('nap'); toast('💤 You fell asleep…', '#9feaff'); }
@@ -926,10 +941,14 @@ function physics(p, inp, h) {
   p.shielding = p.role === 'shield' && inp.has('down') && p.onGround;
   if (p.shielding) ix = 0;                   // can't walk while holding the shield up
   const pl = level.planet || {};
-  const speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1) * (pl.speed || 1)
+  let speed = D.speed * (p.role === 'runner' ? 1.2 : 1) * (level.mod === 'turbo' ? 1.35 : 1) * (pl.speed || 1)
     * (party?.kind === 'tag' && party.it === p.id ? 1.15 : 1) * (p.pow?.kind === 'speed' ? 1.45 : 1) * (p.boostT > 0 ? 1.9 : 1);
   if (p.boostT > 0 && !ix) ix = p.boostDir;
-  const a = Math.min(pl.ice ? 0.035 : 1, p.onGround || D.fly ? D.accel : D.accel * 0.7);
+  let a = Math.min(pl.ice ? 0.035 : 1, p.onGround || D.fly ? D.accel : D.accel * 0.7);
+  if (level.skate) {                         // skateboard: faster top speed, slow to start and slow to stop (keep rolling)
+    a = p.onGround ? (ix ? 0.07 : 0.018) : 0.03;
+    speed *= 1.45;
+  }
   const k = 1 - Math.pow(1 - a, h * 60);
   p.vx += (ix * speed - p.vx) * k;
   if (D.wind) p.vx += D.wind * Math.sin(levelT * 0.7) * h * 4;
@@ -1041,6 +1060,10 @@ function die(p) {
 
 function respawn(p) {
   p.lastHitBy = null;
+  if (level?.parkour) {                     // back to your own last checkpoint flag
+    Object.assign(p, { x: (p.cpX || 2) * T + 4, y: (H - (p.cpRoof || 4)) * T - PH - 1, vx: 0, vy: 0, hp: maxHp(p), inv: 1, dead: 0, dim: p.native });
+    return;
+  }
   if (party?.kind === 'lms' || party?.kind === 'potato') { p.dead = 1e9; if (p === P) toast('💀 You are out — spectating'); return; }
   p.dim = p.native;
   Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0, hp: maxHp(p), inv: 1.5, dashT: 0, dead: 0, inRift: true, gflip: false, inFlip: false });
@@ -1908,7 +1931,7 @@ function carryStep(b, dt) {
 // ---------- party mini-games: Tag, King of the Hill, Coin Chaos, Last One Standing ----------
 let party = null;                  // { kind, left, it, itCd, scoreT, swapT, collapseT, collapseK, coinT, sendT }
 let partyCoins = new Map();        // id -> { x, y } (Coin Chaos)
-const SCORED = ['race', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato', 'sniper', 'meteor', 'paint', 'redlight'];
+const SCORED = ['race', 'parkour', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato', 'sniper', 'meteor', 'paint', 'redlight'];
 const paintMap = new Map();          // Paint the Floor: "x,row" -> who painted it
 
 function partyActors() {
@@ -3475,7 +3498,7 @@ async function showVictory() {
     const iWon = ranked.some(r => r[2] === me.id && r[1] === top);
     addCoins(iWon ? 40 : 10);
     sfx(iWon ? 'win' : 'click');
-    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO', sniper: '🎯 SNIPER GOD', meteor: 'METEOR SHOWER', paint: 'PAINT THE FLOOR', redlight: 'RED LIGHT, GREEN LIGHT' }[gameMode];
+    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', parkour: '🛹 PARKOUR CHAMPION', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO', sniper: '🎯 SNIPER GOD', meteor: 'METEOR SHOWER', paint: 'PAINT THE FLOOR', redlight: 'RED LIGHT, GREEN LIGHT' }[gameMode];
     $('win-coins').textContent = iWon ? '🏆 You won! +40 🪙' : '+10 🪙 for playing';
     big.textContent = winners.join(' & ');
     text.textContent = ranked.map(([n, p]) => `${n}: ${p}`).join(' · ');
@@ -3710,10 +3733,10 @@ function bodiesForFrame() {
     const r = remotes.get(id);
     if (!r || r.l !== levelIdx) continue;
     list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) || (Array.isArray(r.co) ? skinColor(r.co[3], time) : undefined),
-      hat: Array.isArray(r.co) ? r.co[0] : 'none', acc: Array.isArray(r.co) ? r.co[4] : 'none', skin: Array.isArray(r.co) ? r.co[3] : 'default', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
+      board: !!level?.skate, hat: Array.isArray(r.co) ? r.co[0] : 'none', acc: Array.isArray(r.co) ? r.co[4] : 'none', skin: Array.isArray(r.co) ? r.co[3] : 'default', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
   }
   if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.spinT > 0 ? (Math.sin(time * 18) > 0 ? 1 : -1) : P.face, vx: P.spinT > 0 ? Math.sin(time * 9) * 400 : P.vx, ghost: false,
-    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), skin: profile.equip.skin, acc: profile.equip.acc, hat: profile.equip.hat, trail: profile.equip.trail,
+    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), board: !!level?.skate, skin: profile.equip.skin, acc: profile.equip.acc, hat: profile.equip.hat, trail: profile.equip.trail,
     sword: !!DIMS[P.dim].sword, shield: !!P.shielding });
   for (const [id, b] of botActors) { const e = list.find(x => x.id === id); if (e) { e.shield = !!b.p.shielding; } }
   if (level.ally && boss) { const ap = allyPos(); list.push({ id: 'ally', x: ap.x - PW / 2, y: ap.y - PH / 2, d: 0, nd: 0, g: 1, f: 1, vx: 0, ghost: false, visible: true, color: '#4f6f46', hat: 'helmet', trail: 'none' }); }
@@ -4543,10 +4566,10 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['New mini games', [['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
+  ['New mini games', [['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');
@@ -4571,7 +4594,7 @@ $('solo').onclick = () => { $('solo-list').classList.remove('mg-only'); $('solo-
 $('open-minigames').onclick = () => { $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
 
 // ---------- level gallery: a picture of every level, and play any of them ----------
-const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['story6', 'Ch.6 The Ship'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
+const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['story6', 'Ch.6 The Ship'], ['parkour', '🛹 Parkour'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
   ['race', '🏁 Race maps'], ['bossrush', 'Boss Rush'], ['survival', 'Arenas'], ['tag', 'Party'], ['training', 'Training']];
 let galleryMode = 'story';
 const THUMB_COLS = { plate: '#ffe23a', pad: '#ffe23a', bridge: '#9feaff', door: '#ff8a3a', exit: '#ffffff', key: '#ffd23a', rift: '#ff6ad5', flip: '#9feaff', laser: '#ff3355', crystal: '#c9a0ff', target: '#c9a0ff',

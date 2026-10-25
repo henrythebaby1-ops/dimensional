@@ -489,10 +489,10 @@ export class Renderer3D {
         }
         break;
       }
-      case 'dino': case 'egypt': case 'castle': case 'pirate': case 'west': case 'today': case 'future': case 'endtime': {
+      case 'dino': case 'egypt': case 'castle': case 'pirate': case 'west': case 'today': case 'future': case 'endtime': case 'city': {
         // a skyline of shapes from that age of history
         const mats = { dino: [0x3a6a2a, 0x5a8a3a], egypt: [0xe0b860, 0xc8a050], castle: [0x8a8a92, 0x6a6a72], pirate: [0x8a5a2a, 0xf4ead0], west: [0xa85a2a, 0x2f6b2f],
-          today: [0x6a7a8a, 0x8a9aaa], future: [0x3a4aff, 0x3affff], endtime: [0x5a2a6a, 0xffd23a] }[D.key].map((c, i) => D.key === 'future' || D.key === 'endtime' ? glow(c, { emissiveIntensity: 0.4 }) : std(c));
+          today: [0x6a7a8a, 0x8a9aaa], city: [0x2a2f45, 0x3a3f5a], future: [0x3a4aff, 0x3affff], endtime: [0x5a2a6a, 0xffd23a] }[D.key].map((c, i) => D.key === 'future' || D.key === 'endtime' ? glow(c, { emissiveIntensity: 0.4 }) : std(c));
         this.anim = { spin: [] };
         for (let i = 0; i < 26; i++) {
           let m;
@@ -503,7 +503,7 @@ export class Renderer3D {
             case 'castle': m = i % 2 ? new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.8, 10 + r() * 8, 8), mats[0]) : new THREE.Mesh(new THREE.BoxGeometry(6, 6 + r() * 4, 2), mats[1]); break;
             case 'pirate': m = new THREE.Group(); { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 1.6, 2), mats[0]); const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 7, 6), mats[0]); const sail = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 4), mats[1]); mast.position.y = 3.5; sail.position.set(0, 4, 0.2); m.add(hull, mast, sail); } break;
             case 'west': m = i % 2 ? new THREE.Mesh(new THREE.BoxGeometry(4 + r() * 6, 4 + r() * 8, 4), mats[0]) : new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 4 + r() * 3, 7), mats[1]); break;   // mesas and cacti
-            case 'today': case 'future': m = new THREE.Mesh(new THREE.BoxGeometry(3 + r() * 4, 8 + r() * (D.key === 'future' ? 26 : 16), 3 + r() * 3), mats[i % 2]); break;   // skyscrapers
+            case 'today': case 'future': case 'city': m = new THREE.Mesh(new THREE.BoxGeometry(3 + r() * 4, 8 + r() * (D.key === 'future' ? 26 : 16), 3 + r() * 3), mats[i % 2]); break;   // skyscrapers
             case 'endtime': m = new THREE.Group(); { const face = new THREE.Mesh(new THREE.TorusGeometry(2 + r() * 3, 0.25, 6, 32), mats[1]); const hand = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.2, 0.25), mats[1]); hand.position.y = 1.1; const pivot = new THREE.Group(); pivot.add(hand); m.add(face, pivot); this.anim.spin.push(pivot); } m.position.y = -4 + r() * (H + 8); break;
           }
           if (D.key !== 'endtime') m.position.y = floorY + up * 3;
@@ -1174,6 +1174,13 @@ export class Renderer3D {
         if (o.type === 'revive') { const cross = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.1), mat(glow(0xffffff))); const c2 = cross.clone(); c2.rotation.z = Math.PI / 2; cross.position.z = c2.position.z = 0.3; root.add(cross, c2); }
         break;
       }
+      case 'flag': {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), mat(std(0xdddddd)));
+        e.cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.55), mat(new THREE.MeshBasicMaterial({ color: 0x39ff88, side: THREE.DoubleSide })));
+        e.cloth.position.set(0.45, 1, 0);
+        root.add(pole, e.cloth);
+        break;
+      }
       case 'goldegg': {
         e.egg = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 14), mat(glow(0xffd23a, { emissiveIntensity: 0.9, metalness: 0.9, roughness: 0.15, flatShading: false })));
         e.egg.scale.set(0.8, 1.05, 0.8);
@@ -1300,6 +1307,7 @@ export class Renderer3D {
         case 'fan': e.blades.rotation.y = t * 14; e.streaks.forEach(st => { st.position.y = ((((st.userData.k + t * 1.2) % 1) - 0.5) * o.h) * e.side * -1; }); break;
         case 'tele': e.ring.rotation.z = t * 2; e.disc.material.opacity = 0.25 + Math.sin(t * 4) * 0.1; break;
         case 'power': { const gone = s.powerGone?.(o); e.root.visible = !gone; e.gem.rotation.y = t * 2; e.gem.rotation.x = t; e.gem.position.y = Math.sin(t * 3) * 0.12; e.halo.rotation.x = t * 1.5; break; }
+        case 'flag': e.cloth.rotation.y = Math.sin(t * 3 + o.x) * 0.3; break;
         case 'goldegg': e.root.visible = !s.goldEggs?.includes(o.egg); e.egg.rotation.y = t * 2; e.egg.position.y = Math.sin(t * 3) * 0.1; break;
         case 'orb': case 'revive': {
           const beat = this.beatHz ? Math.pow(1 - ((s.levelT * this.beatHz) % 1), 3) : 0;   // pulse on every beat
@@ -1396,6 +1404,19 @@ export class Renderer3D {
         if (g.userData.hatMesh) g.userData.face.add(g.userData.hatMesh);
         g.userData.hat = hat;
       }
+      if (!!b.board !== !!g.userData.boardMesh) {          // Parkour: a skateboard under your feet
+        if (g.userData.boardMesh) { g.remove(g.userData.boardMesh); g.userData.boardMesh = null; }
+        if (b.board) {
+          const bd = new THREE.Group();
+          const deck = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.07, 0.42), std(0xff3d8b));
+          bd.add(deck);
+          for (const sx of [-0.32, 0.32]) for (const sz of [-0.15, 0.15]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 10), std(0xffe23a)); w.rotation.x = Math.PI / 2; w.position.set(sx, -0.08, sz); bd.add(w); }
+          bd.position.y = -0.5;
+          g.add(bd);
+          g.userData.boardMesh = bd;
+        }
+      }
+      if (g.userData.boardMesh) g.userData.boardMesh.position.y = -0.5 * (b.g || 1);
       const acc = b.acc || 'none';
       if (g.userData.acc !== acc) {
         if (g.userData.accMesh) g.userData.face.remove(g.userData.accMesh);

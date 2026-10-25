@@ -503,6 +503,52 @@ function partyArena(n, kind) {
   return b.done({ name: info[0], objective: info[1], party: kind, spread: true });
 }
 
+// ---------- Parkour: skateboards across rooftops, tall buildings, low gravity ----------
+// The whole height of the world is one big city (everyone falls downward here); fall to the street and you go back to your last checkpoint.
+function parkourCity(n, seed, name, len) {
+  const r = rng(seed), W = len;
+  const grid = Array.from({ length: H }, () => Array(W).fill('.'));
+  const objs = [], checkpoints = [{ x: 2 }];
+  let id = 0;
+  const add = (type, x, y, w, h, props = {}) => objs.push({ id: type + id++, type, dim: null, x, y, w, h, ...props });
+  const roof = (x0, x1, h) => { for (let x = x0; x <= x1; x++) for (let y = H - h; y < H; y++) grid[y][x] = '#'; };
+  for (let y = 0; y < H; y++) { grid[y][0] = '#'; grid[y][W - 1] = '#'; }
+  let x = 1, h = 4;
+  roof(1, 10, h);
+  x = 11;
+  let sinceCp = 0;
+  while (x < W - 22) {
+    const gap = 2 + Math.floor(r() * 4), w = 5 + Math.floor(r() * 8);
+    let nh = Math.max(3, Math.min(21, h + Math.floor(r() * 7) - 3));
+    const climb = nh - h;
+    if (climb > 4) {                                     // too tall to jump: a launch ramp at the edge, or a fan in the gap
+      if (r() < 0.5) add('bounce', x - 3, H - h - 1, 2, 1);
+      else add('fan', x, H - nh - 3, gap, nh + 3);
+    }
+    if (r() < 0.45) add('coin', x + Math.floor(gap / 2), H - Math.max(h, nh) - 4, 1, 1);
+    const bx = x + gap;
+    roof(bx, bx + w - 1, nh);
+    if (w > 7 && r() < 0.5) add('conveyor', bx + 1, H - nh - 1, Math.min(5, w - 2), 1, { dir: 1, rail: true });   // grind rail
+    else if (r() < 0.3) add('boost', bx + 1, H - nh - 1, 2, 1, { dir: 1 });
+    if ((sinceCp += gap + w) > 26) { sinceCp = 0; checkpoints.push({ x: bx + 1, roof: nh, personal: true }); add('flag', bx + 1, H - nh - 3, 1, 3); }
+    x = bx + w;
+    h = nh;
+  }
+  // the last tower, with the finish on top
+  const top = Math.min(22, h + 4);
+  if (top - h > 4) add('bounce', x - 3, H - h - 1, 2, 1);
+  roof(x + 3, W - 2, top);
+  add('exit', W - 7, H - top - 3, 3, 3);
+  return { W, grid, objs, n, checkpoints, crates: [], slots: [], name, theme: 'city', parkour: true, skate: true, race: true,
+    planet: { grav: 0.7 },
+    objective: 'SKATEBOARDS + low gravity! Keep rolling for speed, grind the yellow rails, hit the ramps. Hold DOWN in the air to do a trick. First to the top of the last tower wins!' };
+}
+const PARKOUR = [
+  n => parkourCity(n, 3, 'Rooftop Rush', 150),
+  n => parkourCity(n, 17, 'Skyline Grind', 190),
+  n => parkourCity(n, 41, 'Tower Top', 230),
+];
+
 // ---------- Who is the sniper god? Two floating islands over nothing ----------
 function sniperIslands(n) {
   const W = 72;
@@ -1171,6 +1217,7 @@ export const MODES = {
   tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 2, time: 90 },
   koth: { name: 'King of the Hill', levels: [n => partyArena(n, 'koth')], min: 1, time: 90 },
   chaos: { name: 'Coin Chaos', levels: [n => partyArena(n, 'chaos')], min: 1, time: 90 },
+  parkour: { name: 'Parkour', levels: PARKOUR, min: 1, dimOrder: ['verdant', 'neon', 'inferno', 'desert', 'jungle', 'storm', 'frost', 'hitbox'] },
   sniper: { name: 'Who is the sniper god?', levels: [sniperIslands], min: 2, time: 120 },
   lms: { name: 'Last One Standing', levels: [n => partyArena(n, 'lms')], min: 2, time: 150 },
   daily: { name: 'Daily Challenge', levels: [daily], min: 1 },

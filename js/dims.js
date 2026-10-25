@@ -118,6 +118,7 @@ Object.assign(THEMES, {
   pluto: { key: 'pluto', sky: ['#05060f', '#3a4a6a'], ground: '#9ab0c8', dirt: '#7a90a8', edge: '#ffffff' },
   everything: { key: 'everything', sky: ['#2a0a4a', '#0a4a4a'], ground: '#3a2a5a', dirt: '#2a1e44', edge: '#ffffff' },
   blackhole: { key: 'blackhole', sky: ['#000000', '#120a1a'], ground: '#1a1a24', dirt: '#101018', edge: '#ff8a3a' },
+  city: { key: 'city', sky: ['#2a3a6a', '#ff9a6a'], ground: '#5a5f6a', dirt: '#3a3f48', edge: '#ffd23a' },
   sky: { key: 'sky', sky: ['#ff9a5a', '#ffd8a8'], ground: '#5a8a3a', dirt: '#6b4a2a', edge: '#9ae070' },
   ship: { key: 'ship', sky: ['#02040c', '#1a2440'], ground: '#4a3420', dirt: '#2e2014', edge: '#8a6a40' },
   rhythm: { key: 'rhythm', sky: ['#08001a', '#3a0058'], ground: '#1a0a3a', dirt: '#120626', edge: '#ff2bd6' },
