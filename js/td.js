@@ -51,6 +51,40 @@ export function steer(world, b, tx, ty, speed, dt) {
   return false;
 }
 
+// shortest walkable route over the tile grid (breadth-first); returns tile centers to walk through
+export function pathfind(world, from, to) {
+  const W = world.w, sx = Math.floor(from.x / TS), sy = Math.floor(from.y / TS), tx = Math.floor(to.x / TS), ty = Math.floor(to.y / TS);
+  if (!world.in(tx, ty) || SOLID.has(world.get(tx, ty))) return null;
+  const prev = new Int32Array(W * world.h).fill(-1), start = sy * W + sx, goal = ty * W + tx;
+  const q = [start];
+  prev[start] = start;
+  for (let h = 0; h < q.length; h++) {
+    const c = q[h];
+    if (c === goal) break;
+    const cx = c % W, cy = (c - cx) / W;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, ny = cy + dy, n = ny * W + nx;
+      if (!world.in(nx, ny) || prev[n] !== -1 || SOLID.has(world.get(nx, ny))) continue;
+      prev[n] = c;
+      q.push(n);
+    }
+  }
+  if (prev[goal] === -1) return null;
+  const path = [];
+  for (let c = goal; c !== start; c = prev[c]) path.push(center(c % W, Math.floor(c / W)));
+  return path.reverse();
+}
+// walk along a computed route (re-planned when the target moves or every few seconds)
+export function goTo(world, b, target, speed, dt) {
+  const key = Math.floor(target.x / TS) + ',' + Math.floor(target.y / TS);
+  b.pathT = (b.pathT || 0) - dt;
+  if (!b.path || b.pathKey !== key || b.pathT <= 0) { b.path = pathfind(world, b, target) || []; b.pathKey = key; b.pathT = 3; }
+  while (b.path.length && Math.hypot(b.path[0].x - b.x, b.path[0].y - b.y) < 6) b.path.shift();
+  const next = b.path[0] || target;
+  steer(world, b, next.x, next.y, speed, dt);
+  return Math.hypot(target.x - b.x, target.y - b.y) < 8;
+}
+
 // ---------- drawing ----------
 const TILE_COL = {
   [TILE.FLOOR]: '#3a4a3a', [TILE.WALL]: '#1c1f2b', [TILE.VOID]: '#05050a', [TILE.TREE]: '#2f6b2f', [TILE.WATER]: '#1f5a9a',

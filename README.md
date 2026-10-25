@@ -82,6 +82,9 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 - **🔥 99 Nights in the Dimensions** (top-down): survive in a dark forest. Chop trees (F) and feed the campfire (E);
   its light keeps the monsters away (Shadow Wolves, Frost Wraiths, the Rift Stag, Banana Brutes). Roles: Lumberjack,
   Fighter, Medic, Scout. Eat berries, rescue the 4 lost kids, come back at dawn if you fall. Reach night 99 to win.
+- **🔪 Imposter** (top-down, Among Us style, 4+ players — bots fill in): crewmates hold E at their task markers;
+  the imposter takes people out with F. Report a body (E) or hit the emergency button to meet, chat, and vote someone
+  off. Crew wins by finishing tasks or ejecting the imposter; the imposter wins when it's 1 vs 1.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode

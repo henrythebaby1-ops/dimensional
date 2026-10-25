@@ -4,6 +4,7 @@ import { makeMaker } from './maker.js';
 import { startPixelIcons } from './pixels.js';
 import { MODES_TD, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
 import './td2.js';
+import './td3.js';
 const MIDY = MID * T;
 import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -2292,7 +2293,7 @@ function tdFrame(dt, draw) {
     for (const [id, b] of botActors) {
       const ox = b.p.x, oy = b.p.y;
       b.p.id = id;
-      if (!tdMode.frozen?.(tdApi, id) && !tdMode.isOut?.(id) && b.p.dead <= 0) tdMode.botTick?.(tdApi, b, dt);
+      if (!tdMode.isOut?.(id) && b.p.dead <= 0) tdMode.botTick?.(tdApi, b, dt);   // each game decides what a frozen bot may do (e.g. vote)
       b.p.vx = (b.p.x - ox) / Math.max(dt, 0.001); b.p.vy = (b.p.y - oy) / Math.max(dt, 0.001);
       if (Math.abs(b.p.vx) + Math.abs(b.p.vy) > 5) { b.p.fx = Math.sign(b.p.vx) * 0.8; b.p.fy = b.p.vy ? Math.sign(b.p.vy) : 0.3; }
       remotes.set(id, { ...stateOf(b.p, id, b.name), sx: b.p.x, sy: b.p.y, t: now });
@@ -3490,6 +3491,7 @@ function leaveRoom() {
 function setScreen(m) {
   mode = m;
   if (m !== 'play' && paused) { paused = false; $('pause').classList.add('hidden'); }
+  if (m !== 'play') document.getElementById('meeting')?.classList.add('hidden');
   $('menu').classList.toggle('hidden', m !== 'menu');
   $('lobby').classList.toggle('hidden', m !== 'lobby');
   $('victory').classList.toggle('hidden', m !== 'victory');
@@ -4690,10 +4692,10 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['New mini games', [['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
+  ['New mini games', [['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');
