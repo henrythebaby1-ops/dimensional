@@ -247,6 +247,8 @@ export class Renderer3D {
   constructor(canvas, lowPower) {
     this.r = new THREE.WebGLRenderer({ canvas, antialias: !lowPower, powerPreference: 'high-performance' });
     this.r.setPixelRatio(Math.min(devicePixelRatio, lowPower ? 1.5 : 2));
+    this.lowPower = lowPower;
+    this.quality = 1;
     this.scene = new THREE.Scene();
     this.persp = new THREE.PerspectiveCamera(40, 1, 0.1, 300);
     this.ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);   // 2Dverse sees the world flat
@@ -290,7 +292,17 @@ export class Renderer3D {
 
   // retro look: draw the 3D world at a low resolution and let the browser blow it up into chunky pixels
   setPixelated(on) {
-    this.r.setPixelRatio(on ? Math.max(0.3, 0.42 / Math.max(1, innerWidth / 1400)) : Math.min(devicePixelRatio, 2));
+    this.pixelated = on;
+    this.applyRatio();
+  }
+  // 1 = full resolution; lower = fewer pixels to draw (the game turns this down by itself when a phone struggles)
+  setQuality(q) {
+    this.quality = Math.max(0.5, Math.min(1, q));
+    this.applyRatio();
+  }
+  applyRatio() {
+    const base = this.pixelated ? Math.max(0.3, 0.42 / Math.max(1, innerWidth / 1400)) : Math.min(devicePixelRatio, this.lowPower ? 1.5 : 2);
+    this.r.setPixelRatio(base * (this.quality ?? 1));
     if (this.w) this.resize(this.w, this.h);
   }
   resize(w, h) {

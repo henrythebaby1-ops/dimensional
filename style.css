@@ -453,3 +453,23 @@ html.r-font .pause-title { font-size: 20px; animation: blink 1s steps(2) infinit
 .ship-mast { position: absolute; left: 96px; bottom: 38px; width: 8px; height: 80px; background: #2e2014; }
 .ship-sail { position: absolute; left: 62px; bottom: 56px; width: 76px; height: 54px; background: #8a8270; clip-path: polygon(0 0, 100% 0, 90% 100%, 10% 100%); }
 @keyframes shipRock { from { transform: translateX(-50%) rotate(-3deg); } to { transform: translateX(-50%) rotate(3deg); } }
+
+/* phone control settings */
+.tset { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; margin: 6px 0 4px; font-size: 14px; }
+.seg { display: flex; gap: 4px; }
+.seg button { flex: 1; padding: 6px 4px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+.seg button.sel { background: var(--accent); border-color: var(--accent); }
+html.r-box .seg button { border-radius: 0; border: 2px solid #fff; }
+#touch { --stick: 1; --btn: 1; --alpha: 1; opacity: var(--alpha); }
+#stick-base { width: calc(132px * var(--stick)); height: calc(132px * var(--stick)); }
+#stick-knob { width: calc(56px * var(--stick)); height: calc(56px * var(--stick)); left: calc(38px * var(--stick)); top: calc(38px * var(--stick)); }
+.jump-hint { width: calc(104px * var(--btn)); height: calc(104px * var(--btn)); }
+.tb { width: calc(74px * var(--btn)); height: calc(74px * var(--btn)); }
+.tb.small { width: calc(52px * var(--btn)); height: calc(52px * var(--btn)); }
+#tbtns { right: calc(max(140px, calc(env(safe-area-inset-right) + 140px)) * var(--btn)); }
+/* left-handed: stick on the right, jump and buttons on the left */
+#touch.lefty #stick-zone { left: auto; right: 0; }
+#touch.lefty #jump-zone { right: auto; left: 0; }
+#touch.lefty .jump-hint { right: auto; left: max(26px, env(safe-area-inset-left)); }
+#touch.lefty #tbtns { right: auto; left: calc(max(140px, calc(env(safe-area-inset-left) + 140px)) * var(--btn)); flex-direction: row-reverse; }
+#touch.lefty .stick-tip { left: auto; right: max(22px, env(safe-area-inset-right)); }

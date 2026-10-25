@@ -145,23 +145,37 @@ function pressAction(a) {
 
 // Touch: a floating thumb-stick on the left half, buttons on the right.
 // The stick is analog and follows your thumb if you drag past its edge, so it never "runs out".
-let analogX = 0;
+let analogX = 0, analogTarget = 0;
+// phone control settings (sizes, fixed or floating stick, left-handed, see-through, vibration)
+const tcfg = { stick: 1, btn: 1, fixed: false, lefty: false, alpha: 1, buzz: true };
+try { Object.assign(tcfg, JSON.parse(localStorage.getItem('dim-touch') || '{}')); } catch {}
+function applyTouchCfg() {
+  const t = $('touch');
+  t.style.setProperty('--stick', tcfg.stick);
+  t.style.setProperty('--btn', tcfg.btn);
+  t.style.setProperty('--alpha', tcfg.alpha);
+  t.classList.toggle('lefty', tcfg.lefty);
+  dispatchEvent(new Event('resize'));
+}
 {
   const zone = $('stick-zone'), base = $('stick-base'), knob = $('stick-knob');
   let stickId = null, ox = 0, oy = 0, swiped = false;
-  const R = 46;
+  const R = () => 46 * tcfg.stick, HALF = () => 66 * tcfg.stick;
+  let restX = 0, restY = 0;
   // resting spot for the joystick, so you can always see where it is
   const restStick = () => {
     const r = zone.getBoundingClientRect();
-    base.style.transform = `translate(${r.left + Math.max(24, r.width * 0.18)}px, ${r.bottom - 160}px)`;
+    restX = tcfg.lefty ? r.right - Math.max(24, r.width * 0.18) - HALF() * 2 : r.left + Math.max(24, r.width * 0.18);
+    restY = r.bottom - 28 - HALF() * 2;
+    base.style.transform = `translate(${restX}px, ${restY}px)`;
     knob.style.transform = 'translate(0px, 0px)';
   };
   restStick();
   addEventListener('resize', restStick);
   const setDir = (dx, dy = 0) => {
     for (const k of ['left', 'right', 'up', 'down']) held.delete(k);
-    const ax = Math.abs(dx) < 7 ? 0 : Math.sign(dx) * Math.min(1, (Math.abs(dx) - 7) / (R * 0.6 - 7));
-    analogX = ax ? Math.sign(ax) * Math.max(0.35, Math.abs(ax)) : 0;   // gentle push = walk, full push = run
+    const ax = Math.abs(dx) < 7 ? 0 : Math.sign(dx) * Math.min(1, (Math.abs(dx) - 7) / (R() * 0.6 - 7));
+    analogTarget = ax ? Math.sign(ax) * Math.max(0.35, Math.pow(Math.abs(ax), 0.8)) : 0;   // gentle push = walk, full push = run (eased in every frame)
     if (dx < -7) held.add('left');
     if (dx > 7) held.add('right');
     if (dy < -18) held.add('up');
@@ -171,9 +185,9 @@ let analogX = 0;
     if (stickId !== null) return;
     stickId = e.pointerId;
     try { zone.setPointerCapture(e.pointerId); } catch {}
-    ox = e.clientX; oy = e.clientY;
     swiped = false;
-    base.style.transform = `translate(${ox - 66}px, ${oy - 66}px)`;
+    if (tcfg.fixed) { ox = restX + HALF(); oy = restY + HALF(); }        // fixed stick: stays where it is
+    else { ox = e.clientX; oy = e.clientY; base.style.transform = `translate(${ox - HALF()}px, ${oy - HALF()}px)`; }
     base.classList.add('on');
     knob.style.transform = 'translate(0px, 0px)';
   });
@@ -181,10 +195,13 @@ let analogX = 0;
     if (e.pointerId !== stickId) return;
     let dx = e.clientX - ox, dy = e.clientY - oy;
     const d = Math.hypot(dx, dy);
-    if (d > R) {                              // drag the stick's center along behind the thumb
-      ox += dx * (1 - R / d); oy += dy * (1 - R / d);
-      dx = e.clientX - ox; dy = e.clientY - oy;
-      base.style.transform = `translate(${ox - 66}px, ${oy - 66}px)`;
+    if (d > R()) {
+      if (tcfg.fixed) { dx *= R() / d; dy *= R() / d; }   // fixed stick: the knob stops at the edge
+      else {                                  // floating stick: drag its center along behind the thumb
+        ox += dx * (1 - R() / d); oy += dy * (1 - R() / d);
+        dx = e.clientX - ox; dy = e.clientY - oy;
+        base.style.transform = `translate(${ox - HALF()}px, ${oy - HALF()}px)`;
+      }
     }
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     setDir(dx, dy);
@@ -1028,7 +1045,7 @@ function hurt(p) {
   if (p.hp <= 0) die(p);
 }
 
-const buzz = ms => { try { if (isTouch) navigator.vibrate?.(ms); } catch {} };
+const buzz = ms => { try { if (isTouch && tcfg.buzz) navigator.vibrate?.(ms); } catch {} };
 
 function shiftDimension(p) {
   const from = DIMS[p.dim];
@@ -3882,8 +3899,21 @@ function drawMenu(dt) {
 
 // ---------- main loop ----------
 let last = performance.now(), lastRaf = last;
+// keep phones smooth: if the frame rate drops, draw the 3D world at a lower resolution (and raise it again when it can)
+let fpsAvg = 60, qualT = 0;
+function autoQuality(dt) {
+  fpsAvg += (1 / Math.max(dt, 0.001) - fpsAvg) * 0.05;
+  qualT += dt;
+  if (qualT < 2.5 || mode !== 'play' || paused) return;
+  if (fpsAvg < 45 && renderer.quality > 0.5) { renderer.setQuality(renderer.quality - 0.15); qualT = 0; }
+  else if (fpsAvg > 58 && renderer.quality < 1) { renderer.setQuality(Math.min(1, renderer.quality + 0.1)); qualT = -4; }
+}
 function frame() {
   const now = performance.now();
+  const fdt = Math.min(0.1, (now - last) / 1000);
+  analogX += (analogTarget - analogX) * Math.min(1, fdt * (analogTarget === 0 ? 30 : 18));   // smooth stick, quick stop
+  if (Math.abs(analogX) < 0.02 && analogTarget === 0) analogX = 0;
+  autoQuality(fdt);
   step(Math.min(0.05, (now - last) / 1000), true);
   last = lastRaf = now;
   requestAnimationFrame(frame);
@@ -4159,6 +4189,23 @@ $('style-modern').onclick = () => { ui$.style = 'modern'; saveUi(); applyStyle()
 $('set-egg').onchange = () => { ui$.egg = $('set-egg').checked; eraT = 0; eraStage = 0; saveUi(); applyStyle(); };
 $('set-pixel3d').onchange = () => { ui$.pix3d = $('set-pixel3d').checked; saveUi(); applyStyle(eraStage); };
 $('open-settings').onclick = () => $('settings').classList.remove('hidden');
+// phone control settings
+{
+  const segs = { 't-stick': 'stick', 't-btn': 'btn', 't-fixed': 'fixed', 't-lefty': 'lefty', 't-buzz': 'buzz' };
+  const show = () => {
+    for (const [id, k] of Object.entries(segs)) for (const b of $(id).children) b.classList.toggle('sel', String(+tcfg[k]) === b.dataset.v || (typeof tcfg[k] === 'boolean' && (b.dataset.v === '1') === tcfg[k]));
+    $('t-alpha').value = tcfg.alpha;
+  };
+  const save = () => { try { localStorage.setItem('dim-touch', JSON.stringify(tcfg)); } catch {} applyTouchCfg(); show(); };
+  for (const [id, k] of Object.entries(segs)) for (const b of $(id).children) b.onclick = () => {
+    tcfg[k] = ['fixed', 'lefty', 'buzz'].includes(k) ? b.dataset.v === '1' : +b.dataset.v;
+    if (k === 'buzz' && tcfg.buzz) buzz(30);
+    save();
+  };
+  $('t-alpha').oninput = () => { tcfg.alpha = +$('t-alpha').value; save(); };
+  show();
+  applyTouchCfg();
+}
 $('settings-close').onclick = () => $('settings').classList.add('hidden');
 // stay on the main menu long enough and the game slowly "upgrades" itself to the modern look
 const ERA_AT = [40, 52, 64, 76, 88, 100];
