@@ -826,6 +826,47 @@ const CH5 = [
     objective: 'The Conductor\'s final song. Full speed, gates every few beats. Carry each other to the end!' }),
 ];
 
+// ---------- Story Chapter 6: the ship ----------
+// A real, terrible part of history: the transatlantic slave trade. In this rift the friends sneak aboard a ship,
+// unlock every captive, and get them all off. The crew are guards you can only stun for a few seconds.
+function captiveSpots(lv, count) {
+  const spots = [];
+  for (let x = 6; x < lv.W - 8; x++) for (let r = MID + 3; r < H; r++) {
+    if (lv.grid[r][x] === '#' && lv.grid[r - 1][x] === '.' && lv.grid[r - 2][x] === '.' && !lv.objs.some(o => o.x <= x && x < o.x + o.w && o.y <= r - 1 && r - 1 < o.y + o.h)) spots.push([x, r - 1]);
+  }
+  // spread them out: one captive per stretch of the level, never two on the same spot
+  const pick = [];
+  for (let i = 0; i < count; i++) {
+    const lo = (6 + (lv.W - 14) * i / count), hi = (6 + (lv.W - 14) * (i + 1) / count);
+    const inRange = spots.filter(([x]) => x >= lo && x < hi && !pick.some(p => Math.abs(p[0] - x) < 3));
+    if (inRange.length) pick.push(inRange[Math.floor(inRange.length / 2)]);
+  }
+  return pick;
+}
+const shipLevel = (lv, name, objective, { captives = 3, guards = [], dark = false, wind = 0 } = {}) => {
+  const out = { ...lv, race: false, name, objective, theme: 'ship', ship: true, dark: lv.dark || dark, planet: wind ? { wind } : lv.planet, levelRole: undefined };
+  captiveSpots(out, captives).forEach(([x, r], i) => {
+    out.objs.push({ id: 'cap' + i, type: 'captive', dim: null, x, y: r, w: 1, h: 1, look: i % 4 });
+    out.objs.push({ id: 'cap' + i + 't', type: 'captive', dim: null, x, y: H - 1 - r, w: 1, h: 1, look: (i + 2) % 4 });
+  });
+  const ex = out.objs.find(o => o.type === 'exit');
+  if (ex) {                                     // the way off the ship stays locked until everyone is free
+    out.objs.push({ id: 'freedF', type: 'door', link: 'freed', dim: null, x: ex.x - 2, y: MID, w: 1, h: H - 1 - MID, chains: true });
+    out.objs.push({ id: 'freedC', type: 'door', link: 'freed', dim: null, x: ex.x - 2, y: 1, w: 1, h: MID - 1, chains: true });
+  }
+  const b = new Builder(lv.n, lv.W);
+  b.mobs(guards.filter(x => x < lv.W - 6), 3, 1.3);
+  out.objs.push(...b.objs.map((o, i) => ({ ...o, id: 'guard' + i, guard: true })));
+  return out;
+};
+const SHIP = [
+  n => shipLevel(crossing(n), 'The Coast', 'Sneak aboard and unlock every captive (touch them). Guards can only be stunned for a few seconds — shots knock them out. The way off the ship opens when everyone is free.', { captives: 3, guards: [30, 50] }),
+  n => shipLevel(stairs(n), 'The Cargo Hold', 'People are chained deep in the hold. Climb down together, unlock every chain, and keep away from the guards.', { captives: 4, guards: [20, 40] }),
+  n => shipLevel(shadows(n), 'Below Deck', 'It is dark below deck. Ping (E) so your friends can find you, and find every captive in the dark.', { captives: 4, guards: [35, 60, 80] }),
+  n => shipLevel(riftRush(n), 'The Storm', 'A storm hits the ship and the wind pushes you around. Keep freeing people — nobody gets left behind.', { captives: 4, guards: [30, 55, 75], wind: 120 }),
+  n => shipLevel(relay(n), 'Turn the Ship Around', 'The last captives are near the wheel. Free them all and help everyone off — then the ship turns back toward home.', { captives: 5, guards: [25, 45, 65, 80] }),
+];
+
 // ---------- player-made levels ----------
 // A design is the floor lane only: rows[ly] is a string of tiles ('#' ground, '^' spikes, '.' air),
 // mirrored onto the ceiling lane like every built-in level. Objects sit in both lanes.
@@ -1099,6 +1140,7 @@ export const MODES = {
   space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
   time: { name: 'Through Time', levels: TIME, min: 1, scenes: {} },
   story5: { name: 'Story Ch.5', levels: CH5, min: 1, dimOrder: ['verdant', 'inverted', 'neon', 'crystal', 'inferno', 'candy', 'frost', 'lunar', 'desert', 'tidal'], scenes: {} },
+  story6: { name: 'Story Ch.6', levels: SHIP, min: 2, dimOrder: ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'tidal', 'neon', 'crystal', 'desert', 'candy'], scenes: {} },
   banana: { name: 'Into the Bananaverse', levels: BANANA, min: 1, oneDim: 'banana', scenes: {} },
   parallel: { name: 'Parallel World', levels: PARALLEL, min: 1, scenes: {} },
   custom: { name: 'Player level', levels: [n => customLevel(customData, n)], min: 1 },
@@ -1123,13 +1165,13 @@ export const LEVELS = MODES.story.levels;
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   let lv = m.levels[idx](n);
-  if (['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
+  if (['story', 'story2', 'story3', 'story4', 'story6', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
   if (['story', 'story3', 'story4', 'daily', 'space', 'time', 'sea', 'survival', 'endless', 'hunt', 'bossrush'].includes(mode) && !lv.ch2) lv = addPowers(lv, idx + lv.W);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
     : mode === 'space' ? `${['🌍', '🟡', '🔴', '☀️', '🪐', '🟠', '🧊', '🌈', '🕳️'][idx]} ${lv.name}`
     : mode === 'time' ? `${['🦖', '🏺', '🏰', '🏴‍☠️', '🤠', '🏙️', '🚀', '⌛', '⏰'][idx]} ${lv.name}`
     : mode === 'sea' ? `${['🏖️', '🪸', '⚓', '🌿', '🌑', '🦑'][idx]} ${lv.name}`
-    : mode === 'story5' ? `5-${idx + 1} · ${lv.name}`
+    : mode === 'story5' ? `5-${idx + 1} · ${lv.name}` : mode === 'story6' ? `6-${idx + 1} · ${lv.name}`
     : mode === 'banana' ? `🍌 ${idx + 1} · ${lv.name}` : mode === 'parallel' ? `💀 ${idx + 1} · ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
   if (lv.party && !lv.theme) lv.theme = 'arcade';

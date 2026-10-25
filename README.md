@@ -67,6 +67,10 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
   your friend's lane**. 💚 **Revive orbs**: crashed friends come back when someone still running flies through one.
   If everybody crashes, the song restarts instantly. % progress bar, attempt counter and best %. 5 songs from 128 to
   170 BPM: First Beat, Off the Beat, Call and Response, Double Time, The Conductor's Symphony.
+- **Story Chapter 6 — The Ship**: a rift opens on a slave ship crossing the Atlantic. The cutscenes explain the real
+  history plainly (the transatlantic slave trade, and resistance such as the 1839 Amistad revolt). In 5 co-op levels
+  (The Coast, The Cargo Hold, Below Deck, The Storm, Turn the Ship Around) you unlock every captive in both lanes —
+  the way off the ship stays locked until everyone is free. Guards can only be knocked out for a few seconds.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode

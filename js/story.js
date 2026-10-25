@@ -437,3 +437,22 @@ SCENES.story5End = [
   { text: '"Nobody has ever finished my song TOGETHER." The Rhythm Rift fades into a quiet hum.', bg: 'dark', cast: ['conductor', 'friends'], ms: 3800 },
   { text: 'The friends walk home humming the same tune.', bg: 'happy', cast: ['friends'], ms: 3200 },
 ];
+
+// Chapter 6: the ship. Told plainly and truthfully, without making light of it.
+CAST.ship = () => {
+  const s = el('div', 'cut-ship');
+  s.append(el('div', 'ship-hull'), el('div', 'ship-mast'), el('div', 'ship-sail'));
+  return s;
+};
+SCENES.story6Intro = [
+  { text: 'Chapter 6 — The Ship. The next rift opened somewhere real: the Atlantic Ocean, a few hundred years ago.', bg: 'dark', cast: ['ship'], ms: 4200 },
+  { text: 'From the 1500s to the 1800s, more than 12 million African people were kidnapped and forced onto ships like this one. This was the transatlantic slave trade.', bg: 'dark', cast: ['ship'], ms: 5600 },
+  { text: 'They were people — farmers, musicians, parents and children — taken from their homes and chained below deck.', bg: 'dark', cast: ['ship'], ms: 4800 },
+  { text: 'The friends can\'t change history. But inside this rift, they can open every lock.', bg: 'dark', cast: ['friends'], ms: 4000 },
+  { text: 'Unlock every captive, stay away from the guards (your shots only knock them out), and don\'t leave anyone behind.', bg: 'dark', cast: ['friends', 'ship'], ms: 4600 },
+];
+SCENES.story6End = [
+  { text: 'The last chain falls. The ship turns around and sails back toward the coast.', bg: 'dark', cast: ['ship'], fx: 'flash', ms: 4000 },
+  { text: 'In real history, enslaved people fought back too. In 1839 the captives on the ship Amistad took control of it, and in 1841 a court ruled that they were free.', bg: 'dark', cast: ['ship'], ms: 5600 },
+  { text: 'The slave trade was finally ended, and slavery was abolished — but the harm it caused is still remembered today.', bg: 'dark', cast: ['friends'], ms: 5000 },
+];

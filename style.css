@@ -447,3 +447,9 @@ html.r-font .pause-title { font-size: 20px; animation: blink 1s steps(2) infinit
 @keyframes baton { from { transform: rotate(-40deg); } to { transform: rotate(30deg); } }
 .cond-note { position: absolute; left: 90px; top: 40px; color: #ffe23a; font-size: 24px; animation: note 1.2s linear infinite; text-shadow: 0 0 8px #ffe23a; }
 @keyframes note { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(60px, -50px); opacity: 0; } }
+
+.cut-ship { position: absolute; left: 50%; top: 40px; width: 200px; height: 120px; transform: translateX(-50%); z-index: 2; animation: shipRock 3s ease-in-out infinite alternate; }
+.ship-hull { position: absolute; left: 0; bottom: 0; width: 200px; height: 40px; background: #4a3420; clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%); box-shadow: inset 0 6px 0 #6a4a2c; }
+.ship-mast { position: absolute; left: 96px; bottom: 38px; width: 8px; height: 80px; background: #2e2014; }
+.ship-sail { position: absolute; left: 62px; bottom: 56px; width: 76px; height: 54px; background: #8a8270; clip-path: polygon(0 0, 100% 0, 90% 100%, 10% 100%); }
+@keyframes shipRock { from { transform: translateX(-50%) rotate(-3deg); } to { transform: translateX(-50%) rotate(3deg); } }

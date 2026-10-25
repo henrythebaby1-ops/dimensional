@@ -403,6 +403,7 @@ function computeSignals() {
   const s = {};
   for (const k of latched) s[k] = true;
   for (const [k, u] of helpOpen) if (levelT < u) s[k] = true;
+  if (level.ship && captives().every(c => freed.has(c.id))) s.freed = true;
   if (level.keyList && level.keyList.every(k => grabbed.has(k))) s.keys = true;
   if (level.nest && level.mobs.length && level.mobs.every(o => killed.has(o.id))) s.nest = true;
   const pressed = new Set(P && P.dead <= 0 ? P.press : []);
@@ -427,6 +428,7 @@ let snapT = 0;
 function sendSnapshot() {
   send('snap', {
     l: levelIdx, m: gameMode, lt: levelT, r: gameRoster, la: [...latched], gr: [...grabbed], ki: [...killed],
+    fr: level.ship ? [...freed] : undefined,
     sv: surv && { w: surv.wave, lives: surv.lives, mobs: level.mobs.map(o => ({ id: o.id, dim: o.dim, x: o.x, range: o.range, speed: o.speed, phase: o.phase })) },
     b: boss && { hp: boss.hp, max: boss.max },
     cr: crates && crates.map(c => [c.id, Math.round(c.x), Math.round(c.y), c.held ? 1 : 0]),
@@ -447,6 +449,7 @@ function onSnapshot(d) {
   }
   for (const k of d.la || []) if (!latched.has(k)) { latched.add(k); const t = level.targets.find(o => o.link === k); if (t) onCrystal(t); }
   for (const k of d.gr || []) if (!grabbed.has(k) && level.keyList?.includes(k)) grabKey(k, false);
+  if (level.ship && Array.isArray(d.fr)) for (const id of d.fr) if (typeof id === 'string' && !freed.has(id)) freeCaptive(id, '', false);
   if (surv && d.sv) {
     if (Array.isArray(d.sv.mobs) && d.sv.w !== surv.wave) applyWave(d.sv.w, d.sv.mobs.slice(0, 30));
     surv.lives = d.sv.lives | 0;
@@ -528,7 +531,8 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   if (one) setDimOrder([one]);
   if (MODES[gameMode]?.dimOrder) setDimOrder(MODES[gameMode].dimOrder);   // Chapter 5: plain lanes only, nothing that changes how you see or move
   helpOpen.clear();
-  reviveUsed.clear();                   // Into the Bananaverse: everyone in the same world
+  reviveUsed.clear();
+  freed.clear();                   // Into the Bananaverse: everyone in the same world
   level = buildLevel(gameMode, idx, n);
   if (one) level.oneDim = one;
   $('game').style.filter = level.parallel ? 'invert(1) hue-rotate(180deg)' : '';
@@ -689,6 +693,7 @@ function updateActor(p, inp, dt) {
       }
     }
     else if (o.type === 'orb') p.inOrb = o;
+    else if (o.type === 'captive' && !freed.has(o.id) && (local || isBot(p.id))) freeCaptive(o.id, local ? me.name : botActors.get(p.id)?.name, true);
     else if (o.type === 'revive' && !reviveUsed.has(o.id) && p.dead <= 0) {
       reviveUsed.add(o.id);
       const anyDown = allActors().some(a => a.dead);
@@ -786,6 +791,21 @@ function updateActor(p, inp, dt) {
 
 // ---------- Chapter 5: the Rhythm Rift (Geometry Dash style) ----------
 // Everyone gets the same snappy physics, runs forward on their own, and crashes on any hit.
+// ---------- Chapter 6: freeing the captives ----------
+const freed = new Set();
+const captives = () => level.objs.filter(o => o.type === 'captive');
+function freeCaptive(id, by, mine) {
+  if (freed.has(id)) return;
+  const o = level.objs.find(k => k.id === id && k.type === 'captive');
+  if (!o) return;
+  freed.add(id);
+  if (mine) send('free', { id, by });
+  burst((o.x + 0.5) * T, (o.y + 0.5) * T, '#ffe9a8', 26, 220);
+  const all = captives(), n = all.filter(c => freed.has(c.id)).length;
+  sfx(n === all.length ? 'gate' : 'key');
+  toast(n === all.length ? '🔓 Everyone is free! The way off the ship is open.' : `🔓 ${by || 'A friend'} unlocked a chain — ${n}/${all.length} free`, '#ffe9a8');
+}
+
 const helpOpen = new Map();            // gate link -> level time it stays open until
 const reviveUsed = new Set();          // revive orbs work once per attempt
 let dashAttempt = 1, dashBest = {};
@@ -1197,7 +1217,21 @@ function needGrav(o) {
   return o.y >= MID ? 1 : -1;
 }
 
+// Chapter 6: free captives on the way — but plate duty for friends always comes first
 function botGoal(b) {
+  const base = botGoalInner(b);
+  if (!level.ship || base?.o?.type === 'plate' || base?.o?.type === 'pad' || b.p.press.length) return base;
+  const p = b.p, g = gravOf(p), cx = p.x + PW / 2;
+  const mine = level.objs.filter(o => o.type === 'captive' && !freed.has(o.id) && (DIMS[p.dim].fly || needGrav(o) === g));
+  let c = null, bd = 1e9;
+  for (const o of mine) { const d = Math.abs((o.x + 0.5) * T - cx); if (d < bd) { bd = d; c = o; } }
+  if (!c) return base;
+  const stuck = base?.o?.type === 'exit' || !base;          // nothing else to do: go get everyone
+  if (stuck || bd < T * 6) { b.capT = 2; return { x: (c.x + 0.5) * T, y: (c.y + 0.5) * T, o: c }; }
+  return base;
+}
+
+function botGoalInner(b) {
   const p = b.p, D = DIMS[p.dim];
   const g = gravOf(p);
   const cx = p.x + PW / 2;
@@ -2186,7 +2220,7 @@ function sendEmote(i) {
 // ---------- rewards: coins, stars and best times ----------
 let levelStartMs = Date.now(), myDeaths = 0;
 function completeLevel(mode, idx, lv, startMs, deaths) {
-  if (!['story', 'story2', 'story3', 'story4', 'story5', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) || !lv) return;
+  if (!['story', 'story2', 'story3', 'story4', 'story5', 'story6', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) || !lv) return;
   const ms = Date.now() - startMs;
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
@@ -2956,6 +2990,7 @@ function killMob(id, by) {
   if (killed.has(id)) return;
   killed.add(id);
   if (level?.training) setTimeout(() => killed.delete(id), 3000);   // training dummies come back
+  if (level?.ship) { const lv = level; setTimeout(() => level === lv && killed.delete(id), 6000); }   // guards are only knocked out
   if (hunt && typeof by === 'string') scores[by] = (scores[by] || 0) + 1;
   if (by === me.id) { addCoins(2); sfx('kill'); }
   const o = level.mobs.find(m => m.id === id);
@@ -3070,6 +3105,7 @@ function onMsg(t, d) {
     case 'custom': if (d.d && typeof d.d === 'object' && Array.isArray(d.d.rows) && JSON.stringify(d.d).length < 60000) setCustom(d.d); break;
     case 'minion': if (mode === 'play' && boss?.banana && d.o && typeof d.o.id === 'string') addMinion({ id: d.o.id, type: 'mob', dim: 0, x: +d.o.x | 0, y: +d.o.y | 0, w: 1, h: 1, range: +d.o.range || 4, speed: +d.o.speed || 2, phase: +d.o.phase || 0 }); break;
     case 'pause': if (mode === 'play') setPaused(!!d.on, String(d.by || '').slice(0, 14)); break;
+    case 'free': if (mode === 'play' && level?.ship && typeof d.id === 'string') freeCaptive(d.id, String(d.by || '').slice(0, 14), false); break;
     case 'help': if (mode === 'play' && level?.dash && typeof d.k === 'string') helpOpen.set(d.k, +d.u || 0); break;
     case 'revive': if (mode === 'play' && level?.dash) { if (typeof d.id === 'string') reviveUsed.add(d.id); reviveAt(+d.x || 0, String(d.by || 'A friend').slice(0, 14)); } break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
@@ -3369,6 +3405,15 @@ async function showVictory() {
     sfx('win');
     return;
   }
+  if (gameMode === 'story6') {
+    playStory(friendsForScene(), SCENES.story6End);
+    addCoins(160);
+    title.textContent = 'CHAPTER 6 COMPLETE';
+    text.textContent = 'Every chain was opened and everyone got off the ship. In real history, millions were not so lucky — and many fought for their freedom. +160 🪙';
+    big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
   if (gameMode === 'story5') {
     playStory(friendsForScene(), SCENES.story5End);
     addCoins(160);
@@ -3491,6 +3536,7 @@ function updateHud(dt) {
   $('lvl-name').textContent = level.name;
   $('lvl-obj').textContent = level.objective;
   let prog = '';
+  if (level.ship) prog = `Freed ${captives().filter(c => freed.has(c.id)).length}/${captives().length}`;
   if (level.keyList) prog = `Keystones ${level.keyList.filter(k => grabbed.has(k)).length}/${level.keyList.length}`;
   if (level.groups) prog = `Gates open ${level.groups.filter(g => latched.has('res' + g)).length}/${level.groups.length}`;
   if (level.nest) prog = `Crawlers left: ${level.mobs.filter(o => !killed.has(o.id)).length}`;
@@ -3503,7 +3549,7 @@ function updateHud(dt) {
   else if (party) prog = `⏱ ${fmtTime(party.left * 1000).replace(/\.\d$/, '')}${party.kind === 'tag' && party.it ? ` · IT: ${nameOf(party.it)}` : ''} · `
     + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
   else if (hunt) prog = `⏱ ${fmtTime(hunt.left * 1000).replace(/\.\d$/, '')} · ` + gameRoster.map(id => `${nameOf(id)} ${scores[id] || 0}`).join(' · ');
-  else if (!level.boss && !level.keyList && !level.groups) {
+  else if (!level.boss && !level.keyList && !level.groups && !level.ship) {
     const at = gameRoster.filter(id => (id === me.id ? P?.exit : remotes.get(id)?.e)).length;
     prog = `At the portal ${at}/${gameRoster.length}`;
   }
@@ -3595,7 +3641,7 @@ function drawGame(dt) {
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
     crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
-    moverX, coinsTaken, powerGone, levelT, reviveUsed, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
+    moverX, coinsTaken, powerGone, levelT, reviveUsed, freed, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
     crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
   }, dt);
   drawOverlay(D);
@@ -3949,7 +3995,7 @@ $('start').onclick = async () => {
     send('intro4', { f });
     await playStory(f, SCENES.ch4intro);
   }
-  if (['space', 'time', 'sea', 'banana', 'parallel', 'story5'].includes(gameMode)) {
+  if (['space', 'time', 'sea', 'banana', 'parallel', 'story5', 'story6'].includes(gameMode)) {
     const f = friendsForScene(), k = gameMode + 'Intro';
     send('scene', { k, f });
     await playStory(f, SCENES[k]);
@@ -4293,11 +4339,11 @@ let pendingStart = false, startAt = 0;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
-  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
   ['New mini games', [['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');
@@ -4322,7 +4368,7 @@ $('solo').onclick = () => { $('solo-list').classList.remove('mg-only'); $('solo-
 $('open-minigames').onclick = () => { $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
 
 // ---------- level gallery: a picture of every level, and play any of them ----------
-const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
+const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['story6', 'Ch.6 The Ship'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
   ['race', '🏁 Race maps'], ['bossrush', 'Boss Rush'], ['survival', 'Arenas'], ['tag', 'Party'], ['training', 'Training']];
 let galleryMode = 'story';
 const THUMB_COLS = { plate: '#ffe23a', pad: '#ffe23a', bridge: '#9feaff', door: '#ff8a3a', exit: '#ffffff', key: '#ffd23a', rift: '#ff6ad5', flip: '#9feaff', laser: '#ff3355', crystal: '#c9a0ff', target: '#c9a0ff',
@@ -4534,7 +4580,7 @@ function renderRecords() {
   const list = $('records-list');
   list.replaceChildren();
   let total = 0, max = 0;
-  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['story5', 'Chapter 5 — The Conductor'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea'], ['banana', 'Into the Bananaverse'], ['parallel', 'Parallel World']]) {
+  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['story5', 'Chapter 5 — The Conductor'], ['story6', 'Chapter 6 — The Ship'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea'], ['banana', 'Into the Bananaverse'], ['parallel', 'Parallel World']]) {
     const h = document.createElement('h3');
     h.textContent = title;
     list.append(h);

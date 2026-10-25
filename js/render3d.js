@@ -528,6 +528,36 @@ export class Renderer3D {
         }
         break;
       }
+      case 'ship': {
+        // a wooden slave ship at night: dark sea, masts with ropes, hanging lanterns, planks
+        const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 90), std(0x0a1a2e, { flatShading: false }));
+        sea.rotation.x = up > 0 ? -Math.PI / 2 : Math.PI / 2;
+        sea.position.set(0, floorY + up * 0.3, -50);
+        this.decor.add(sea);
+        const wood = std(0x4a3420), dark = std(0x2e2014), sail = std(0x8a8270);
+        for (let i = 0; i < 9; i++) {
+          const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, H + 10, 8), wood);
+          mast.position.set(-40 + i * 22 + r() * 6, H / 2, -18 - r() * 8);
+          const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 10, 6), dark);
+          yard.rotation.z = Math.PI / 2; yard.position.set(mast.position.x, H / 2 + 6, mast.position.z);
+          const cloth = new THREE.Mesh(new THREE.PlaneGeometry(9, 7), sail);
+          cloth.position.set(mast.position.x, H / 2 + 2, mast.position.z + 0.5);
+          this.decor.add(mast, yard, cloth);
+        }
+        this.anim = { spin: [] };
+        for (let i = 0; i < 24; i++) {
+          const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffb347 }));
+          lamp.position.set((r() - 0.5) * 160, -2 + r() * (H + 4), -10 - r() * 20);
+          this.decor.add(lamp);
+        }
+        for (let i = 0; i < 30; i++) {
+          const plank = new THREE.Mesh(new THREE.BoxGeometry(6 + r() * 6, 0.4, 1), i % 2 ? wood : dark);
+          plank.position.set((r() - 0.5) * 160, -6 + r() * (H + 12), -26 - r() * 10);
+          this.decor.add(plank);
+        }
+        addPoints(400, 0xcfe3ff, 0.15, 30);
+        break;
+      }
       case 'rhythm': {
         // the Rhythm Rift: a neon equalizer that pumps on every beat
         this.anim = { eq: [] };
@@ -904,7 +934,21 @@ export class Renderer3D {
         root.add(e.ring, disc);
         break;
       }
-      case 'mob': {
+      case 'mob': if (o.guard) {
+        // Chapter 6: a ship's guard — a dark silhouette with a lantern (shots only knock them out)
+        e.normal = new THREE.Group();
+        const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 0.9, 10), mat(std(0x1a1c26)));
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), mat(std(0x2a2c36)));
+        const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 12), mat(std(0x111111)));
+        const hatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.18, 12), mat(std(0x111111)));
+        const lantern = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.14), mat(glow(0xffb347, { emissiveIntensity: 1.6 })));
+        coat.position.y = -0.05; head.position.y = 0.55; hat.position.y = 0.72; hatTop.position.y = 0.82; lantern.position.set(0.38, 0.05, 0.1);
+        e.normal.add(coat, head, hat, hatTop, lantern);
+        e.body = new THREE.Object3D(); e.pupil = new THREE.Object3D();
+        e.banana = new THREE.Group(); e.banana.visible = false;
+        root.add(e.normal, e.banana);
+        break;
+      } else {
         const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), mat(glow(col, { emissiveIntensity: 0.35, metalness: 0.3 })));
         const spikeMat = mat(std(0x221133, { metalness: 0.5 }));
         for (let i = 0; i < 6; i++) {
@@ -939,6 +983,39 @@ export class Renderer3D {
         e.banana.add(peel);
         e.banana.visible = false;
         root.add(e.normal, e.banana);
+        break;
+      }
+      case 'captive': {
+        // a person held captive: drawn in the same simple style as the travelers, with chains on the wrists and ankles
+        const skin = [0x8d5524, 0x6b4226, 0xa0683a, 0x5a3a22][o.look || 0];
+        const cloth = [0xc8b48a, 0x9a8a6a, 0xb8a27a, 0xa89a7a][o.look || 0];
+        e.person = new THREE.Group();
+        const body = new THREE.Mesh(new RoundedBoxGeometry(0.62, 0.78, 0.55, 3, 0.12), mat(std(skin, { flatShading: false, roughness: 0.6 })));
+        const wrap = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.26, 0.57), mat(std(cloth)));
+        wrap.position.y = -0.2;
+        e.person.add(body, wrap);
+        for (const sx of [-1, 1]) {
+          const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(new THREE.MeshBasicMaterial({ color: 0xffffff })));
+          eye.position.set(sx * 0.12, 0.14, 0.28);
+          const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), mat(new THREE.MeshBasicMaterial({ color: 0x111111 })));
+          pupil.position.set(sx * 0.12, 0.13, 0.34);
+          e.person.add(eye, pupil);
+        }
+        e.chains = new THREE.Group();
+        const iron = mat(std(0x6a6e78, { metalness: 0.8, roughness: 0.3 }));
+        for (const [x, y] of [[-0.36, -0.02], [0.36, -0.02], [-0.18, -0.4], [0.18, -0.4]]) {
+          const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.03, 6, 12), iron);
+          cuff.position.set(x, y, 0.1); cuff.rotation.y = Math.PI / 2;
+          e.chains.add(cuff);
+        }
+        const link = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 6), iron);
+        link.rotation.z = Math.PI / 2; link.position.set(0, -0.42, 0.1);
+        e.chains.add(link);
+        e.person.add(e.chains);
+        const side = o.y >= MID ? 1 : -1;
+        e.person.scale.y = side;
+        e.person.position.y = -side * 0.1;
+        root.add(e.person);
         break;
       }
       case 'target': {
@@ -1144,6 +1221,13 @@ export class Renderer3D {
             e.root.scale.setScalar(open ? 1 : 0.35);
           }
           break;
+        case 'captive': {
+          const free = s.freed?.has(o.id);
+          e.chains.visible = !free;
+          if (free) { e.f = (e.f || 0) + 0.02; e.person.position.y += 0.03; e.root.visible = e.f < 1.4; e.person.rotation.y = t * 4; }   // free: rise up and away
+          else e.person.position.x = Math.sin(t * 1.3 + o.x) * 0.03;
+          break;
+        }
         case 'mob': {
           const dead = s.killed.has(o.id);
           e.root.visible = !dead;
