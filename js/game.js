@@ -519,7 +519,11 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   $('offer').classList.add('hidden');
   if (gameMode === 'story' && ids.includes(me.id)) writeSave(idx + 1);
   const n = ids.length;
+  const one = MODES[gameMode]?.oneDim;
+  if (one) setDimOrder([one]);                   // Into the Bananaverse: everyone in the same world
   level = buildLevel(gameMode, idx, n);
+  if (one) level.oneDim = one;
+  $('game').style.filter = level.parallel ? 'invert(1) hue-rotate(180deg)' : '';   // the parallel world is the photo-negative of ours
   if (level.ch2) setDimOrder(['unicode']);       // everyone is pulled into the Unicoder's world
   crates = level.crates?.length ? level.crates.map(c => ({ ...c, ox: c.x, oy: c.y, vy: 0, held: false })) : null;
   ch2Roles = level.ch2 ? assignCh2Roles(ids) : new Map();
@@ -534,7 +538,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   surv = level.survival ? { wave: 0, lives: 3 + n, next: 3 } : null;
   signals = {};
   const myIdx = ids.indexOf(me.id);
-  P = myIdx < 0 ? null : newPlayer(level.ch2 ? 0 : rot ? (myIdx + idx) % n : myIdx, level.levelRole || me.role, level.ch2 || level.spread ? myIdx : undefined);
+  P = myIdx < 0 ? null : newPlayer(level.ch2 || level.oneDim ? 0 : rot ? (myIdx + idx) % n : myIdx, level.levelRole || me.role, level.ch2 || level.spread || level.oneDim ? myIdx : undefined);
   const lr = ROLES[level.levelRole];
   if (P && lr) setTimeout(() => toast(`This level: everyone is a ${lr.icon} ${lr.name}! ${lr.desc}`, '#ffe23a'), 2000);
   if (P) { P.id = me.id; P.ch2 = ch2Roles.get(me.id); }
@@ -569,8 +573,33 @@ function newPlayer(native, role = me.role, slot) {
 }
 
 // ---------- actors: the local player and host-run bots share all of this ----------
+// the Doom Gate drifts and shuts on a timer (the same on every screen, it's all from level time)
+function doomOpen(o) {
+  if (!o.open) return true;
+  return (levelT % (o.open + o.shut)) < o.open;
+}
+function moveDoom() {
+  for (const o of level.objs) if (o.doom && o.range) o.x = o.bx + Math.round(Math.sin(levelT * o.freq) * o.range * 10) / 10;
+  for (const o of level.objs) if (o.doom && o.repel && Math.random() < 0.35) {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    particles.push({ x: (o.x + o.w / 2) * T, y: (o.y + Math.random() * o.h) * T, z: 0.2, vx: dir * (250 + Math.random() * 200), vy: (Math.random() - 0.5) * 40, life: 0, max: 0.9, col: '#ffffff', s: 4 });
+  }
+}
+
 function updateActor(p, inp, dt) {
   const local = p === P;
+  p.savedT = Math.max(0, (p.savedT || 0) - dt);
+  if (level.parallel && !p.exit) for (const o of level.objs) {   // the Doom Gate's "life wind" pushes you away
+    if (!o.doom || !o.repel) continue;
+    const dx = p.x + PW / 2 - (o.x + o.w / 2) * T;
+    if (Math.abs(dx) < T * 7 && Math.abs(p.y - o.y * T) < T * 5) p.vx += Math.sign(dx || -1) * o.repel * (1 - Math.abs(dx) / (T * 7) * 0.5) * dt;
+  }
+  if (level.parallel && p.exit && p.dead <= 0) {         // you reached the Doom Gate: you're "dead" now — stay put
+    p.vx = 0; p.vy = 0;
+    if (!p.doomed) { p.doomed = true; burst(p.x + PW / 2, p.y + PH / 2, '#000000', 30, 260); if (local) { sfx('die'); toast('💀 YOU DIED! …Yay!', '#ffe23a'); } emoting.set(p.id || me.id, { i: 2, t: performance.now() }); }
+    if (local) hintText = '💀 You died! (That was the goal.) Waiting for everyone else to die…';
+    return;
+  }
   if (local) hintText = '';
   if (p.dead > 0) {
     p.dead -= dt;
@@ -613,7 +642,7 @@ function updateActor(p, inp, dt) {
   for (const o of level.objs) {
     if (!overlap(p.x, p.y, PW, PH, o) && !(myTag && (o.type === 'coin' || o.type === 'power' || o.type === 'key') && tagOverlap(myTag, o))) continue;
     if ((o.type === 'plate' || o.type === 'pad') && o.dim === p.dim) p.press.push(o.id);
-    else if (o.type === 'exit') p.exit = true;
+    else if (o.type === 'exit' && !(o.doom && !doomOpen(o))) p.exit = true;
     else if (o.type === 'rolepad' && local && p.role !== o.role) {
       p.role = o.role;
       p.hp = maxHp(p);
@@ -716,9 +745,13 @@ function updateActor(p, inp, dt) {
     if (p.role === 'ghost') break;          // Ghost: crawlers pass right through you
     if (o.dim !== p.dim || killed.has(o.id)) continue;
     const m = mobPos(o);
-    if (p.x < m.x + MW - 4 && p.x + PW > m.x + 4 && p.y < m.y + MH && p.y + PH > m.y + 4) { hurt(p); break; }
+    if (p.x < m.x + MW - 4 && p.x + PW > m.x + 4 && p.y < m.y + MH && p.y + PH > m.y + 4) { if (level.parallel) shove(p, m.x + MW / 2 + (p.face || 1) * 1); else hurt(p); break; }
   }
-  if (touchesSpike(p.x, p.y) || p.y > H * T + 80 || p.y < -80 - PH) return die(p);
+  if (level.parallel && touchesSpike(p.x, p.y)) {         // spikes are soft in the parallel world: they bounce you back
+    const g = gravOf(p) || 1;
+    p.vy = -g * JV * 1.05; p.vx = -(Math.sign(p.vx) || p.face || 1) * 360; p.onGround = false;
+    if (local && !(p.spikeToast > performance.now())) { p.spikeToast = performance.now() + 4000; toast('😇 The spikes are soft here. BOING!', '#ffffff'); sfx('bounce'); }
+  } else if (touchesSpike(p.x, p.y) || p.y > H * T + 80 || p.y < -80 - PH) return die(p);
   if (level.planet?.pull && holeStrength() > 0 && Math.hypot(level.planet.pull.x - p.x - PW / 2, level.planet.pull.y - p.y - PH / 2) < T * 2.2 * (0.5 + holeStrength() * 0.5)) return die(p);
   if (inp.has('fire') && p.boltCd <= 0 && p.ch2 !== 'dragger') fireBolt(p);
   else if (local && isTouch && autoFire && p.boltCd <= 0 && p.ch2 !== 'dragger') {
@@ -828,6 +861,7 @@ function jump(p, D, g) {
 
 function die(p) {
   if (p.dead > 0) return;
+  if (level?.parallel) return saved(p);
   p.dead = 1.2;
   p.vx = p.vy = 0;
   burst(p.x + PW / 2, p.y + PH / 2, DIMS[p.native].color, 30, 260);
@@ -852,8 +886,27 @@ const POWER_TEXT = { speed: '⚡ SPEED! (8s)', jump: '🦘 SUPER JUMP! (8s)', sh
 const powerTaken = new Map();       // power-up id -> level time it was taken (they come back after 12s)
 const powerGone = o => levelT - (powerTaken.get(o.id) ?? -99) < 12;
 
+// Parallel World: whatever should kill you throws you back to safety instead
+function saved(p) {
+  if (p.savedT > 0) return;
+  p.savedT = 0.6;
+  burst(p.x + PW / 2, p.y + PH / 2, '#ffffff', 18, 220);
+  Object.assign(p, spawnPoint(p.native, p.slot), { vx: 0, vy: 0, hp: maxHp(p), inv: 1 });
+  if (p === P) { toast(['😇 SAVED! You can\'t die here…', '😇 Nope — the parallel world won\'t let you die', '😇 Saved again! Only the 💀 Doom Gate works'][Math.floor(Math.random() * 3)], '#ffffff'); sfx('ping'); }
+}
+function shove(p, from) {                   // a guardian angel pushes you away (and heals you)
+  const g = gravOf(p) || 1;
+  p.vx = (p.x + PW / 2 < from ? -1 : 1) * 760;
+  p.vy = -g * JV * 0.8;
+  p.onGround = false;
+  p.hp = maxHp(p);
+  p.inv = 0.5;
+  if (p === P && !(p.shoveToast > performance.now())) { p.shoveToast = performance.now() + 3000; toast('😇 A guardian angel shoved you to safety!', '#ffffff'); sfx('bounce'); }
+}
+
 function hurt(p) {
   if (p.inv > 0 || p.dead > 0) return;
+  if (level?.parallel) { p.hp = maxHp(p); return; }       // nothing hurts in the parallel world
   if (p.ch2 === 'dragger' && boss) return;   // the Unicoder's bullets can't hit Builders, who can't dodge
   p.hp--;
   p.inv = 1.3;
@@ -991,7 +1044,7 @@ function setupBots(ids, idx, n, rot) {
   for (const b of bots) {
     const i = ids.indexOf(b.id);
     if (i < 0) continue;
-    const bp = newPlayer(level.ch2 ? 0 : rot ? (i + idx) % n : i, level.levelRole || b.role, level.ch2 || level.spread ? i : undefined);
+    const bp = newPlayer(level.ch2 || level.oneDim ? 0 : rot ? (i + idx) % n : i, level.levelRole || b.role, level.ch2 || level.spread || level.oneDim ? i : undefined);
     bp.id = b.id;
     bp.cos = b.cos;
     bp.ch2 = ch2Roles.get(b.id);
@@ -1005,7 +1058,7 @@ function adoptBots() {
     if (botActors.has(b.id) || !gameRoster.includes(b.id)) continue;
     const r = remotes.get(b.id);
     const i = gameRoster.indexOf(b.id);
-    const p = newPlayer(level.ch2 ? 0 : r?.nd ?? i % level.n, b.role, level.ch2 ? i : undefined);
+    const p = newPlayer(level.ch2 || level.oneDim ? 0 : r?.nd ?? i % level.n, b.role, level.ch2 || level.oneDim ? i : undefined);
     p.id = b.id;
     p.ch2 = ch2Roles.get(b.id);
     if (r) Object.assign(p, { x: r.x, y: r.y, dim: r.d ?? p.dim });
@@ -1080,6 +1133,10 @@ function botGoal(b) {
       const field = near(level.objs.filter(o => o.type === 'flip'));
       if (field && !D.fly) return { x: (p.inFlip ? field.x - 1.5 : field.x + field.w / 2) * T, y: p.y + PH / 2 };
     }
+  }
+  if (boss?.banana) {                       // sword fight: get right next to Captain Peel and slash
+    const side = cx < boss.x ? -1 : 1;
+    return { x: boss.x + side * T * 1.6, y: p.y + PH / 2, fire: Math.abs(boss.x - cx) < T * 3, face: -side };
   }
   if (boss && !boss.hunter && boss.floatter) return { x: cx, y: p.y + PH / 2, fire: true };
   if (boss && !boss.hunter) {
@@ -2018,7 +2075,7 @@ function sendEmote(i) {
 // ---------- rewards: coins, stars and best times ----------
 let levelStartMs = Date.now(), myDeaths = 0;
 function completeLevel(mode, idx, lv, startMs, deaths) {
-  if (!['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea'].includes(mode) || !lv) return;
+  if (!['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) || !lv) return;
   const ms = Date.now() - startMs;
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
@@ -2131,10 +2188,12 @@ function hostChecks(dt) {
     }
     return;
   }
-  if (gameRoster.length && gameRoster.every(atExit)) {
+  const mustExit = level.parallel && gameRoster.some(id => !isBot(id)) ? gameRoster.filter(id => !isBot(id)) : gameRoster;   // Parallel World: bots don't have to make it
+  if (mustExit.length && mustExit.every(atExit)) {
     transitioning = true;
-    send('toast', { m: 'Level complete!' });
-    toast('Level complete!', '#ffe23a');
+    const msg = level.parallel ? '💀 Everyone is dead! Level complete!' : 'Level complete!';
+    send('toast', { m: msg });
+    toast(msg, '#ffe23a');
     for (const b of botActors.values()) if (Math.random() < 0.5) botSay(b, 'win');
     setTimeout(() => mode === 'play' && gotoWithScene(levelIdx + 1), 1400);
   }
@@ -2245,13 +2304,14 @@ function newBoss(n) {
     exposed: 0, exposeT: 5, shatterT: 0, shatterCd: 0, atkT: 3, atkN: 0, t: 0, sendT: 0,
     spectre: !!level.spectre, helped: false, offerT: 18, unicoder: !!level.unicoder,
     floatter: !!(level.floatter || level.hunter || level.troppa), hunter: !!level.hunter, stunT: 0,
-    troppa: !!level.troppa, final: !!level.final, allyT: 3 };
+    troppa: !!level.troppa, final: !!level.final, allyT: 3, banana: !!level.bananaBoss };
 }
 
 function hostBoss(dt) {
   const b = boss, n = level.n;
   b.t += dt;
   if (b.floatter) return hostFloatter(dt);
+  if (b.banana) return hostPeel(dt);
   b.x = level.W * T / 2 + Math.sin(b.t * 0.45) * level.W * T * 0.3;
   b.y = H * T / 2 + Math.sin(b.t * 1.1) * T * 1.2;
   b.exposeT -= dt;
@@ -2291,6 +2351,47 @@ function hostBoss(dt) {
     b.sendT = 0.1;
     send('boss', { x: b.x, y: b.y, hp: b.hp, max: b.max, e: b.exposed, et: b.exposeT, s: b.shatterT, t: b.t, a: b.atkT, n: b.atkN, hp2: b.helped });
   }
+}
+
+// Captain Peel, king of the Bananaverse: struts along the ground, throws banana boomerangs,
+// stomps out shockwaves and calls in banana minions
+function hostPeel(dt) {
+  const b = boss, alive = allActors().filter(a => !a.dead);
+  const angry = b.hp < b.max / 2;
+  b.x = level.W * T / 2 + Math.sin(b.t * (angry ? 0.7 : 0.45)) * level.W * T * 0.33;
+  b.y = (H - 1) * T - T * 1.6 + Math.abs(Math.sin(b.t * 3)) * -T * 0.6;
+  b.atkT -= dt;
+  if (b.atkT <= 0 && alive.length) {
+    b.atkT = angry ? 1.4 : 2.1;
+    const kind = b.atkN++ % 3, list = [];
+    if (kind === 0) {                          // banana boomerangs skimming the ground, both ways
+      for (const dir of [-1, 1]) list.push([b.x, (H - 1) * T - T * 0.7, dir * (angry ? 300 : 240), 0, 11, 'o']);
+      if (angry) for (const dir of [-1, 1]) list.push([b.x, (H - 1) * T - T * 2.2, dir * 200, 0, 11, 'o']);
+    } else if (kind === 1) {                   // STOMP: a shockwave ring
+      list.push([b.x, (H - 1) * T - T, 0, 0, 0, 'ring']);
+    } else {                                   // banana minions run out
+      const k = Math.min(4, 1 + Math.floor((b.max - b.hp) / b.max * 4));
+      for (let i = 0; i < k; i++) {
+        const id = 'pm' + Math.random().toString(36).slice(2, 7);
+        const o = { id, type: 'mob', dim: 0, x: Math.max(2, Math.min(level.W - 6, Math.round(b.x / T) + (i % 2 ? 3 : -4))), y: H - 2, w: 1, h: 1, range: 4, speed: 1.8 + Math.random(), phase: Math.random() * 2 };
+        send('minion', { o });
+        addMinion(o);
+      }
+    }
+    if (list.length) {
+      const fixed = list.map(x => (x[5] === 'ring' ? [x[0], x[1], 0, 0, 6, 'ring'] : x));
+      send('atk', { b: fixed });
+      addBullets(fixed.filter(x => x[5] !== 'ring'));
+      for (const r of fixed.filter(x => x[5] === 'ring')) bullets.push({ x: r[0], y: r[1], k: 'ring', r: 6, life: 0, hits: new Set() });
+    }
+  }
+  b.sendT -= dt;
+  if (b.sendT <= 0) { b.sendT = 0.1; send('boss', { x: b.x, y: b.y, hp: b.hp, max: b.max, e: 0, et: 0, s: 0, t: b.t, a: b.atkT, n: b.atkN }); }
+}
+function addMinion(o) {
+  if (!level || level.objs.some(k => k.id === o.id)) return;
+  level.objs.push(o);
+  level.mobs.push(o);
 }
 
 // Troppa (as an ally in the final fight) floats near the team
@@ -2589,7 +2690,8 @@ function slash(p) {
     const m = mobPos(o);
     if (inFront(m.x + MW / 2, m.y + MH / 2)) { killMob(o.id, p.id); send('kill', { id: o.id, by: p.id }); }
   }
-  for (const k of bullets) if ((k.k === 'm' || k.k === 's' || k.k === 'gr') && inFront(k.x, k.y)) { k.life = 99; send('bdown', { id: k.id }); }
+  for (const k of bullets) if ((k.k === 'm' || k.k === 's' || k.k === 'gr' || (boss?.banana && k.k === 'o')) && inFront(k.x, k.y)) { k.life = 99; send('bdown', { id: k.id }); }
+  if (boss?.banana && inFront(boss.x, boss.y) && Math.abs(boss.x - cx) < reach + T) { burst(boss.x, boss.y, '#ffe23a', 12, 220); if (isHost()) applyHit(2); else send('hit', { d: 2 }); }
   for (const t of level.targets) {
     if (latched.has(t.link) || t.dim === p.dim || Math.abs((t.x + 0.5) * T - cx) > reach) continue;
     if (!toughHit(t)) continue;
@@ -2637,7 +2739,7 @@ function updateBolts(dt) {
       b.x += b.vx * dt; b.y += b.vy * dt;
       if (dist < 60) {
         b.life = 99;
-        const ok = boss.floatter ? true : boss.unicoder ? boss.shatterT > 0 : boss.helped || boss.shatterT > 0 || boss.exposed === b.d;
+        const ok = boss.floatter || boss.banana ? true : boss.unicoder ? boss.shatterT > 0 : boss.helped || boss.shatterT > 0 || boss.exposed === b.d;
         burst(b.x, b.y, ok ? DIMS[b.d].color : '#888888', ok ? 10 : 5, ok ? 200 : 90);
         if (b.mine && ok) {
           const dmg = boss.shatterT > 0 ? 2 : 1;
@@ -2837,6 +2939,7 @@ function onMsg(t, d) {
       }
       break;
     case 'custom': if (d.d && typeof d.d === 'object' && Array.isArray(d.d.rows) && JSON.stringify(d.d).length < 60000) setCustom(d.d); break;
+    case 'minion': if (mode === 'play' && boss?.banana && d.o && typeof d.o.id === 'string') addMinion({ id: d.o.id, type: 'mob', dim: 0, x: +d.o.x | 0, y: +d.o.y | 0, w: 1, h: 1, range: +d.o.range || 4, speed: +d.o.speed || 2, phase: +d.o.phase || 0 }); break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
     case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
     case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
@@ -3109,6 +3212,17 @@ async function showVictory() {
     sfx('win');
     return;
   }
+  if (gameMode === 'banana' || gameMode === 'parallel') {
+    const ban = gameMode === 'banana';
+    playStory(friendsForScene(), ban ? SCENES.bananaEnd : SCENES.parallelEnd);
+    addCoins(130);
+    title.textContent = ban ? 'BANANAVERSE SAVED' : 'YOU DIED (YOU WIN)';
+    text.textContent = ban ? 'Captain Peel slips on his own peel. The Bananaverse is free! +130 🪙'
+      : 'Everyone finally managed to die in the parallel world… and woke up back home, alive. +130 🪙';
+    big.textContent = fmtTime(ms);
+    sfx('win');
+    return;
+  }
   if (gameMode === 'time' || gameMode === 'sea') {
     const sea = gameMode === 'sea';
     playStory(friendsForScene(), sea ? SCENES.seaEnd : SCENES.timeEnd);
@@ -3295,7 +3409,7 @@ function drawGame(dt) {
       level, P, myDim: P.dim, bodies: bodiesForFrame(), killed, signals, pressed: pressedIds, grabbed, bullets, bolts, particles, time, laserOn, moverX,
       coinsTaken, powerGone, nameOf: id => (id === 'ally' ? 'Troppa' : nameOf(id)),
       crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
-      mobs: level.mobs.filter(o => !killed.has(o.id)).map(o => ({ ...mobPos(o), dim: o.dim })),
+      mobs: level.mobs.filter(o => !killed.has(o.id)).map(o => ({ ...mobPos(o), dim: o.dim })), boss,
     });
     if (boss) drawBossBar();
     if (flash.t > 0) { ctx.globalAlpha = Math.min(0.5, flash.t * 1.5); ctx.fillStyle = flash.col; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
@@ -3311,7 +3425,7 @@ function drawGame(dt) {
     signals, pressed: pressedIds, grabbed, laserOn, boss, killed, mobPos,
     bodies: bodiesForFrame(), bullets, bolts, particles, camTarget,
     crates, slots: level.slots, slotFilled, dragCursor: P && canDrag(P) && dragState ? dragState : null,
-    moverX, coinsTaken, powerGone, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
+    moverX, coinsTaken, powerGone, levelT, holeStrength: level.holeFinal ? holeStrength() : 1, partyCoins: [...partyCoins.values()],
     crumbleState: o => { const t = crumbles.get(o.id); return t === undefined || levelT >= t + 4 ? 0 : levelT < t ? 1 : 2; },
   }, dt);
   drawOverlay(D);
@@ -3508,13 +3622,14 @@ function drawBossBar() {
   ctx.fillStyle = '#3a1030'; ctx.fillRect(x, y, w, 12);
   ctx.fillStyle = boss.hunter ? '#5a2a2a' : '#ff3d8b'; ctx.fillRect(x, y, boss.hunter ? w : w * boss.hp / boss.max, 12);
   ctx.textAlign = 'left'; ctx.font = `900 ${isTouch ? 11 : 14}px Orbitron, sans-serif`; ctx.fillStyle = '#fff';
-  ctx.fillText(boss.final ? 'THE SPECTRE RETURNS' : boss.spectre ? 'THE SPECTRE' : boss.unicoder ? 'THE UNICODER' : boss.troppa ? 'TROPPA' : boss.floatter ? 'THE FLOATTER' : 'THE FRACTURE', x, y - 7);
+  ctx.fillText(boss.banana ? 'CAPTAIN PEEL' : boss.final ? 'THE SPECTRE RETURNS' : boss.spectre ? 'THE SPECTRE' : boss.unicoder ? 'THE UNICODER' : boss.troppa ? 'TROPPA' : boss.floatter ? 'THE FLOATTER' : 'THE FRACTURE', x, y - 7);
   ctx.textAlign = 'right';
   if (boss.hunter) {
     ctx.fillStyle = boss.stunT > 0 ? '#9feaff' : '#ff5a3a';
     ctx.fillText(boss.stunT > 0 ? 'STUNNED' : 'HUNTING YOU', x + w, y - 7);
     return;
   }
+  if (boss.banana) { ctx.fillStyle = '#ffe23a'; ctx.textAlign = 'right'; ctx.fillText('SLASH HIM!', x + w, y - 7); return; }
   if (boss.unicoder) { ctx.fillStyle = boss.shatterT > 0 ? '#ffe23a' : '#39ff88'; ctx.fillText(boss.shatterT > 0 ? 'EXPOSED — FIRE!' : 'GUARDED', x + w, y - 7); return; }
   if (boss.spectre && !boss.helped) { ctx.fillStyle = '#ff2244'; ctx.fillText('INVULNERABLE', x + w, y - 7); }
   else if (boss.spectre) { ctx.fillStyle = '#ffe23a'; ctx.fillText('WEAKENED', x + w, y - 7); }
@@ -3586,6 +3701,7 @@ function step(dt, draw) {
       if (isHost()) for (const [id, b] of botActors) grab(b.p, id);
     }
     computeSignals();
+    if (level.parallel) moveDoom();
     updateTags();
     if (P && autoMe) { autoMe.p = P; botThink(autoMe, dt); }   // local test autopilot
     updateCrates(dt);
@@ -3662,7 +3778,7 @@ $('start').onclick = async () => {
     send('intro4', { f });
     await playStory(f, SCENES.ch4intro);
   }
-  if (gameMode === 'space' || gameMode === 'time' || gameMode === 'sea') {
+  if (['space', 'time', 'sea', 'banana', 'parallel'].includes(gameMode)) {
     const f = friendsForScene(), k = gameMode + 'Intro';
     send('scene', { k, f });
     await playStory(f, SCENES[k]);
@@ -4006,11 +4122,11 @@ let pendingStart = false, startAt = 0;
 const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
-  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
   ['New mini games', [['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');
@@ -4035,7 +4151,7 @@ $('solo').onclick = () => { $('solo-list').classList.remove('mg-only'); $('solo-
 $('open-minigames').onclick = () => { $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
 
 // ---------- level gallery: a picture of every level, and play any of them ----------
-const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'],
+const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],
   ['race', '🏁 Race maps'], ['bossrush', 'Boss Rush'], ['survival', 'Arenas'], ['tag', 'Party'], ['training', 'Training']];
 let galleryMode = 'story';
 const THUMB_COLS = { plate: '#ffe23a', pad: '#ffe23a', bridge: '#9feaff', door: '#ff8a3a', exit: '#ffffff', key: '#ffd23a', rift: '#ff6ad5', flip: '#9feaff', laser: '#ff3355', crystal: '#c9a0ff', target: '#c9a0ff',
@@ -4247,7 +4363,7 @@ function renderRecords() {
   const list = $('records-list');
   list.replaceChildren();
   let total = 0, max = 0;
-  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea']]) {
+  for (const [mode, title] of [['story', 'Chapter 1 — The Spectre'], ['story2', 'Chapter 2 — The Unicoder'], ['story3', 'Chapter 3 — The Floatter'], ['story4', 'Chapter 4 — Troppa'], ['space', 'Across the Worlds'], ['time', 'Through Time'], ['sea', 'Deep Sea'], ['banana', 'Into the Bananaverse'], ['parallel', 'Parallel World']]) {
     const h = document.createElement('h3');
     h.textContent = title;
     list.append(h);

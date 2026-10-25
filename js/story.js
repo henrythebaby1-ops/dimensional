@@ -395,3 +395,25 @@ SCENES.seaEnd = [
   { text: 'The Kraken lets go and sinks into the dark.', bg: 'dark', cast: ['waves'], fx: 'flash', ms: 3200 },
   { text: 'The friends swim up, up, up — and burst out into the sunshine.', bg: 'happy', cast: ['friends', 'waves'], ms: 3400 },
 ];
+
+// Into the Bananaverse and the Parallel World
+CAST.bananas = () => { const r = el('div', 'cut-bananas'); for (let i = 0; i < 7; i++) { const b = el('div', 'cut-banana'); b.textContent = '🍌'; b.style.animationDelay = (i * 0.15) + 's'; r.append(b); } return r; };
+CAST.skull = () => { const s = el('div', 'cut-skull'); s.textContent = '💀'; return s; };
+SCENES.bananaIntro = [
+  { text: 'Into the Bananaverse. The friends were eating bananas on the beach…', bg: 'happy', cast: ['friends'], ms: 3000 },
+  { text: '…when the bananas started eating BACK. Everyone got sucked into the Bananaverse!', bg: 'happy', cast: ['bananas'], fx: 'shake', ms: 3600 },
+  { text: 'Now you all see the world from above. Slash the bananas with your swords (F) and find Captain Peel!', bg: 'happy', cast: ['friends', 'bananas'], ms: 4000 },
+];
+SCENES.bananaEnd = [
+  { text: 'Captain Peel slips on his own banana peel and goes flying into the sea!', bg: 'happy', cast: ['bananas'], fx: 'flash', ms: 3400 },
+  { text: 'The bananas calm down. The friends go home… and never look at a banana the same way again.', bg: 'happy', cast: ['friends'], ms: 3600 },
+];
+SCENES.parallelIntro = [
+  { text: 'The Parallel World. Everything here is the opposite of home.', bg: 'dark', cast: ['friends'], ms: 3200 },
+  { text: 'Spikes are soft. Lasers tickle. Crawlers are guardian angels. NOTHING can hurt you…', bg: 'dark', cast: ['friends'], ms: 3800 },
+  { text: '…and the only way home is to DIE — in the 💀 Doom Gate. Good luck. The world doesn\'t want you to.', bg: 'red', cast: ['skull'], fx: 'shake', ms: 4200 },
+];
+SCENES.parallelEnd = [
+  { text: 'The last friend steps into the Doom Gate. Everything goes black…', bg: 'dark', cast: ['skull'], fx: 'fade', ms: 3200 },
+  { text: '…and everyone wakes up at home, alive. That was the weirdest adventure yet.', bg: 'happy', cast: ['friends'], ms: 3600 },
+];

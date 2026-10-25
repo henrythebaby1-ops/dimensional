@@ -666,6 +666,96 @@ function gadgetLab(n) {
   return b.done({ name: 'Gadget Lab', objective: 'NEW gadgets! ⏩ boost pads, conveyor belts, 🌀 fans that blow you up, 🟣 teleporters and 💎 power-ups.' });
 }
 
+// ---------- Into the Bananaverse: everyone is pulled into the top-down banana world ----------
+// Only the floor lane is used and every crawler is an angry banana in dimension 0 (the Bananaverse).
+function bananaMobs(b, xs, range = 4, speed = 1.5) {
+  xs.forEach((x, i) => b.addD('mob', 0, { range, speed, phase: (i * 0.37) % 2 }, x, 1, 1, 1));
+}
+function bananaBeach(n) {
+  const b = new Builder(n, 70);
+  b.shell();
+  for (const x of [14, 30, 46]) b.box(x, x + 2, 1, 1);           // hedges
+  bananaMobs(b, [10, 20, 26, 36, 42, 52, 58]);
+  b.both('power', { kind: 'heal' }, 33, 3, 1, 1);
+  b.both('exit', {}, 64, 1, 3, 3);
+  return b.done({ name: 'Banana Beach', objective: 'The bananas have taken the beach! Slash them with your sword (F) and reach the portal.' });
+}
+function peelVillage(n) {
+  const b = new Builder(n, 84);
+  b.shell();
+  for (const x of [12, 28, 44, 60]) b.box(x, x + 3, 1, 3);         // houses to hop over
+  for (const [a, c] of [[20, 23], [52, 55]]) for (let x = a; x <= c; x++) b.set(x, 0, '.');   // the river
+  for (let x = 20; x <= 23; x++) b.both('crumble', {}, x, 0, 1, 1);
+  b.both('mover', { range: 3, freq: 0.2, phase: 0 }, 52, 0, 2, 1);
+  bananaMobs(b, [8, 17, 26, 35, 40, 49, 58, 66, 72], 3, 1.8);
+  b.both('power', { kind: 'speed' }, 38, 2, 1, 1);
+  b.both('exit', {}, 78, 1, 3, 3);
+  return b.done({ name: 'Peel Village', objective: 'The village is overrun! Cross the river on the wobbly bridge and the raft, and slice every banana you can.' });
+}
+function jungleMaze(n) {
+  const b = new Builder(n, 90);
+  b.shell();
+  b.box(16, 17, 1, 5); b.box(36, 37, 1, 7); b.box(58, 59, 1, 6);
+  b.both('bounce', {}, 13, 1, 2, 1); b.both('bounce', {}, 33, 1, 2, 1); b.both('bounce', {}, 55, 1, 2, 1);
+  b.box(24, 26, 1, 1, '^'); b.box(46, 48, 1, 1, '^'); b.box(70, 72, 1, 1, '^');
+  b.both('fan', {}, 66, 1, 2, 7);
+  b.both('tele', { pair: 'a' }, 76, 1, 2, 2); b.both('tele', { pair: 'a' }, 84, 1, 2, 2);
+  b.box(80, 80, 1, 12);
+  bananaMobs(b, [9, 21, 30, 41, 51, 63, 74], 3, 2);
+  b.both('power', { kind: 'jump' }, 44, 4, 1, 1);
+  b.both('exit', {}, 86, 1, 3, 3);
+  return b.done({ name: 'Jungle Maze', objective: 'Bounce over the jungle walls, dodge the thorn bushes, and take the teleporter past the last wall.' });
+}
+function pirateDocks(n) {
+  const b = new Builder(n, 96);
+  b.shell();
+  for (const [a, c] of [[18, 26], [44, 54], [70, 78]]) for (let x = a; x <= c; x++) b.set(x, 0, '.');
+  b.both('mover', { range: 6, freq: 0.16, phase: 0 }, 18, 0, 3, 1);
+  b.both('mover', { range: 7, freq: 0.14, phase: 0.5 }, 44, 0, 3, 1);
+  b.both('mover', { range: 6, freq: 0.18, phase: 0.2 }, 70, 0, 3, 1);
+  b.both('cannon', { dir: -1, period: 3.2, offset: 0 }, 94, 1, 1, 1);
+  b.both('cannon', { dir: 1, period: 4, offset: 1.5 }, 1, 2, 1, 1);
+  bananaMobs(b, [10, 32, 38, 60, 64, 84, 88], 3, 2.1);
+  b.both('power', { kind: 'shield' }, 36, 3, 1, 1);
+  b.both('exit', {}, 89, 1, 3, 3);
+  return b.done({ name: 'Pirate Docks', objective: 'Ride the rafts across the docks while the pirate cannons fire. Captain Peel is close…' });
+}
+function captainPeel(n) {
+  const b = new Builder(n, 56);
+  b.shell();
+  b.box(10, 12, 1, 1); b.box(43, 45, 1, 1);
+  b.both('power', { kind: 'heal' }, 6, 2, 1, 1); b.both('power', { kind: 'heal' }, 49, 2, 1, 1);
+  b.both('power', { kind: 'speed' }, 27, 4, 1, 1);
+  return b.done({ name: 'Captain Peel', boss: true, bananaBoss: true, hpMul: 0.8, checkpoints: [{ x: 3 }],
+    objective: 'CAPTAIN PEEL, king of the bananas! Slash him with your sword or shoot him. Jump his banana boomerangs and squash his minions.' });
+}
+const BANANA = [bananaBeach, peelVillage, jungleMaze, pirateDocks, captainPeel];
+
+// ---------- Parallel World: the opposite game — your goal is to DIE, and the world won't let you ----------
+// Spikes bounce you, pits catch you, crawlers are guardian angels that shove you away from the Doom Gate,
+// and the gate (the portal) drifts around and keeps closing. Everyone has to get "killed" by it.
+function angels(lv, xs, range = 4, speed = 3.2) {
+  const b = new Builder(lv.n, lv.W);
+  b.mobs(xs.filter(x => x < lv.W - 4), range, speed);
+  lv.objs.push(...b.objs.map((o, i) => ({ ...o, id: 'angel' + i })));
+  return lv;
+}
+const parallel = (lv, name, objective, gate = {}, angelXs = []) => {
+  const ex = lv.objs.find(o => o.type === 'exit');
+  const guard = ex ? [ex.x - 7, ex.x - 3] : [];                 // two angels always guard the gate itself
+  const out = angels({ ...lv, race: false, name, objective, parallel: true, theme: lv.theme }, [...angelXs, ...guard]);
+  for (const o of out.objs) if (o.type === 'exit') Object.assign(o, { doom: true, bx: o.x, ...gate });
+  return out;
+};
+const PARALLEL = [
+  n => parallel(sprint(n), 'The Other Side', 'In the parallel world you can\'t die… except in the 💀 Doom Gate. Everyone must reach it. Spikes and pits just throw you back!', {}, [40, 52]),
+  n => parallel(riftRush(n), 'Angel Alley', 'Guardian angels (the crawlers) shove you away from the gate. Sneak past them!', { open: 2.6, shut: 2 }, [30, 45, 60, 70]),
+  n => parallel(bounceHouse(n), 'Safety Net', 'The gate opens and SHUTS, and a LIFE WIND blows you away from it. Only a fully open gate can take you.', { open: 2, shut: 2.4, repel: 700 }, [25, 40, 55, 80]),
+  n => parallel(cannonAlley(n), 'Bad Aim', 'Cannonballs here heal you. The gate drifts back and forth — time your jump into it.', { range: 5, freq: 0.7, repel: 800 }, [35, 50, 60]),
+  n => parallel(gauntlet(n), 'Immortal Gauntlet', 'Lasers can\'t hurt you either. The gate drifts AND shuts AND blows. Good luck dying.', { range: 4, freq: 0.8, open: 1.8, shut: 2, repel: 1000 }, [20, 40, 60, 75]),
+  n => parallel(clockwork(n), 'The Last Clock', 'The final Doom Gate: fast, flickering, windy and guarded by every angel. Die together to escape!', { range: 6, freq: 1, open: 1.5, shut: 2, repel: 1300 }, [30, 50, 70, 80, 90]),
+];
+
 // ---------- player-made levels ----------
 // A design is the floor lane only: rows[ly] is a string of tiles ('#' ground, '^' spikes, '.' air),
 // mirrored onto the ceiling lane like every built-in level. Objects sit in both lanes.
@@ -938,6 +1028,8 @@ export const MODES = {
   },
   space: { name: 'Across the Worlds', levels: SPACE, min: 1, scenes: {} },
   time: { name: 'Through Time', levels: TIME, min: 1, scenes: {} },
+  banana: { name: 'Into the Bananaverse', levels: BANANA, min: 1, oneDim: 'banana', scenes: {} },
+  parallel: { name: 'Parallel World', levels: PARALLEL, min: 1, scenes: {} },
   custom: { name: 'Player level', levels: [n => customLevel(customData, n)], min: 1 },
   sea: { name: 'Deep Sea', levels: SEA, min: 1, scenes: {} },
   training: { name: 'Training Grounds', levels: [n => training(n, TRAIN_ROLES)], min: 1 },
@@ -960,12 +1052,13 @@ export const LEVELS = MODES.story.levels;
 export function buildLevel(mode, idx, n) {
   const m = MODES[mode] || MODES.story;
   let lv = m.levels[idx](n);
-  if (['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
+  if (['story', 'story2', 'story3', 'story4', 'daily', 'space', 'time', 'sea', 'banana', 'parallel'].includes(mode) && !lv.boss && !lv.holeFinal) lv = addCoins(lv);
   if (['story', 'story3', 'story4', 'daily', 'space', 'time', 'sea', 'survival', 'endless', 'hunt', 'bossrush'].includes(mode) && !lv.ch2) lv = addPowers(lv, idx + lv.W);
   lv.name = mode === 'race' || mode === 'bossrush' ? `Round ${idx + 1} · ${lv.name}` : mode === 'story' ? `${idx + 1} · ${lv.name}`
     : mode === 'space' ? `${['🌍', '🟡', '🔴', '☀️', '🪐', '🟠', '🧊', '🌈', '🕳️'][idx]} ${lv.name}`
     : mode === 'time' ? `${['🦖', '🏺', '🏰', '🏴‍☠️', '🤠', '🏙️', '🚀', '⌛', '⏰'][idx]} ${lv.name}`
     : mode === 'sea' ? `${['🏖️', '🪸', '⚓', '🌿', '🌑', '🦑'][idx]} ${lv.name}`
+    : mode === 'banana' ? `🍌 ${idx + 1} · ${lv.name}` : mode === 'parallel' ? `💀 ${idx + 1} · ${lv.name}`
     : mode === 'story2' ? `2-${idx + 1} · ${lv.name}` : mode === 'story3' ? `3-${idx + 1} · ${lv.name}` : mode === 'story4' ? `4-${idx + 1} · ${lv.name}` : lv.name;
   if (lv.party && !lv.theme) lv.theme = 'arcade';
   return lv;

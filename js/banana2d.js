@@ -188,12 +188,45 @@ export function person(ctx, x, y, s, color, face, ghost, sword, hat, skin, t = 0
   ctx.restore();
 }
 
+// a spinning banana (Captain Peel's boomerang)
+function boomerang(ctx, x, y, s, a) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+  ctx.fillStyle = '#ffe23a'; ctx.strokeStyle = '#c8a02a'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -s * 0.3, s * 0.5, 0.35 * Math.PI, 0.95 * Math.PI, false); ctx.arc(0, -s * 0.45, s * 0.5, 0.92 * Math.PI, 0.38 * Math.PI, true); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+// CAPTAIN PEEL: a giant angry banana in a pirate hat, eyepatch and a cutlass
+function drawPeel(ctx, x, feet, ts, t, hpK) {
+  const s = ts * 3.4, y = feet - s * 0.55;
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(x, feet + 4, s * 0.5, s * 0.14, 0, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(t * 3) * 0.08);
+  ctx.fillStyle = hpK < 0.5 ? '#e8c23a' : '#ffe23a'; ctx.strokeStyle = '#a8801a'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(0, 0, s * 0.32, s * 0.55, 0.25, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#5a3a14'; ctx.fillRect(s * 0.08, -s * 0.66, s * 0.08, s * 0.12);
+  for (const [a, b] of [[-0.1, 0.25], [0.1, 0.35], [-0.05, 0.42]]) { ctx.fillStyle = '#8a6a1a'; ctx.beginPath(); ctx.arc(a * s, b * s, s * 0.025, 0, 7); ctx.fill(); }
+  // angry face, eyepatch
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(-s * 0.1, -s * 0.12, s * 0.045, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(s * 0.1, -s * 0.12, s * 0.06, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-s * 0.3, -s * 0.2); ctx.lineTo(s * 0.3, -s * 0.05); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-s * 0.17, -s * 0.22); ctx.lineTo(-s * 0.04, -s * 0.17); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, s * 0.08, s * 0.1, 1.1 * Math.PI, 1.9 * Math.PI); ctx.stroke();
+  // pirate hat with a skull
+  ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.moveTo(-s * 0.4, -s * 0.45); ctx.quadraticCurveTo(0, -s * 0.95, s * 0.4, -s * 0.45); ctx.quadraticCurveTo(0, -s * 0.58, -s * 0.4, -s * 0.45); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, -s * 0.62, s * 0.06, 0, 7); ctx.fill();
+  // cutlass
+  ctx.strokeStyle = '#dfe6f0'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  const sw = Math.sin(t * 4) * 0.5;
+  ctx.beginPath(); ctx.moveTo(s * 0.3, s * 0.05); ctx.lineTo(s * 0.3 + Math.cos(-0.8 + sw) * s * 0.45, s * 0.05 + Math.sin(-0.8 + sw) * s * 0.45); ctx.stroke();
+  ctx.restore();
+}
+
 // s: { level, P, myDim, bodies, mobs, killed, signals, pressed, grabbed, bullets, bolts, particles, time, laserOn, moverX, coinsTaken, nameOf, crumbleState }
 export function drawBanana2D(ctx, VW, VH, s) {
   const k = Math.min(VW, VH * 1.6) / 22 / T;          // ~22 tiles across
   const lv = s.level, P = s.P;
   const target = P ? P.x + PW / 2 : lv.W * T / 2;
-  camX += (target - camX) * 0.15;
+  if (!Number.isFinite(camX)) camX = Number.isFinite(target) ? target : lv.W * T / 2;   // never get stuck on a bad frame
+  if (Number.isFinite(target)) camX += (target - camX) * 0.15;
   camX = Math.max(VW / 2 / k, Math.min(lv.W * T - VW / 2 / k, camX));
   const groundY = (H - 1) * T;
   const baseY = VH * 0.72;
@@ -317,7 +350,12 @@ export function drawBanana2D(ctx, VW, VH, s) {
   }
 
   // shots, debris and sparks
-  for (const b of s.bullets) if (b.y > MID * T) { ctx.fillStyle = '#ff3d8b'; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), Math.max(4, (b.r || 8) * k), 0, 7); ctx.fill(); }
+  for (const b of s.bullets) if (b.y > MID * T) {
+    if (b.k === 'ring') { ctx.strokeStyle = '#fff3a0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(sx(b.x), sy(b.y), b.r * k, b.r * k * 0.62, 0, 0, 7); ctx.stroke(); continue; }
+    if (s.boss?.banana && b.k === 'o') { boomerang(ctx, sx(b.x), sy(b.y), ts * 0.6, s.time * 12); continue; }   // spinning banana boomerang
+    ctx.fillStyle = '#ff3d8b'; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), Math.max(4, (b.r || 8) * k), 0, 7); ctx.fill();
+  }
+  if (s.boss?.banana) drawPeel(ctx, sx(s.boss.x), sy(s.boss.y + T * 1.6), ts, s.time, s.boss.hp / s.boss.max);
   for (const b of s.bolts) { ctx.fillStyle = b.col && b.col !== 'rainbow' ? b.col : '#ffffff'; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), 5, 0, 7); ctx.fill(); }
   for (const p of s.particles) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.col; ctx.fillRect(sx(p.x), sy(p.y), 4, 4); }
   ctx.globalAlpha = 1;

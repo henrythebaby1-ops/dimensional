@@ -121,6 +121,9 @@ const SPRITES = {
   rocket: ['w', { w: '#dfe6f0', r: '#ff3355', c: '#3affff', o: '#ff8a1a', y: '#ffe23a' }, [
     '.....rr.....', '....wwww....', '....wwww....', '....wccw....', '....wccw....', '....wwww....',
     '...rwwwwr...', '..rrwwwwrr..', '..r.wwww.r..', '.....oo.....', '....yooy....', '.....yy.....']],
+  angel: ['y', { y: '#ffe23a', s: '#ffd0a8', k: '#222233', w: '#ffffff' }, [
+    '..yyyyyyyy..', '.y........y.', '..yyyyyyyy..', '...ssssss...', 'w.ssssssss.w', 'wwskksskksww',
+    'wwssssssssww', 'w.ssk..kss.w', '..sskkkkss..', '...ssssss...', '............', '............']],
   ghost: ['w', { w: '#ffffff', k: '#222233' }, [
     '....wwww....', '..wwwwwwww..', '.wwwwwwwwww.', '.wwkkwwkkww.', '.wwkkwwkkww.', '.wwwwwwwwww.',
     '.wwwwwwwwww.', '.wwwwwwwwww.', '.wwwwwwwwww.', '.ww.ww.ww.w.', '.w...w..w...', '............']],
@@ -152,7 +155,7 @@ const EMOJI = {
   '⏱️': 'clock', '⏱': 'clock', '♾️': 'infinity', '♾': 'infinity', '☄️': 'meteor', '☄': 'meteor', '🎨': 'paint', '🚦': 'light', '🏁': 'flag',
   '🪐': 'planet', '⏳': 'hourglass', '🌊': 'wave', '🍌': 'banana', '🔒': 'lock', '✓': 'check', '✅': 'check', '💣': 'bomb', '💀': 'skull',
   '🌀': 'swirl', '💾': 'save', '☁️': 'cloud', '🚀': 'rocket', '👻': 'ghost', '⚔️': 'sword', '🗡️': 'sword', '🛡️': 'shieldi', '🛡': 'shieldi',
-  '🔥': 'fire', '✨': 'sparkle', '🔑': 'key', '🌌': 'space', '🏃': 'ghost',
+  '🔥': 'fire', '😇': 'angel', '✨': 'sparkle', '🔑': 'key', '🌌': 'space', '🏃': 'ghost',
 };
 
 const cache = {};

@@ -1114,7 +1114,14 @@ export class Renderer3D {
           e.gem.rotation.y = t * 2;
           e.gem.position.y = Math.sin(t * 3 + o.x) * 0.12;
           break;
-        case 'exit': e.ring.rotation.z = t * 0.8; e.ring.rotation.y = Math.sin(t) * 0.3; break;
+        case 'exit':
+          e.ring.rotation.z = t * 0.8; e.ring.rotation.y = Math.sin(t) * 0.3;
+          if (o.doom) {                            // Parallel World's Doom Gate: drifts and shuts
+            e.root.position.x = o.x + o.w / 2;
+            const open = !o.open || (s.levelT % (o.open + o.shut)) < o.open;
+            e.root.scale.setScalar(open ? 1 : 0.35);
+          }
+          break;
         case 'mob': {
           const dead = s.killed.has(o.id);
           e.root.visible = !dead;

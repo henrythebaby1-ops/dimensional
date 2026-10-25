@@ -55,6 +55,12 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
   Future City → The End of Time → the Time Keeper boss.
 - **🌊 Deep Sea**: Sunny Beach → Coral Reef → Shipwreck → Kelp Forest → The Abyss → the Kraken. Underwater you
   tap jump to swim.
+- **🍌 Into the Bananaverse**: everyone is pulled into the top-down Bananaverse. Slash angry bananas through
+  Banana Beach, Peel Village, the Jungle Maze and the Pirate Docks, then beat **Captain Peel** (banana boomerangs,
+  stomps and minions).
+- **💀 Parallel World**: the opposite game — your goal is to DIE, and the world won't let you. Spikes bounce you,
+  pits and lasers save you, crawlers are guardian angels that shove you away, and the 💀 Doom Gate drifts, shuts
+  and blows a "life wind". Every human player has to get into the gate (bots are optional).
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode

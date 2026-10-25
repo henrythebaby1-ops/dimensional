@@ -426,3 +426,7 @@ html.r-pix canvas#game { image-rendering: pixelated; image-rendering: crisp-edge
 html.drift * { transition: border-radius 4s, box-shadow 4s, background-color 4s, border-color 4s, color 4s; }
 .public-check { justify-content: flex-start; text-align: left; }
 .public-check input { width: auto !important; flex: none; margin: 0; accent-color: var(--accent); transform: scale(1.3); }
+
+.cut-bananas { position: absolute; top: 30px; left: 0; right: 0; display: flex; justify-content: space-around; font-size: 34px; z-index: 2; }
+.cut-banana { animation: float 1s ease-in-out infinite alternate; }
+.cut-skull { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); font-size: 64px; z-index: 2; animation: float 1.4s ease-in-out infinite alternate; filter: drop-shadow(0 0 12px #ff3355); }
