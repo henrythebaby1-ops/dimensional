@@ -549,6 +549,9 @@ const PARKOUR = [
   n => parkourCity(n, 41, 'Tower Top', 230),
 ];
 
+// ---------- top-down games: the real map lives in td.js; this is just an empty stand-in level ----------
+const tdLevel = kind => n => ({ W: 30, grid: Array.from({ length: H }, () => Array(30).fill('.')), objs: [], n, checkpoints: [{ x: 2 }], crates: [], slots: [], td: kind, name: '', objective: '' });
+
 // ---------- Who is the sniper god? Two floating islands over nothing ----------
 function sniperIslands(n) {
   const W = 72;
@@ -1218,6 +1221,8 @@ export const MODES = {
   koth: { name: 'King of the Hill', levels: [n => partyArena(n, 'koth')], min: 1, time: 90 },
   chaos: { name: 'Coin Chaos', levels: [n => partyArena(n, 'chaos')], min: 1, time: 90 },
   parkour: { name: 'Parkour', levels: PARKOUR, min: 1, dimOrder: ['verdant', 'neon', 'inferno', 'desert', 'jungle', 'storm', 'frost', 'hitbox'] },
+  colors: { name: 'Color Blocks', levels: [tdLevel('colors')], min: 1 },
+  chameleon: { name: 'Crazy Chameleon', levels: [tdLevel('chameleon')], min: 2 },
   sniper: { name: 'Who is the sniper god?', levels: [sniperIslands], min: 2, time: 120 },
   lms: { name: 'Last One Standing', levels: [n => partyArena(n, 'lms')], min: 2, time: 150 },
   daily: { name: 'Daily Challenge', levels: [daily], min: 1 },

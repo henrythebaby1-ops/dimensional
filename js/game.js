@@ -2,6 +2,7 @@ import { DIMS, ALL_DIMS, PICKABLE, MAX_PLAYERS, ROLES, THEMES, setDimOrder, comp
 import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo, TRAIN_ROLES, customLevel, setCustom, getCustom } from './levels.js';
 import { makeMaker } from './maker.js';
 import { startPixelIcons } from './pixels.js';
+import { MODES_TD, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
 const MIDY = MID * T;
 import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -143,6 +144,7 @@ addEventListener('blur', () => held.clear());
 
 function pressAction(a) {
   if (!P || P.dead > 0) return;
+  if (level?.td) { tdMode?.action?.(tdApi, a, P); return; }
   if (a === 'jump') P.jumpBuf = 0.14;
   if (a === 'ping') { sendPing(); if (P.role === 'medic') healTeam(); }
   if (a === 'dash' && (DIMS[P.dim].dash || P.role === 'ninja') && P.dashCd <= 0) {
@@ -599,6 +601,8 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   partyCoins = new Map();
   if (party && P) P.slot = myIdx;
   setupBots(ids, idx, n, rot);
+  $('hud-dim').classList.toggle('hidden', !!level.td);      // dimensions don't matter in the top-down games
+  if (level.td) startTD();
   boss = level.boss || level.hunter ? newBoss(n) : null;
   setScreen('play');
   const hl = $('hud-level');
@@ -2218,6 +2222,111 @@ function partyGoal(b) {
   return null;
 }
 
+// ---------- top-down games (td.js): the glue between the engine and this game ----------
+let tdMode = null, tdTickN = 0;
+const tdApi = {
+  ids: () => gameRoster,
+  meId: () => me.id,
+  get tick() { return tdTickN; },
+  place(id, x, y) {
+    const p = id === me.id ? P : botActors.get(id)?.p;
+    if (p) { p.x = x; p.y = y; p.vx = p.vy = 0; }
+  },
+  send: d => send('td', d),
+  toast: (m, c = '#ffe23a') => toast(m, c),
+  sfx: s => sfx(s),
+  name: id => nameOf(id),
+  pos: id => tdApi.all().find(o => o.id === id) || { x: 0, y: 0 },
+  // bodies this machine moves: me, and the bots if I'm the host
+  mine: () => [...(P ? [Object.assign(P, { isMe: true })] : []), ...(isHost() ? [...botActors.values()].map(b => b.p) : [])],
+  all() {
+    const out = [];
+    for (const id of gameRoster) {
+      if (id === me.id) { if (P) out.push({ id, x: P.x, y: P.y, vx: P.vx, vy: P.vy, dead: P.dead > 0, ref: P }); continue; }
+      const b = botActors.get(id);
+      if (b) { out.push({ id, x: b.p.x, y: b.p.y, vx: b.p.vx, vy: b.p.vy, dead: b.p.dead > 0, ref: b.p }); continue; }
+      const r = remotes.get(id);
+      if (r && r.l === levelIdx) out.push({ id, x: r.sx, y: r.sy, vx: r.vx, vy: r.vy, dead: !!r.dead });
+    }
+    return out;
+  },
+  size: () => ({ VW, VH }),
+  focus: () => tdMode?.focus?.(tdApi) || (P ? { x: P.x, y: P.y } : { x: 0, y: 0 }),
+  held: () => held,
+  isHost: () => isHost(),
+  // the host ends the game: everyone goes to the results screen
+  end(res) {
+    if (!isHost() || transitioning) return;
+    transitioning = true;
+    if (res.scores) scores = res.scores;
+    setTimeout(() => mode === 'play' && goto(1, { td: 1, title: res.title, winners: res.winners || [], text: res.text, big: res.big }), 1500);
+    send('toast', { m: res.title }); toast(res.title, '#ffe23a');
+  },
+};
+function startTD() {
+  tdMode = MODES_TD[level.td];
+  level.name = tdMode.name;
+  level.objective = tdMode.objective;
+  tdTickN = 0;
+  tdMode.init(tdApi, (runStart || 1) % 2147483647);
+}
+// move a body with 8-direction input
+function tdMove(p, inp, dt, id) {
+  if (tdMode.frozen?.(tdApi, id) || tdMode.isOut?.(id) || p.dead > 0) { p.vx = p.vy = 0; return; }
+  let ix = (inp.has('right') ? 1 : 0) - (inp.has('left') ? 1 : 0), iy = (inp.has('down') ? 1 : 0) - (inp.has('jump') || inp.has('up') ? 1 : 0);
+  if (p === P && analogX && inp === held) ix = analogX;
+  const len = Math.hypot(ix, iy);
+  if (len > 1) { ix /= len; iy /= len; }
+  const sp = tdMode.speed?.(tdApi, id) ?? 180;
+  p.vx = ix * sp; p.vy = iy * sp;
+  if (ix || iy) { p.fx = Math.sign(ix) * 0.8; p.fy = iy ? Math.sign(iy) : 0.3; }
+  moveBody(tdMode.world, p, p.vx, p.vy, dt);
+}
+function tdFrame(dt, draw) {
+  $('game').style.visibility = 'hidden';
+  tdTickN++;
+  if (P) { P.id = me.id; tdMove(P, held, dt, me.id); }
+  if (isHost()) {
+    const now = performance.now();
+    for (const [id, b] of botActors) {
+      const ox = b.p.x, oy = b.p.y;
+      b.p.id = id;
+      if (!tdMode.frozen?.(tdApi, id) && !tdMode.isOut?.(id) && b.p.dead <= 0) tdMode.botTick?.(tdApi, b, dt);
+      b.p.vx = (b.p.x - ox) / Math.max(dt, 0.001); b.p.vy = (b.p.y - oy) / Math.max(dt, 0.001);
+      if (Math.abs(b.p.vx) + Math.abs(b.p.vy) > 5) { b.p.fx = Math.sign(b.p.vx) * 0.8; b.p.fy = b.p.vy ? Math.sign(b.p.vy) : 0.3; }
+      remotes.set(id, { ...stateOf(b.p, id, b.name), sx: b.p.x, sy: b.p.y, t: now });
+    }
+    if (!transitioning) tdMode.hostTick?.(tdApi, dt);
+  }
+  tdMode.tick?.(tdApi, dt);
+  updateRemotes(dt);
+  updateFx(dt);
+  sendT -= dt;
+  if (sendT <= 0) { sendT = 1 / SEND_HZ; sendState(); }
+  if (draw) { tdDraw(); updateHud(dt); }
+}
+function tdDraw() {
+  const v = tdView(tdApi);
+  drawTiles(ctx, tdMode.world, v, (x, y, t) => tdMode.tileColor?.(x, y, t));
+  tdMode.drawUnder?.(tdApi, ctx, v);
+  for (const o of tdApi.all()) {
+    const look = tdMode.look?.(tdApi, o.id, me.id) || {};
+    if (look.hidden) continue;
+    const fx = o.id === me.id ? P.fx : Math.sign(o.vx || 0) * 0.8, fy = o.id === me.id ? P.fy : (o.vy ? Math.sign(o.vy) : 0.3);
+    drawBody(ctx, v, { x: o.x, y: o.y, fx, fy }, {
+      color: look.color || (o.id === me.id ? skinColor(profile.equip.skin, time) : null) || chatColor(o.id),
+      name: look.hideName ? '' : nameOf(o.id), alpha: look.alpha ?? (tdMode.isOut?.(o.id) ? 0.35 : 1),
+      dead: o.dead || look.dead, tag: look.tag || '', ring: look.ring || (o.id === me.id ? '#ffffff55' : ''),
+    });
+    const em = emoting.get(o.id);
+    if (em && performance.now() - em.t < 2600) { ctx.font = '700 13px Rubik, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(em.x || EMOTES[em.i], v.sx(o.x), v.sy(o.y) - 44); }
+  }
+  for (const p of particles) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.col; ctx.fillRect(v.sx(p.x), v.sy(p.y), 4, 4); }
+  ctx.globalAlpha = 1;
+  tdMode.draw?.(tdApi, ctx, v);
+  if (flash.t > 0) { ctx.globalAlpha = Math.min(0.5, flash.t * 1.5); ctx.fillStyle = flash.col; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
+}
+
 // ---------- chat box ----------
 const BAD = /\b(f+u+c+k+\w*|sh+i+t+\w*|b+i+t+c+h+\w*|a+s+s+h+o+l+e+\w*|d+i+c+k+\w*|c+u+n+t+\w*|n+i+g+\w*|f+a+g+\w*|r+e+t+a+r+d+\w*|k+y+s+)\b/gi;
 const cleanChat = t => t.replace(/[\u0000-\u001f]/g, '').replace(BAD, m => '*'.repeat(m.length)).trim();
@@ -3233,6 +3342,7 @@ function onMsg(t, d) {
     case 'help': if (mode === 'play' && level?.dash && typeof d.k === 'string') helpOpen.set(d.k, +d.u || 0); break;
     case 'revive': if (mode === 'play' && level?.dash) { if (typeof d.id === 'string') reviveUsed.add(d.id); reviveAt(+d.x || 0, String(d.by || 'A friend').slice(0, 14)); } break;
     case 'confetti': if (mode === 'play') confetti(); break;
+    case 'td': if (mode === 'play' && level?.td && tdMode && d && typeof d === 'object') tdMode.onMsg?.(tdApi, d); break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
     case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
     case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
@@ -3489,6 +3599,17 @@ async function showVictory() {
   setScreen('victory');
   const ms = Date.now() - runStart;
   const title = $('win-title'), text = $('win-text'), big = $('clear-time');
+  if (result?.td) {                          // a top-down game sends its own result
+    const win = Array.isArray(result.winners) ? result.winners.map(String) : [];
+    const iWon = win.includes(me.id);
+    addCoins(iWon ? 40 : 10);
+    sfx(iWon ? 'win' : 'click');
+    title.textContent = String(result.title || 'GAME OVER').slice(0, 40);
+    big.textContent = win.length ? win.map(nameOf).join(' & ') : (result.big ? String(result.big).slice(0, 30) : '—');
+    text.textContent = result.text ? String(result.text).slice(0, 200) : gameRoster.map(id => `${nameOf(id)}: ${scores[id] || 0}`).join(' · ');
+    $('win-coins').textContent = iWon ? '🏆 You won! +40 🪙' : '+10 🪙 for playing';
+    return;
+  }
   $('again').classList.toggle('hidden', !isHost());
   $('board-win-wrap').classList.toggle('hidden', !['story', 'survival'].includes(gameMode));
   if (SCORED.includes(gameMode)) {
@@ -3683,6 +3804,7 @@ function updateHud(dt) {
     const at = gameRoster.filter(id => (id === me.id ? P?.exit : remotes.get(id)?.e)).length;
     prog = `At the portal ${at}/${gameRoster.length}`;
   }
+  if (level.td) prog = tdMode?.hud?.(tdApi) || '';
   $('lvl-progress').textContent = prog;
   const ul = $('hud-players');
   ul.replaceChildren();
@@ -4058,6 +4180,7 @@ function step(dt, draw) {
   time += dt;
   if (mode === 'play' && level) {
     levelT += dt;
+    if (level.td) return tdFrame(dt, draw);
     if (hunt && !isHost()) hunt.left = Math.max(0, hunt.left - dt);
     if (party && !isHost()) { party.left = Math.max(0, party.left - dt); if (party.fuse) party.fuse -= dt; }
     updateCannons();
@@ -4566,10 +4689,10 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story (with a bot buddy)', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['New mini games', [['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
+  ['New mini games', [['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Versus bots', [['race', '🏁 Race', 'vs 3 bots'], ['tag', '🏃 Tag', 'vs 3 bots'], ['koth', '👑 King of the Hill', 'vs 3 bots'], ['chaos', '🌀 Coin Chaos', 'vs 3 bots'], ['lms', '💥 Last One Standing', 'vs 3 bots'], ['potato', '💣 Hot Potato', 'vs 3 bots']]],
 ];
-const SOLO_BOTS = { parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Versus bots';
   const h = document.createElement('h3');

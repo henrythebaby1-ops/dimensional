@@ -75,6 +75,10 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
   phones), click or F to fire, one hit = out. Most kills in 2 minutes is crowned the Sniper God.
 - **🛹 Parkour**: skateboard races across procedurally built rooftops with low gravity. Rolling momentum, grind rails,
   boost pads, launch ramps, personal checkpoint flags, and air tricks (hold DOWN in the air).
+- **🎨 Color Blocks** (top-down): a color is called — run onto a tile of that color before the timer ends, every
+  other tile drops. It gets faster each round. Last one standing wins.
+- **🦎 Crazy Chameleon** (top-down): camouflage hide-and-seek. Hiders stand still to turn the color of the floor; the
+  seeker tags them (F). Every 20 seconds the colors go CRAZY and hiders must move to blend in again.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
