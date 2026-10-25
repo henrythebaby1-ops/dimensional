@@ -88,6 +88,8 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 - **🚑 Emergency Response** (top-down, Dead Rails style): ride a rescue train 3.4 km across a zombie wasteland to the
   Safe Zone. Shovel coal into the engine (E), refill the coal car from town coal piles while the train waits at
   stations, bring survivors aboard, and shoot zombies (F) — especially at night.
+- **🧟 Zombie Infection**, **🚩 Capture the Flag**, **🏍️ Light Trails** (Tron light cycles), **💣 Blast Arena**
+  (Bomberman style with power-ups) and **⚽ Dimension Soccer** — all top-down, all playable with bots.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
