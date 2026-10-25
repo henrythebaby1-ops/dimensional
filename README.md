@@ -79,6 +79,9 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
   other tile drops. It gets faster each round. Last one standing wins.
 - **🦎 Crazy Chameleon** (top-down): camouflage hide-and-seek. Hiders stand still to turn the color of the floor; the
   seeker tags them (F). Every 20 seconds the colors go CRAZY and hiders must move to blend in again.
+- **🔥 99 Nights in the Dimensions** (top-down): survive in a dark forest. Chop trees (F) and feed the campfire (E);
+  its light keeps the monsters away (Shadow Wolves, Frost Wraiths, the Rift Stag, Banana Brutes). Roles: Lumberjack,
+  Fighter, Medic, Scout. Eat berries, rescue the 4 lost kids, come back at dawn if you fall. Reach night 99 to win.
 - **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
