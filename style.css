@@ -430,3 +430,11 @@ html.drift * { transition: border-radius 4s, box-shadow 4s, background-color 4s,
 .cut-bananas { position: absolute; top: 30px; left: 0; right: 0; display: flex; justify-content: space-around; font-size: 34px; z-index: 2; }
 .cut-banana { animation: float 1s ease-in-out infinite alternate; }
 .cut-skull { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); font-size: 64px; z-index: 2; animation: float 1.4s ease-in-out infinite alternate; filter: drop-shadow(0 0 12px #ff3355); }
+
+#pause-btn { position: absolute; left: calc(50% + 104px); top: 8px; pointer-events: auto; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.45); color: #fff; font-size: 15px; }
+#pause { background: rgba(0,0,0,.45); }
+.pause-panel { display: flex; flex-direction: column; gap: 10px; text-align: center; width: min(340px, 100%); }
+.pause-panel .btn { width: 100%; }
+.pause-title { margin: 0; font-size: 28px; }
+html.r-font .pause-title { font-size: 20px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .35; } }

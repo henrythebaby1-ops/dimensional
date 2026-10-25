@@ -121,6 +121,18 @@ const SPRITES = {
   rocket: ['w', { w: '#dfe6f0', r: '#ff3355', c: '#3affff', o: '#ff8a1a', y: '#ffe23a' }, [
     '.....rr.....', '....wwww....', '....wwww....', '....wccw....', '....wccw....', '....wwww....',
     '...rwwwwr...', '..rrwwwwrr..', '..r.wwww.r..', '.....oo.....', '....yooy....', '.....yy.....']],
+  pause: ['w', { w: '#ffffff' }, [
+    '............', '............', '..www..www..', '..www..www..', '..www..www..', '..www..www..',
+    '..www..www..', '..www..www..', '..www..www..', '..www..www..', '............', '............']],
+  play: ['g', { g: '#39ff88' }, [
+    '............', '..g.........', '..gg........', '..ggg.......', '..gggg......', '..ggggg.....',
+    '..ggggg.....', '..gggg......', '..ggg.......', '..gg........', '..g.........', '............']],
+  home: ['r', { r: '#ff3355', w: '#f4ead0', b: '#7a5230' }, [
+    '.....rr.....', '....rrrr....', '...rrrrrr...', '..rrrrrrrr..', '.rrrrrrrrrr.', '..wwwwwwww..',
+    '..wwwwwwww..', '..wwbbwwww..', '..wwbbwwww..', '..wwbbwwww..', '..wwbbwwww..', '............']],
+  restart: ['c', { c: '#3affff' }, [
+    '............', '....cccc.c..', '..cc....cc..', '.c.....ccc..', '.c..........', 'c...........',
+    'c...........', '.c........c.', '.c........c.', '..cc....cc..', '....cccc....', '............']],
   angel: ['y', { y: '#ffe23a', s: '#ffd0a8', k: '#222233', w: '#ffffff' }, [
     '..yyyyyyyy..', '.y........y.', '..yyyyyyyy..', '...ssssss...', 'w.ssssssss.w', 'wwskksskksww',
     'wwssssssssww', 'w.ssk..kss.w', '..sskkkkss..', '...ssssss...', '............', '............']],
@@ -155,7 +167,7 @@ const EMOJI = {
   '⏱️': 'clock', '⏱': 'clock', '♾️': 'infinity', '♾': 'infinity', '☄️': 'meteor', '☄': 'meteor', '🎨': 'paint', '🚦': 'light', '🏁': 'flag',
   '🪐': 'planet', '⏳': 'hourglass', '🌊': 'wave', '🍌': 'banana', '🔒': 'lock', '✓': 'check', '✅': 'check', '💣': 'bomb', '💀': 'skull',
   '🌀': 'swirl', '💾': 'save', '☁️': 'cloud', '🚀': 'rocket', '👻': 'ghost', '⚔️': 'sword', '🗡️': 'sword', '🛡️': 'shieldi', '🛡': 'shieldi',
-  '🔥': 'fire', '😇': 'angel', '✨': 'sparkle', '🔑': 'key', '🌌': 'space', '🏃': 'ghost',
+  '🔥': 'fire', '😇': 'angel', '⏸': 'pause', '▶': 'play', '🏠': 'home', '🔄': 'restart', '✨': 'sparkle', '🔑': 'key', '🌌': 'space', '🏃': 'ghost',
 };
 
 const cache = {};

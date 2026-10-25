@@ -88,6 +88,7 @@ new dimensions (6 start unlocked; finishing chapters unlocks more). ⭐ Records 
 🌀 fans (updrafts), 🟣 teleporters and 💎 power-ups (speed, super jump, invincibility, full health). Try them all in the
 new **Gadget Lab** race map.
 **💬 Chat:** press T or Enter (💬 on phones). Bots answer when you say hi, gg, their name or ask a question.
+**⏸ Pause:** press Esc or P (or ⏸ on the screen). It freezes the game for everyone in the room; anyone can resume. The pause menu can restart the level (host), open Settings or leave.
 **⏭ Skip:** the host can skip a level; other players vote to skip.
 **🗺️ Levels:** a picture of every level in the game; press ▶ to play any of them.
 

@@ -113,6 +113,8 @@ addEventListener('pointerdown', unlockAudio);
 addEventListener('keydown', unlockAudio);
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
+  if ((e.code === 'Escape' || e.code === 'KeyP') && mode === 'play' && !e.repeat) { e.preventDefault(); togglePause(); return; }
+  if (paused) return;
   if (room && (mode === 'play' || mode === 'lobby') && (e.code === 'KeyT' || e.code === 'Slash' || (e.code === 'Enter' && !(P && canDrag(P))))) { e.preventDefault(); openChat(); return; }
   if (mode !== 'play') return;
   if (/^Digit[1-8]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; }
@@ -2940,6 +2942,7 @@ function onMsg(t, d) {
       break;
     case 'custom': if (d.d && typeof d.d === 'object' && Array.isArray(d.d.rows) && JSON.stringify(d.d).length < 60000) setCustom(d.d); break;
     case 'minion': if (mode === 'play' && boss?.banana && d.o && typeof d.o.id === 'string') addMinion({ id: d.o.id, type: 'mob', dim: 0, x: +d.o.x | 0, y: +d.o.y | 0, w: 1, h: 1, range: +d.o.range || 4, speed: +d.o.speed || 2, phase: +d.o.phase || 0 }); break;
+    case 'pause': if (mode === 'play') setPaused(!!d.on, String(d.by || '').slice(0, 14)); break;
     case 'skipvote': if (isHost() && mode === 'play' && typeof d.id === 'string') voteSkip(d.id); break;
     case 'chat': if (typeof d.id === 'string' && typeof d.t === 'string') onChat(d.id, String(d.n || '?').slice(0, 14), d.t.slice(0, 80)); break;
     case 'emo': if (typeof d.id === 'string' && EMOTES[d.i]) { emoting.set(d.id, { i: d.i | 0, x: isBot(d.id) && typeof d.x === 'string' ? d.x.slice(0, 40) : undefined, t: performance.now() }); sfx('emote'); } break;
@@ -3040,6 +3043,30 @@ function enterRoom(code) {
   setScreen('lobby');
 }
 
+// ---------- pause: freezes the game for everyone in the room ----------
+let paused = false;
+function setPaused(on, by) {
+  paused = on;
+  held.clear();
+  $('pause').classList.toggle('hidden', !on);
+  if (!on) $('settings').classList.add('hidden');
+  $('pause-who').textContent = on ? (by && by !== me.name ? `${by} paused the game` : 'You paused the game') : '';
+  $('pause-restart').classList.toggle('hidden', !isHost());
+  if (on) sfx('click');
+  last = performance.now();                 // don't "catch up" all the paused time when resuming
+}
+function togglePause() {
+  if (mode !== 'play') return;
+  const on = !paused;
+  setPaused(on, me.name);
+  send('pause', { on, by: me.name });
+}
+$('pause-btn').onclick = togglePause;
+$('pause-resume').onclick = togglePause;
+$('pause-settings').onclick = () => $('settings').classList.remove('hidden');
+$('pause-restart').onclick = () => { if (!isHost()) return; setPaused(false); send('pause', { on: false, by: me.name }); goto(levelIdx); };
+$('pause-leave').onclick = () => { setPaused(false); send('pause', { on: false, by: me.name }); leaveRoom(); };
+
 function leaveRoom() {
   isPublic = false;
   board?.stop();
@@ -3056,6 +3083,7 @@ function leaveRoom() {
 // ---------- UI ----------
 function setScreen(m) {
   mode = m;
+  if (m !== 'play' && paused) { paused = false; $('pause').classList.add('hidden'); }
   $('menu').classList.toggle('hidden', m !== 'menu');
   $('lobby').classList.toggle('hidden', m !== 'lobby');
   $('victory').classList.toggle('hidden', m !== 'victory');
@@ -3684,6 +3712,7 @@ setInterval(() => {
 }, 50);
 
 function step(dt, draw) {
+  if (paused && mode === 'play' && level) { if (draw) drawGame(0); return; }   // frozen: keep showing the last frame
   time += dt;
   if (mode === 'play' && level) {
     levelT += dt;
