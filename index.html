@@ -139,6 +139,26 @@
     </div>
   </section>
 
+  <section id="skinmaker" class="panel-screen hidden">
+    <div class="panel">
+      <div class="shop-head"><h2>🎨 Skin maker</h2><button id="sm-close" class="btn small-btn">✕</button></div>
+      <div class="sm-wrap">
+        <canvas id="sm-preview" width="180" height="180"></canvas>
+        <div class="sm-controls">
+          <label class="sm-col">Main color <input type="color" id="sm-c1" value="#6ee26e"></label>
+          <label class="sm-col">Second color <input type="color" id="sm-c2" value="#111111"></label>
+          <div class="seg sm-pats" id="sm-pat">
+            <button data-v="solid">Solid</button><button data-v="stripes">Stripes</button><button data-v="spots">Spots</button>
+            <button data-v="checker">Checker</button><button data-v="split">Split</button><button data-v="stars">Stars</button>
+          </div>
+          <button id="sm-random" class="btn small-btn">🎲 Random</button>
+        </div>
+      </div>
+      <button id="sm-save" class="btn primary">✅ Save & wear it (free)</button>
+      <p class="muted small">Everyone in your room sees your custom skin.</p>
+    </div>
+  </section>
+
   <section id="account" class="panel-screen hidden">
     <div class="panel">
       <div class="shop-head"><h2>👤 Account</h2><button id="account-close" class="btn small-btn">✕</button></div>

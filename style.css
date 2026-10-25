@@ -454,6 +454,14 @@ html.r-font .pause-title { font-size: 20px; animation: blink 1s steps(2) infinit
 .ship-sail { position: absolute; left: 62px; bottom: 56px; width: 76px; height: 54px; background: #8a8270; clip-path: polygon(0 0, 100% 0, 90% 100%, 10% 100%); }
 @keyframes shipRock { from { transform: translateX(-50%) rotate(-3deg); } to { transform: translateX(-50%) rotate(3deg); } }
 
+/* skin maker */
+.sm-wrap { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; justify-content: center; margin: 8px 0 12px; }
+#sm-preview { width: 180px; height: 180px; border-radius: 16px; background: #1b1830; image-rendering: pixelated; }
+.sm-controls { display: flex; flex-direction: column; gap: 8px; min-width: 200px; flex: 1; }
+.sm-col { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+.sm-col input[type=color] { width: 54px; height: 34px; padding: 0; border: 2px solid var(--line); background: none; margin: 0; }
+.sm-pats { flex-wrap: wrap; }
+.sm-pats button { flex: 1 0 30%; }
 /* phone control settings */
 .tset { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; margin: 6px 0 4px; font-size: 14px; }
 .seg { display: flex; gap: 4px; }
@@ -498,3 +506,4 @@ button, .tile, .mini-tile, .mode, .tb, #stick-zone, #jump-zone { touch-action: m
 @media (pointer: coarse) {
   input, select, textarea, #chat-input, .code-input, .join-tile .code-input { font-size: 16px !important; }
 }
+#skinmaker { z-index: 6; }

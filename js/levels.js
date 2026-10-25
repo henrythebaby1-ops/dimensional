@@ -1157,7 +1157,7 @@ function fracture(n, spectre = true, round = 0) {
   for (let d = 0; d < n; d++) b.addD('pad', d, { group: 'shatter' }, 3 + Math.floor(laneIndex(d) * 4.3), 1, 2, 1);
   return b.done({
     name: spectre ? 'The Spectre' : ['The Fracture', 'The Fracture Returns', 'The Fracture Unbound'][round],
-    objective: spectre ? 'The Spectre that tore your world apart. Hold F to fire. Everyone on their pads at once shatters its shield…'
+    objective: spectre ? 'The Spectre that tore your world apart — stronger than ever, and nobody is coming to help. Hit it when your dimension glows, and get everyone on their pads at once to shatter its shield!'
       : 'Hold F to fire. The shield only lets in the glowing dimension. Everyone on their pads at once SHATTERS it!',
     boss: true,
     spectre,

@@ -10,10 +10,10 @@ import './td5.js';
 const MIDY = MID * T;
 import { Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
-import { Renderer3D, PW, PH } from './render3d.js';
+import { Renderer3D, PW, PH, drawPattern } from './render3d.js';
 import { drawBanana2D } from './banana2d.js';
 import { unlockAudio, sfx, playMusic, playBeat, isMuted, setMuted } from './audio.js';
-import { SECRETS, hasSecret, addSecret, grantItem, replaceProfile, profileScore, profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
+import { skinPattern, encodeCustom, decodeCustom, setCustomSkin, SECRETS, hasSecret, addSecret, grantItem, replaceProfile, profileScore, profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
 
 const $ = id => document.getElementById(id);
 const autoTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -1077,6 +1077,7 @@ function die(p) {
     buzz(80);
     sfx('die');
     myDeaths++;
+    if (myDeaths === 10) { foundSecret('persist', 'free 😇 Halo'); grantItem('hat', 'halo'); toast('💪 Never give up!', '#ffe23a'); }
     sendState();
   }
   if (surv) { if (isHost()) loseLife(); else if (p === P) send('died', {}); }
@@ -1196,7 +1197,7 @@ function stateOf(p, id, name) {
   return {
     id, l: levelIdx, x: Math.round(p.x), y: Math.round(p.y), vx: Math.round(p.vx), vy: Math.round(p.vy),
     d: p.dim, nd: p.native, g: gravOf(p), f: p.face, p: p.press, ro: p.role, e: p.exit, hp: p.hp, dead: p.dead > 0, name,
-    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt, profile.equip.skin, profile.equip.acc] : p.cos, sh: p.shielding ? 1 : 0,
+    co: p === P ? [profile.equip.hat, profile.equip.trail, profile.equip.bolt, profile.equip.skin, profile.equip.acc, encodeCustom(profile.custom)] : p.cos, sh: p.shielding ? 1 : 0,
   };
 }
 
@@ -1231,7 +1232,7 @@ function addBot() {
   const roles = Object.keys(ROLES);
   const rnd = a => a[Math.floor(Math.random() * a.length)].id;
   bots.push({ id: 'bot-' + Math.random().toString(36).slice(2, 7), name: '🤖 ' + nm, role: roles[Math.floor(Math.random() * roles.length)],
-    cos: [rnd(SHOP.hat), rnd(SHOP.trail), rnd(SHOP.bolt), rnd(SHOP.skin), rnd(SHOP.acc)] });
+    cos: [rnd(SHOP.hat), rnd(SHOP.trail), rnd(SHOP.bolt), rnd(SHOP.skin), rnd(SHOP.acc), encodeCustom(randomCustom())] });
   send('bots', { list: bots });
   renderLobby();
 }
@@ -1247,7 +1248,7 @@ function setBots(list) {
   if (!Array.isArray(list)) return;
   bots = list.filter(b => b && isBot(b.id)).slice(0, MAX_PLAYERS).map(b => ({
     id: String(b.id), name: String(b.name || '🤖 Bot').slice(0, 14), role: ROLES[b.role] ? b.role : 'runner',
-    cos: Array.isArray(b.cos) ? b.cos.map(String).slice(0, 5) : ['none', 'none', 'default', 'default', 'none'],
+    cos: Array.isArray(b.cos) ? b.cos.map(String).slice(0, 6) : ['none', 'none', 'default', 'default', 'none', ''],
   }));
 }
 
@@ -2395,9 +2396,11 @@ function confetti() {
   }
   sfx('win');
 }
+let ggCount = 0, djTaps = [];
 function sendChat(text) {
   text = cleanChat(text);
   if (!text || !room) return;
+  if (/^\s*gg\s*$/i.test(text) && ++ggCount === 5) { foundSecret('gg'); setTimeout(confetti, 200); }
   if (text.startsWith('/')) return chatCommand(text);
   send('chat', { id: me.id, n: me.name, t: text });
   onChat(me.id, me.name, text);
@@ -2699,12 +2702,13 @@ function latch(k) {
 
 // ---------- boss ----------
 function newBoss(n) {
-  const hp = Math.round(45 * n * (level.hpMul || 1));
+  // the Spectre (chapter 1) gets no outside help any more — instead it can be beaten, but it's far tougher
+  const hp = Math.round(45 * n * (level.hpMul || 1) * (level.spectre && !level.final ? 2.6 : 1));
   return { x: level.W * T / 2, y: H * T / 2, tx: level.W * T / 2, ty: H * T / 2, hp, max: hp,
     exposed: 0, exposeT: 5, shatterT: 0, shatterCd: 0, atkT: 3, atkN: 0, t: 0, sendT: 0,
     spectre: !!level.spectre, helped: false, offerT: 18, unicoder: !!level.unicoder,
     floatter: !!(level.floatter || level.hunter || level.troppa), hunter: !!level.hunter, stunT: 0,
-    troppa: !!level.troppa, final: !!level.final, allyT: 3, banana: !!level.bananaBoss };
+    troppa: !!level.troppa, final: !!level.final, allyT: 3, banana: !!level.bananaBoss, buffed: !!level.spectre && !level.final };
 }
 
 function hostBoss(dt) {
@@ -2722,15 +2726,6 @@ function hostBoss(dt) {
     const pads = level.objs.filter(o => o.type === 'pad' && o.group === 'shatter');
     if (pads.every(p => pressedIds.has(p.id))) { b.shatterT = 5; b.shatterCd = 9; onShatter(); }
   }
-  // The Spectre can't be beaten alone. After a while, a voice offers help.
-  if (b.spectre && !b.helped) {
-    b.offerT -= dt;
-    if (b.offerT <= 0) {
-      b.offerT = 30;
-      send('offer', { from: gift?.name || '' });
-      showOffer();
-    }
-  }
   if (b.final) {                             // Troppa fights at your side
     b.allyT -= dt;
     if (b.allyT <= 0) {
@@ -2744,7 +2739,7 @@ function hostBoss(dt) {
   b.atkT -= dt;
   if (b.atkT <= 0) {
     spawnAttack();
-    b.atkT = (b.hp < b.max / 2 ? 1.6 : 2.4) * (level.atkMul || 1);
+    b.atkT = (b.hp < b.max / 2 ? 1.6 : 2.4) * (level.atkMul || 1) * (b.buffed ? (b.hp < b.max / 2 ? 0.55 : 0.75) : 1);   // the buffed Spectre attacks much faster, and faster still when enraged
   }
   b.sendT -= dt;
   if (b.sendT <= 0) {
@@ -2910,7 +2905,7 @@ function onShatter() {
 
 function spawnAttack() {
   const b = boss, phase2 = b.hp < b.max / 2, list = [];
-  const kind = b.atkN++ % (b.final ? 5 : 3);
+  const kind = b.atkN++ % (b.final || b.buffed ? 5 : 3);   // the Spectre also fires homing missiles and grenades
   if (kind === 3 || kind === 4) {            // the final Spectre borrows the Floatter's and Troppa's weapons
     for (const a of allActors().filter(x => !x.dead).slice(0, 4)) {
       const tid = actorId(a);
@@ -3256,15 +3251,6 @@ let immuneToastT = 0;
 function applyHit(d) {
   if (!boss || transitioning) return;
   if (boss.hunter) return stunFloatter();     // can't be beaten here — only stunned
-  if (boss.spectre && !boss.helped) {         // impossible to hurt without help
-    if (performance.now() - immuneToastT > 4000) {
-      immuneToastT = performance.now();
-      const m = 'Your shots pass right through the Spectre…';
-      send('toast', { m });
-      toast(m, '#b48cff');
-    }
-    return;
-  }
   boss.hp = Math.max(0, boss.hp - clamp(Number(d) || 0, 0, 2) * (boss.helped ? 2 : 1));
   if (boss.hp <= 0) {
     transitioning = true;
@@ -3652,9 +3638,11 @@ async function showVictory() {
       recorded = true;
       recordClear(room.code, gameRoster.map(nameOf), ms, 'story', null);
     }
-    $('victory').classList.add('hidden');
-    $('decision-who').textContent = gift ? `The save belonged to ${gift.name}, who had reached level ${gift.level || '?'}.` : 'You never learn whose save it was.';
-    $('decision').classList.remove('hidden');
+    addCoins(150);
+    title.textContent = 'THE SPECTRE IS DEFEATED';
+    text.textContent = 'No help, no tricks — just your team. The Spectre shatters, and every dimension is free again. +150 🪙';
+    big.textContent = fmtTime(ms);
+    sfx('win');
     return;
   }
   if (gameMode === 'daily') {
@@ -3875,11 +3863,11 @@ function bodiesForFrame() {
   for (const id of gameRoster) {
     const r = remotes.get(id);
     if (!r || r.l !== levelIdx) continue;
-    list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) || (Array.isArray(r.co) ? skinColor(r.co[3], time) : undefined),
+    list.push({ id, x: r.sx, y: r.sy, d: r.d, nd: r.nd, g: r.g, f: r.f, vx: r.vx, ghost: !P || r.d !== P.dim, visible: !r.dead, color: colorOf(id) || (Array.isArray(r.co) ? skinColor(r.co[3], time, decodeCustom(r.co[5])) : undefined), pattern: Array.isArray(r.co) && !colorOf(id) ? skinPattern(r.co[3], decodeCustom(r.co[5])) : null,
       board: !!level?.skate, hat: Array.isArray(r.co) ? r.co[0] : 'none', acc: Array.isArray(r.co) ? r.co[4] : 'none', skin: Array.isArray(r.co) ? r.co[3] : 'default', trail: Array.isArray(r.co) ? r.co[1] : 'none', sword: !!DIMS[r.d]?.sword, shield: !!r.sh });
   }
   if (P) list.push({ id: me.id, x: P.x + (DIMS[P.dim].key === 'glitch' && Math.random() < 0.06 ? (Math.random() - 0.5) * 14 : 0), y: P.y, d: P.dim, nd: P.native, g: gravOf(P), f: P.spinT > 0 ? (Math.sin(time * 18) > 0 ? 1 : -1) : P.face, vx: P.spinT > 0 ? Math.sin(time * 9) * 400 : P.vx, ghost: false,
-    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), board: !!level?.skate, skin: profile.equip.skin, acc: profile.equip.acc, hat: profile.equip.hat, trail: profile.equip.trail,
+    visible: P.dead <= 0 && !(P.inv > 0 && Math.floor(time * 15) % 2), color: colorOf(me.id) || skinColor(profile.equip.skin, time), pattern: colorOf(me.id) ? null : skinPattern(profile.equip.skin), board: !!level?.skate, skin: profile.equip.skin, acc: profile.equip.acc, hat: profile.equip.hat, trail: profile.equip.trail,
     sword: !!DIMS[P.dim].sword, shield: !!P.shielding });
   for (const [id, b] of botActors) { const e = list.find(x => x.id === id); if (e) { e.shield = !!b.p.shielding; } }
   if (level.ally && boss) { const ap = allyPos(); list.push({ id: 'ally', x: ap.x - PW / 2, y: ap.y - PH / 2, d: 0, nd: 0, g: 1, f: 1, vx: 0, ghost: false, visible: true, color: '#4f6f46', hat: 'helmet', trail: 'none' }); }
@@ -4131,7 +4119,7 @@ function drawBossBar() {
   }
   if (boss.banana) { ctx.fillStyle = '#ffe23a'; ctx.textAlign = 'right'; ctx.fillText('SLASH HIM!', x + w, y - 7); return; }
   if (boss.unicoder) { ctx.fillStyle = boss.shatterT > 0 ? '#ffe23a' : '#39ff88'; ctx.fillText(boss.shatterT > 0 ? 'EXPOSED — FIRE!' : 'GUARDED', x + w, y - 7); return; }
-  if (boss.spectre && !boss.helped) { ctx.fillStyle = '#ff2244'; ctx.fillText('INVULNERABLE', x + w, y - 7); }
+  if (boss.buffed && boss.hp < boss.max / 2) { ctx.fillStyle = '#ff2244'; ctx.fillText('ENRAGED', x + w, y - 7); }
   else if (boss.spectre) { ctx.fillStyle = '#ffe23a'; ctx.fillText('WEAKENED', x + w, y - 7); }
   else if (boss.shatterT > 0) { ctx.fillStyle = '#fff'; ctx.fillText('SHATTERED!', x + w, y - 7); }
   else { const d = DIMS[boss.exposed]; ctx.fillStyle = d.color; ctx.fillText(`Weak to: ${d.name}`, x + w, y - 7); }
@@ -4435,6 +4423,42 @@ onProfile(() => pushSave());
 }
 $('open-boards').onclick = () => $('boards-wrap').classList.toggle('hidden');
 
+// ---------- skin maker ----------
+const PATS = ['solid', 'stripes', 'spots', 'checker', 'split', 'stars'];
+function randomCustom() {
+  const h = () => '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+  return { c1: h(), c2: h(), pat: PATS[Math.floor(Math.random() * PATS.length)] };
+}
+let smDraft = null;
+function drawSkinPreview() {
+  const cv = $('sm-preview'), g = cv.getContext('2d'), d = smDraft;
+  g.clearRect(0, 0, 180, 180);
+  // body: a rounded block painted with the pattern
+  const tile = document.createElement('canvas');
+  tile.width = tile.height = 64;
+  drawPattern(tile.getContext('2d'), 64, { pat: d.pat === 'solid' ? 'none' : d.pat, c1: d.c1, c2: d.c2 });
+  g.save();
+  g.beginPath(); g.roundRect(40, 30, 100, 124, 26); g.clip();
+  g.imageSmoothingEnabled = false;
+  g.drawImage(tile, 40, 30, 124, 124);
+  g.restore();
+  g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 3; g.beginPath(); g.roundRect(40, 30, 100, 124, 26); g.stroke();
+  for (const x of [72, 108]) { g.fillStyle = '#fff'; g.beginPath(); g.arc(x, 72, 13, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(x + 3, 74, 6, 0, 7); g.fill(); }
+  for (const b of $('sm-pat').children) b.classList.toggle('sel', b.dataset.v === d.pat);
+}
+function openSkinMaker() {
+  smDraft = { ...(profile.custom || { c1: '#6ee26e', c2: '#111111', pat: 'stripes' }) };
+  $('sm-c1').value = smDraft.c1; $('sm-c2').value = smDraft.c2;
+  $('skinmaker').classList.remove('hidden');
+  drawSkinPreview();
+}
+$('sm-c1').oninput = () => { smDraft.c1 = $('sm-c1').value; drawSkinPreview(); };
+$('sm-c2').oninput = () => { smDraft.c2 = $('sm-c2').value; drawSkinPreview(); };
+for (const b of $('sm-pat').children) b.onclick = () => { smDraft.pat = b.dataset.v; drawSkinPreview(); };
+$('sm-random').onclick = () => { smDraft = randomCustom(); $('sm-c1').value = smDraft.c1; $('sm-c2').value = smDraft.c2; drawSkinPreview(); sfx('click'); };
+$('sm-close').onclick = () => $('skinmaker').classList.add('hidden');
+$('sm-save').onclick = () => { setCustomSkin(smDraft); sfx('buy'); toast('🎨 Your custom skin is on!', '#39ff88'); $('skinmaker').classList.add('hidden'); renderShop?.(); };
+
 // ---------- easter eggs ----------
 function foundSecret(id, extra = '') {
   if (!addSecret(id)) return false;
@@ -4487,6 +4511,37 @@ $('name').addEventListener('change', () => {
   if (n === 'spectre') { grantItem('skin', 'ghost'); foundSecret('spectre', 'the 👻 Ghost skin is yours'); toast('👻 The Spectre is watching…', '#b48cff'); }
   if (n === 'peel' || n === 'captain peel') { grantItem('skin', 'b-pirate'); foundSecret('peel', 'free 🏴‍☠️ Pirate outfit'); }
 });
+// type the name of the game on the main menu
+{
+  const word = 'DIMENSIONAL';
+  let at = 0;
+  addEventListener('keydown', e => {
+    if (mode !== 'menu' || e.target.tagName === 'INPUT') return;
+    const ch = e.key.toUpperCase();
+    at = ch === word[at] ? at + 1 : ch === word[0] ? 1 : 0;
+    if (at === word.length) { at = 0; if (foundSecret('magic', '+77 🪙')) addCoins(77); document.querySelector('#menu .logo').classList.add('smash'); setTimeout(() => document.querySelector('#menu .logo').classList.remove('smash'), 2600); }
+  });
+}
+// the creator's name
+$('name').addEventListener('change', () => {
+  if ($('name').value.trim().toLowerCase() === 'henry') { grantItem('hat', 'crown'); foundSecret('creator', 'free 👑 Crown'); toast('👑 The creator has arrived!', '#ffe23a'); }
+});
+// click the coin counter a LOT
+{
+  let n = 0, t = 0;
+  $('menu-coins').style.cursor = 'pointer';
+  $('menu-coins').onclick = () => {
+    const now = performance.now();
+    n = now - t < 700 ? n + 1 : 1; t = now;
+    sfx('coin');
+    if (n === 20) { if (foundSecret('coins', 'fine… +1 🪙')) addCoins(1); toast('💸 You can\'t click your way to riches!', '#ffd23a'); }
+  };
+}
+// Halloween
+{
+  const d = new Date();
+  if (d.getMonth() === 9 && d.getDate() === 31) setTimeout(() => { toast('🎃 Happy Halloween! Spooky things are in the dimensions tonight…', '#ff8a1a'); grantItem('hat', 'horns'); foundSecret('spooky', 'free 😈 Horns'); }, 3500);
+}
 // up past midnight
 if (new Date().getHours() < 5) setTimeout(() => { toast('🌙 It\'s really late… shouldn\'t you be asleep?', '#9feaff'); foundSecret('night'); }, 2500);
 
@@ -4886,7 +4941,12 @@ if (!(document.documentElement.requestFullscreen || document.documentElement.web
 // ---------- shop, records, daily challenge, sound, emotes ----------
 const muteIcon = () => (isMuted() ? '🔇' : '🔊');
 for (const id of ['mute', 'mute-menu']) {
-  $(id).onclick = () => { unlockAudio(); setMuted(!isMuted()); $('mute').textContent = $('mute-menu').textContent = muteIcon(); };
+  $(id).onclick = () => {
+    unlockAudio(); setMuted(!isMuted()); $('mute').textContent = $('mute-menu').textContent = muteIcon();
+    const now = performance.now();
+    djTaps = djTaps.filter(t => now - t < 4000); djTaps.push(now);
+    if (djTaps.length >= 10) { djTaps = []; setMuted(false); $('mute').textContent = $('mute-menu').textContent = muteIcon(); foundSecret('dj', 'drop the beat!'); for (const n of ['win', 'star', 'buy', 'win']) setTimeout(() => sfx(n), Math.random() * 600); }
+  };
 }
 $('mute').textContent = $('mute-menu').textContent = muteIcon();
 
@@ -4926,13 +4986,20 @@ function renderShop() {
     return;
   }
   const cat = shopTab === 'banana' ? 'skin' : shopTab;
+  if (shopTab === 'skin') {                  // the skin maker lives at the top of the Skins tab
+    const mk = document.createElement('button');
+    mk.className = 'btn primary shop-note';
+    mk.textContent = '🎨 Make your own skin (free)';
+    mk.onclick = openSkinMaker;
+    grid.append(mk);
+  }
   if (shopTab === 'banana') {
     const note = document.createElement('p');
     note.className = 'muted small shop-note';
     note.textContent = '🍌 Special outfits from the Bananas of the Caribbean. In the Bananaverse you wear the full costume; everywhere else you get its color.';
     grid.append(note);
   }
-  for (const it of SHOP[cat].filter(i => cat !== 'skin' || !!i.banana === (shopTab === 'banana') || i.id === 'default')) {
+  for (const it of SHOP[cat].filter(i => (cat !== 'skin' || !!i.banana === (shopTab === 'banana') || i.id === 'default') && (!i.custom || profile.custom))) {
     const have = owns(cat, it.id), eq = profile.equip[cat] === it.id;
     const state = eq ? 'Equipped' : have ? 'Equip' : profile.coins >= it.price ? `Buy ${it.price} 🪙` : `🔒 ${it.price} 🪙`;
     card(it.icon, it.name, state, () => {

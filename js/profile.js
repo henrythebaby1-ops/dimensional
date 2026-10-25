@@ -68,6 +68,22 @@ export const SHOP = {
     { id: 'emerald', name: 'Emerald', icon: '💚', price: 160, color: '#00c878' },
     { id: 'diamond', name: 'Diamond', icon: '💎', price: 200, color: '#b9f2ff' },
     { id: 'gold', name: 'Gold', icon: '🏆', price: 220, color: '#ffc92a' },
+    // patterned skins (two colors and a pattern, painted onto your body)
+    { id: 'p-zebra', name: 'Zebra', icon: '🦓', price: 90, color: '#ffffff', pat: 'stripes', c2: '#111111' },
+    { id: 'p-tiger', name: 'Tiger', icon: '🐯', price: 110, color: '#ff8a1a', pat: 'stripes', c2: '#1a1a1a' },
+    { id: 'p-bee', name: 'Bumblebee', icon: '🐝', price: 90, color: '#ffd23a', pat: 'stripes', c2: '#1a1a1a' },
+    { id: 'p-candy', name: 'Candy Cane', icon: '🍭', price: 100, color: '#ffffff', pat: 'stripes', c2: '#e0283a' },
+    { id: 'p-melon', name: 'Watermelon', icon: '🍉', price: 90, color: '#3aa83a', pat: 'stripes', c2: '#1f6b1f' },
+    { id: 'p-lady', name: 'Ladybug', icon: '🐞', price: 100, color: '#e0283a', pat: 'spots', c2: '#111111' },
+    { id: 'p-cow', name: 'Cow', icon: '🐄', price: 100, color: '#ffffff', pat: 'spots', c2: '#1a1a1a' },
+    { id: 'p-camo', name: 'Camo', icon: '🪖', price: 130, color: '#5a6a3a', pat: 'spots', c2: '#2f3a1f' },
+    { id: 'p-checker', name: 'Checkers', icon: '🏁', price: 120, color: '#ffffff', pat: 'checker', c2: '#111111' },
+    { id: 'p-split', name: 'Split Hero', icon: '🦸', price: 140, color: '#e0283a', pat: 'split', c2: '#2a6aff' },
+    { id: 'p-panda', name: 'Panda', icon: '🐼', price: 140, color: '#ffffff', pat: 'split', c2: '#111111' },
+    { id: 'p-night', name: 'Starry Night', icon: '🌠', price: 180, color: '#1a1a5a', pat: 'stars', c2: '#ffe23a' },
+    { id: 'p-pixel', name: 'Pixel Glitch', icon: '👾', price: 200, color: '#3affff', pat: 'checker', c2: '#ff2bd6' },
+    // your own design from the skin maker (free)
+    { id: 'custom', name: 'My Custom Skin', icon: '🎨', price: 0, custom: true },
     // Bananaverse outfits: a full costume in the Bananaverse, just the color everywhere else
     { id: 'b-pirate', banana: true, name: 'Pirate', icon: '🏴‍☠️', price: 150, color: '#c8283a' },
     { id: 'b-captain', banana: true, name: 'Captain', icon: '⚓', price: 250, color: '#1f3a8a' },
@@ -118,7 +134,30 @@ export const SHOP = {
     { id: 'pet', name: 'Pet duck', icon: '🐤', price: 300 },
   ],
 };
-export const skinColor = (id, t = 0) => { const s = SHOP.skin.find(k => k.id === id); return s?.anim ? s.anim(t) : s?.color; };
+export const skinColor = (id, t = 0, custom) => {
+  if (id === 'custom') return (custom || profile.custom)?.c1 || '#6ee26e';
+  const s = SHOP.skin.find(k => k.id === id);
+  return s?.anim ? s.anim(t) : s?.color;
+};
+// a skin's pattern, if it has one: { pat, c1, c2 }
+export function skinPattern(id, custom) {
+  if (id === 'custom') { const c = custom || profile.custom; return c && c.pat !== 'solid' ? { pat: c.pat, c1: c.c1, c2: c.c2 } : null; }
+  const s = SHOP.skin.find(k => k.id === id);
+  return s?.pat ? { pat: s.pat, c1: s.color, c2: s.c2 } : null;
+}
+// custom skins travel to other players as one short string
+export const encodeCustom = c => (c ? [c.c1, c.c2, c.pat].join('|') : '');
+export function decodeCustom(s) {
+  const [c1, c2, pat] = String(s || '').split('|');
+  const hex = v => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : null);
+  return hex(c1) ? { c1: hex(c1), c2: hex(c2) || '#111111', pat: ['solid', 'stripes', 'spots', 'checker', 'split', 'stars'].includes(pat) ? pat : 'solid' } : null;
+}
+export function setCustomSkin(c) {
+  profile.custom = { c1: c.c1, c2: c.c2, pat: c.pat };
+  if (!owns('skin', 'custom')) profile.owned.push('skin:custom');
+  profile.equip.skin = 'custom';
+  save();
+}
 export const DIM_PRICE = key => (key === 'middle' || key === 'flat' ? 150 : 100);
 
 function fresh() {
@@ -178,6 +217,13 @@ export const SECRETS = [
   ['night', 'Night Owl', 'Play when you should be asleep'],
   ['pause', 'Pause Party', 'Pause, unpause, pause, unpause…'],
   ['modern', 'Time Traveler', 'Wait on the retro main menu'],
+  ['magic', 'The Magic Word', 'Type the name of the game on the main menu'],
+  ['creator', 'The Creator', 'Use the name of the person who made this game'],
+  ['coins', 'Coin Clicker', 'Your coins look awfully clickable'],
+  ['persist', 'Never Give Up', 'Fall over and over in the same level'],
+  ['gg', 'Good Game', 'Say it in chat. Then say it again. And again…'],
+  ['dj', 'DJ Dimensional', 'Turn the sound on and off really fast'],
+  ['spooky', 'Spooky Season', 'Play on the scariest night of the year'],
 ];
 export const hasSecret = id => (profile.secrets || []).includes(id);
 export function addSecret(id) {

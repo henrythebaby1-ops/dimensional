@@ -214,6 +214,30 @@ export function makeAcc(id) {
   return g;
 }
 
+// a skin pattern drawn on a small canvas (stripes, spots, checker, split, stars)
+const PAT_CACHE = {};
+export function drawPattern(g, size, { pat, c1, c2 }) {
+  g.fillStyle = c1; g.fillRect(0, 0, size, size);
+  g.fillStyle = c2;
+  const u = size / 8;
+  if (pat === 'stripes') for (let i = 0; i < 8; i += 2) g.fillRect(0, i * u, size, u);
+  if (pat === 'spots') for (const [x, y, r] of [[1.5, 1.5, 1], [5.5, 2, 1.3], [3, 5, 1.2], [6.5, 6.2, 0.9], [1, 6.8, 0.7]]) { g.beginPath(); g.arc(x * u, y * u, r * u, 0, 7); g.fill(); }
+  if (pat === 'checker') for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if ((x + y) % 2) g.fillRect(x * u, y * u, u, u);
+  if (pat === 'split') g.fillRect(size / 2, 0, size / 2, size);
+  if (pat === 'stars') for (const [x, y] of [[1, 1], [5, 1.5], [3, 3.5], [6.5, 4.5], [1.5, 6], [4.5, 6.5]]) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? 0.35 : 0.8; g.lineTo((x + Math.cos(a) * rr) * u, (y + Math.sin(a) * rr) * u); } g.fill(); }
+}
+function patternTexture(p) {
+  const key = `${p.pat}|${p.c1}|${p.c2}`;
+  if (PAT_CACHE[key]) return PAT_CACHE[key];
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  drawPattern(c.getContext('2d'), 64, p);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  return (PAT_CACHE[key] = t);
+}
+
 // a canvas texture of Unicode letters, for the Unicode world and the Unicoder himself
 function glyphTexture(color, w, h, text, lines) {
   const c = document.createElement('canvas');
@@ -1365,10 +1389,17 @@ export class Renderer3D {
       if (!g) {
         g = this.makeBody(color);
         this.bodies.set(b.id, g);
-      } else if (g.userData.color !== color) {   // new skin (or an animated one): just recolor
+      } else if (g.userData.color !== color && !g.userData.pkey) {   // new skin (or an animated one): just recolor
         g.userData.mat.color.set(color);
         g.userData.mat.emissive.set(color);
         g.userData.color = color;
+      }
+      const pkey = b.pattern ? `${b.pattern.pat}|${b.pattern.c1}|${b.pattern.c2}` : '';
+      if (g.userData.pkey !== pkey) {                    // patterned skins: paint a texture onto the body
+        g.userData.pkey = pkey;
+        g.userData.mat.map = pkey ? patternTexture(b.pattern) : null;
+        if (pkey) { g.userData.mat.color.set('#ffffff'); g.userData.mat.emissive.set('#000000'); g.userData.color = '#ffffff'; }
+        g.userData.mat.needsUpdate = true;
       }
       const grav = b.g || DIMS[b.d]?.grav || 1;
       g.visible = b.visible !== false;
