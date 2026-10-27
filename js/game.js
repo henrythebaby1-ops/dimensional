@@ -4,6 +4,7 @@ import { makeMaker, paintSprite } from './maker2.js';
 import { createLogic } from './logic.js';
 import { startPixelIcons } from './pixels.js';
 import { MODES_TD, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
+import { TD3D } from './td3d.js';
 import './td2.js';
 import './td3.js';
 import './td4.js';
@@ -38,6 +39,8 @@ function applyControls() {
 document.body.classList.toggle('touch', isTouch);
 
 const renderer = new Renderer3D($('game'), autoTouch);
+const td3d = new TD3D($('td3d'));          // the Roblox-style 3D view of the top-down games
+if (location.hostname === 'localhost') window.__td3d = td3d;
 const ui = $('ui');
 const ctx = ui.getContext('2d');
 let VW = 1, VH = 1;
@@ -46,6 +49,7 @@ function resize() {
   VW = Math.round(vv ? vv.width : innerWidth);
   VH = Math.round(vv ? vv.height : innerHeight);
   renderer.resize(VW, VH);
+  td3d.resize(VW, VH);
   const dpr = Math.min(devicePixelRatio, 2);
   ui.width = VW * dpr;
   ui.height = VH * dpr;
@@ -840,10 +844,10 @@ function updateActor(p, inp, dt) {
       }
       p.trickT = 0;
     }
-    if (level.parkour) for (const c of level.checkpoints) if (c.personal && p.x > c.x * T && (p.cpX || 0) < c.x) {   // personal checkpoint flags
-      p.cpX = c.x; p.cpRoof = c.roof;
-      if (local) { toast('🚩 Checkpoint!', '#39ff88'); sfx('key'); }
-    }
+  }
+  if (level.parkour) for (const c of level.checkpoints) if (c.personal && p.x > c.x * T && (p.cpX || 0) < c.x) {   // personal checkpoint flags (Parkour, Obby)
+    p.cpX = c.x; p.cpRoof = c.roof;
+    if (local) { toast('🚩 Checkpoint!', '#39ff88'); sfx('key'); }
   }
   if (local && !paused) {                   // easter egg: leave the controls alone long enough and you fall asleep
     if (held.size || Math.abs(p.vx) > 5 || analogTarget) napT = 0;
@@ -1964,7 +1968,7 @@ function carryStep(b, dt) {
 // ---------- party mini-games: Tag, King of the Hill, Coin Chaos, Last One Standing ----------
 let party = null;                  // { kind, left, it, itCd, scoreT, swapT, collapseT, collapseK, coinT, sendT }
 let partyCoins = new Map();        // id -> { x, y } (Coin Chaos)
-const SCORED = ['race', 'parkour', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato', 'sniper', 'meteor', 'paint', 'redlight'];
+const SCORED = ['race', 'parkour', 'obby', 'lava', 'hunt', 'tag', 'koth', 'chaos', 'lms', 'potato', 'sniper', 'meteor', 'paint', 'redlight'];
 const paintMap = new Map();          // Paint the Floor: "x,row" -> who painted it
 
 function partyActors() {
@@ -2109,6 +2113,17 @@ function hostParty(dt) {
     }
     pt.scoreT -= dt;
     if (pt.scoreT <= 0) { pt.scoreT = 1; for (const a of alive) scores[a.id] = (scores[a.id] || 0) + 1; }
+  } else if (pt.kind === 'lava') {
+    pt.meteorT -= dt;
+    if (pt.meteorT <= 0) {                    // a few more floor tiles turn to lava, faster and faster
+      pt.meteorT = Math.max(1.2, 3.5 - (MODES.lava.time - pt.left) * 0.03);
+      const floor = [];
+      for (let x = 2; x < level.W - 2; x++) if (level.grid[H - 1][x] === '#') floor.push(x);
+      const xs = floor.sort(() => Math.random() - 0.5).slice(0, floor.length > 10 ? 3 : 0);
+      if (xs.length) { send('lava', { xs }); lavaWarn(xs); }
+    }
+    pt.scoreT -= dt;
+    if (pt.scoreT <= 0) { pt.scoreT = 1; for (const a of alive) scores[a.id] = (scores[a.id] || 0) + 1; }
   } else if (pt.kind === 'paint') {
     pt.scoreT -= dt;
     if (pt.scoreT <= 0) {
@@ -2182,6 +2197,16 @@ function takePartyCoin(id, by) {
   if (by === me.id) { sfx('coin'); addCoins(1); }
 }
 
+// The Floor is Lava: tiles glow for a moment, then melt away (top and bottom lanes)
+function lavaWarn(xs) {
+  for (const x of xs) for (const y of [H - 1, 0]) burst((x + 0.5) * T, (y + 0.5) * T, '#ff5a1a', 10, 120);
+  sfx('crumble');
+  setTimeout(() => {
+    if (!level?.party) return;
+    for (const x of xs) if (x > 0 && x < level.W - 1) { level.grid[H - 1][x] = '.'; level.grid[0][x] = '.'; }
+    renderer.invalidate();
+  }, 1200);
+}
 function collapse(k) {
   toast('⚠ The floor is collapsing!', '#ff5a3a');
   setTimeout(() => {
@@ -2354,37 +2379,62 @@ function patternFill(p) {
   if (!patFills[key]) { const c = document.createElement('canvas'); c.width = c.height = 64; drawPattern(c.getContext('2d'), 64, p); patFills[key] = ctx.createPattern(c, 'repeat'); }
   return patFills[key];
 }
+let td3dT = 0;
 function tdDraw() {
-  const v = tdView(tdApi);
-  drawTiles(ctx, tdMode.world, v, (x, y, t) => tdMode.tileColor?.(x, y, t));
+  const three = td3d.ok && ui$.view3d !== false;
+  $('td3d').style.visibility = three ? 'visible' : 'hidden';
+  $('view-btn').classList.remove('hidden');
+  const v = three ? td3d.view(tdApi) : tdView(tdApi);
+  if (three) { if (td3d.world !== tdMode.world) td3d.setWorld(tdMode.world); ctx.clearRect(0, 0, VW, VH); }
+  else drawTiles(ctx, tdMode.world, v, (x, y, t) => tdMode.tileColor?.(x, y, t));
   tdMode.drawUnder?.(tdApi, ctx, v);
+  const bodies3d = [];
   for (const o of tdApi.all()) {
     const look = tdMode.look?.(tdApi, o.id, me.id) || {};
     if (look.hidden) continue;
     const fx = o.id === me.id ? P.fx : Math.sign(o.vx || 0) * 0.8, fy = o.id === me.id ? P.fy : (o.vy ? Math.sign(o.vy) : 0.3);
     const pat = look.pattern !== undefined ? look.pattern : look.color ? null : o.id === me.id ? skinPattern(profile.equip.skin) : (() => { const r = remotes.get(o.id); return Array.isArray(r?.co) ? skinPattern(r.co[3], decodeCustom(r.co[5])) : null; })();
-    drawBody(ctx, v, { x: o.x, y: o.y, fx, fy }, {
+    const body = {
       fill: pat ? patternFill(pat) : null,
       color: look.color || (o.id === me.id ? skinColor(profile.equip.skin, time) : null) || chatColor(o.id),
       name: look.hideName ? '' : nameOf(o.id), alpha: look.alpha ?? (tdMode.isOut?.(o.id) ? 0.35 : 1),
       dead: o.dead || look.dead, tag: look.tag || '', ring: look.ring || (o.id === me.id ? '#ffffff55' : ''),
-    });
+    };
+    if (three) {
+      const hat = o.id === me.id ? profile.equip.hat : remotes.get(o.id)?.co?.[0];
+      bodies3d.push({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy, color: body.color, alpha: body.alpha, dead: body.dead, hat: typeof hat === 'string' ? hat : '' });
+      label3d(v, o, body);
+    } else drawBody(ctx, v, { x: o.x, y: o.y, fx, fy }, body);
     const em = emoting.get(o.id);
     if (em && performance.now() - em.t < (tdMode?.roleplay ? 7000 : 2600)) {   // speech bubble
       const txt = String(em.x || EMOTES[em.i]);
       ctx.font = '700 12px Rubik, sans-serif'; ctx.textAlign = 'center';
       const lines = txt.length > 26 ? [txt.slice(0, txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) : 26), txt.slice(txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) + 1 : 26)] : [txt];
-      const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, h = lines.length * 15 + 8, bx = v.sx(o.x), by = v.sy(o.y) - 52 - h;
+      const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, h = lines.length * 15 + 8, bx = v.sx(o.x), by = (three ? v.head(o.y) - 24 : v.sy(o.y) - 52) - h;
       ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.beginPath(); ctx.roundRect(bx - w / 2, by, w, h, 8); ctx.fill();
       ctx.beginPath(); ctx.moveTo(bx - 5, by + h); ctx.lineTo(bx + 5, by + h); ctx.lineTo(bx, by + h + 7); ctx.fill();
       ctx.fillStyle = '#111'; lines.forEach((l, i) => ctx.fillText(l, bx, by + 15 + i * 15));
     }
   }
+  if (three) { const now = performance.now(), dt = Math.min(0.1, (now - (td3dT || now)) / 1000); td3dT = now; td3d.render(tdMode, bodies3d, { x: v.cx, y: v.cy, k: v.k }, dt); }
   for (const p of particles) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.col; ctx.fillRect(v.sx(p.x), v.sy(p.y), 4, 4); }
   ctx.globalAlpha = 1;
   tdMode.draw?.(tdApi, ctx, v);
   if (flash.t > 0) { ctx.globalAlpha = Math.min(0.5, flash.t * 1.5); ctx.fillStyle = flash.col; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
 }
+
+// in 3D the avatar is a model, so only its ground ring and name tag go on the 2D canvas
+function label3d(v, o, b) {
+  const x = v.sx(o.x), y = v.sy(o.y), s = 12 * v.k;
+  if (b.ring && b.alpha > 0.3) { ctx.strokeStyle = b.ring; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y, s * 1.3, s * 0.75, 0, 0, 7); ctx.stroke(); }
+  if (!b.name || b.alpha <= 0.3) return;
+  const label = b.tag ? `${b.tag} ${b.name}` : b.name, top = v.head(o.y) - 18;
+  ctx.font = `700 ${Math.max(10, 9 * v.k)}px Rubik, sans-serif`; ctx.textAlign = 'center';
+  const w = ctx.measureText(label).width + 10;
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x - w / 2, top, w, Math.max(14, 12 * v.k));
+  ctx.fillStyle = '#fff'; ctx.fillText(label, x, top + Math.max(11, 9.5 * v.k));
+}
+$('view-btn').onclick = () => { ui$.view3d = ui$.view3d === false; saveUi(); $('set-view3d').checked = ui$.view3d; toast(ui$.view3d ? '🧊 3D view' : '🗺️ Classic 2D view', '#9feaff'); sfx('click'); };
 
 // ---------- chat box ----------
 const BAD = /\b(f+u+c+k+\w*|sh+i+t+\w*|b+i+t+c+h+\w*|a+s+s+h+o+l+e+\w*|d+i+c+k+\w*|c+u+n+t+\w*|n+i+g+\w*|f+a+g+\w*|r+e+t+a+r+d+\w*|k+y+s+)\b/gi;
@@ -3374,6 +3424,7 @@ function onMsg(t, d) {
     case 'pgot': if (mode === 'play' && party && typeof d.id === 'string') takePartyCoin(d.id, String(d.by)); break;
     case 'swap': if (mode === 'play' && d.m && typeof d.m === 'object') applySwap(d.m); break;
     case 'collapse': if (mode === 'play' && party?.kind === 'lms') collapse(d.k | 0); break;
+    case 'lava': if (mode === 'play' && party?.kind === 'lava' && Array.isArray(d.xs)) lavaWarn(d.xs.slice(0, 6).map(x => x | 0)); break;
     case 'pvp':
       if (mode === 'play' && party?.kind === 'lms') {
         if (d.id === me.id && P) { if (d.boom) { P.hp = 1; P.inv = 0; } hurt(P); }
@@ -3671,7 +3722,7 @@ async function showVictory() {
     const iWon = ranked.some(r => r[2] === me.id && r[1] === top);
     addCoins(iWon ? 40 : 10);
     sfx(iWon ? 'win' : 'click');
-    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', parkour: '🛹 PARKOUR CHAMPION', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO', sniper: '🎯 SNIPER GOD', meteor: 'METEOR SHOWER', paint: 'PAINT THE FLOOR', redlight: 'RED LIGHT, GREEN LIGHT' }[gameMode];
+    title.textContent = { hunt: 'HUNT OVER', race: 'RACE OVER', parkour: '🛹 PARKOUR CHAMPION', obby: '🧗 OBBY CHAMPION', lava: '🌋 FLOOR IS LAVA', tag: 'TAG OVER', koth: 'HILL CONQUERED', chaos: 'CHAOS OVER', lms: 'LAST ONE STANDING', potato: 'HOT POTATO', sniper: '🎯 SNIPER GOD', meteor: 'METEOR SHOWER', paint: 'PAINT THE FLOOR', redlight: 'RED LIGHT, GREEN LIGHT' }[gameMode];
     $('win-coins').textContent = iWon ? '🏆 You won! +40 🪙' : '+10 🪙 for playing';
     big.textContent = winners.join(' & ');
     text.textContent = ranked.map(([n, p]) => `${n}: ${p}`).join(' · ');
@@ -3948,6 +3999,7 @@ function drawGame(dt) {
     return;
   }
   $('game').style.visibility = '';
+  $('td3d').style.visibility = 'hidden'; $('view-btn').classList.add('hidden');
   // chapter style repaints the world, except for dimensions with a look of their own
   const VD = level.theme && !D.flat && !D.topdown && D.key !== 'unicode' ? { ...D, ...THEMES[level.theme] } : D;
   renderer.frame({
@@ -4238,7 +4290,7 @@ setInterval(() => {
 }, 50);
 
 function step(dt, draw) {
-  if (paused && mode === 'play' && level) { if (draw) drawGame(0); return; }   // frozen: keep showing the last frame
+  if (paused && mode === 'play' && level) { if (draw) { if (level.td && tdMode) tdDraw(); else drawGame(0); } return; }   // frozen: keep showing the last frame
   time += dt;
   if (mode === 'play' && level) {
     levelT += dt;
@@ -4294,7 +4346,7 @@ function step(dt, draw) {
     sendT -= dt;
     if (sendT <= 0) { sendT = 1 / (gameRoster.length > 8 ? 8 : SEND_HZ); sendState(); }
     if (draw) { drawGame(dt); updateHud(dt); }
-  } else if (draw) { $('game').style.visibility = ''; drawMenu(dt); playMusic(mode === 'victory' ? 'victory' : 'menu'); }
+  } else if (draw) { $('game').style.visibility = ''; $('td3d').style.visibility = 'hidden'; $('view-btn').classList.add('hidden'); drawMenu(dt); playMusic(mode === 'victory' ? 'victory' : 'menu'); }
 }
 
 // ---------- wiring ----------
@@ -4629,10 +4681,12 @@ function applyStyle(keep = 0) {
   $('style-modern').classList.toggle('sel', !retro);
   $('set-egg').checked = ui$.egg;
   $('set-pixel3d').checked = ui$.pix3d;
+  $('set-view3d').checked = ui$.view3d !== false;
 }
 $('style-retro').onclick = () => { ui$.style = 'retro'; eraT = 0; eraStage = 0; saveUi(); applyStyle(); sfx('click'); };
 $('style-modern').onclick = () => { ui$.style = 'modern'; saveUi(); applyStyle(); sfx('click'); };
 $('set-egg').onchange = () => { ui$.egg = $('set-egg').checked; eraT = 0; eraStage = 0; saveUi(); applyStyle(); };
+$('set-view3d').onchange = () => { ui$.view3d = $('set-view3d').checked; saveUi(); };
 $('set-pixel3d').onchange = () => { ui$.pix3d = $('set-pixel3d').checked; saveUi(); applyStyle(eraStage); };
 $('open-settings').onclick = () => $('settings').classList.remove('hidden');
 // phone control settings
@@ -4943,10 +4997,10 @@ const SOLO = [
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['geo', '🔺 Geometry Beats', '8 rhythm-dash levels, works solo'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
   ['Roleplay', [['school', '🏫 School', 'Roleplay: classes, bells, detention'], ['city', '🏙️ City', 'Roleplay: money, cars, houses, cops & robbers'], ['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
-  ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
+  ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['obby', '🧗 Obby', '2D obstacle course race, Roblox style'], ['lava', '🌋 The Floor is Lava', '2D: stay off the lava'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb'], ['chairs', '🪑 Musical Chairs', 'Grab a chair when the music stops'], ['simon', '🗣️ Simon Says', 'Only obey when Simon says'], ['hide', '🙈 Hide and Seek', 'Hide in the dark house (add bots)']]],
 ];
-const SOLO_BOTS = { chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { obby: 2, lava: 3, chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay';
   const h = document.createElement('h3');

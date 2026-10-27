@@ -35,6 +35,11 @@ CRT scanlines and a chunky-pixel 3D world. Switch to **Modern** in ⚙️ Settin
 Easter egg: stay on the main menu for a while in retro style and the game slowly "upgrades" itself to modern
 (turn it off in Settings). Start playing and it's retro again.
 
+## 3D view
+Every top-down game (roleplay maps, Color Blocks, Imposter, Tower Defense, Simon Says…) now shows in a **Roblox-style 3D
+view**: blocky avatars that walk and swing their arms, block walls and trees with shadows, and a tilted camera that
+follows you. Press **🎥** in a game (or ⚙️ Settings) to switch back to the classic flat 2D view.
+
 ## Game modes
 - **Story Chapter 1 — The Spectre**: 13 co-op levels. An intro cutscene shows how the
   Spectre tore the friends apart. The final Spectre fight is tough (more health, faster attacks,
@@ -64,6 +69,9 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 - **💀 Parallel World**: the opposite game — your goal is to DIE, and the world won't let you. Spikes bounce you,
   pits and lasers save you, crawlers are guardian angels that shove you away, and the 💀 Doom Gate drifts, shuts
   and blows a "life wind". Every human player has to get into the gate (bots are optional).
+- **🧗 Obby (2D)**: a Roblox-style obstacle course race in 3 courses (Easy Obby, Tower of Jumps, Mega Obby): kill bricks,
+  moving platforms, jump pads, tiny pillars and 🚩 checkpoint flags. First to the end wins each round.
+- **🌋 The Floor is Lava (2D)**: the floor keeps melting into lava — stay on the blocks. A point per second you survive.
 - **🔺 Geometry Beats**: 8 more rhythm-dash levels (Neon Steps → Final Frequency, 120 to 176 BPM) with new tall blocks to
   land on. No help gates, so they work solo. Beat all 8 for +50 🪙.
 - **Story Chapter 5 — The Conductor**: a Geometry Dash–style rhythm chapter that is still co-op. You run on your own

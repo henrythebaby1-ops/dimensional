@@ -498,6 +498,7 @@ function partyArena(n, kind) {
     lms: ['Last One Standing', 'Shoot each other! 3 hearts, no respawns, and the floor is falling away. Last traveler wins.'],
     meteor: ['Meteor Shower', 'Rocks rain from the sky! Score a point every second you stay alive. Watch the shadows.'],
     paint: ['Paint the Floor', 'Run over the floor to paint it your color. Most tiles painted when time runs out wins!'],
+    lava: ['The Floor is Lava', 'The floor keeps turning to LAVA! Stay on the blocks and keep moving. A point for every second you survive.'],
   }[kind];
   if (kind === 'koth') b.raw('hill', {}, 30, 1, 4, H - 2);
   return b.done({ name: info[0], objective: info[1], party: kind, spread: true });
@@ -547,6 +548,60 @@ const PARKOUR = [
   n => parkourCity(n, 3, 'Rooftop Rush', 150),
   n => parkourCity(n, 17, 'Skyline Grind', 190),
   n => parkourCity(n, 41, 'Tower Top', 230),
+];
+
+// ---------- Obby: a Roblox-style obstacle course race (normal gravity, kill bricks, moving platforms, checkpoints) ----------
+function obbyCourse(n, seed, name, len) {
+  const r = rng(seed), W = len;
+  const grid = Array.from({ length: H }, () => Array(W).fill('.'));
+  const objs = [], checkpoints = [{ x: 2 }];
+  let id = 0;
+  const add = (type, x, y, w, h, props = {}) => objs.push({ id: type + id++, type, dim: null, x, y, w, h, ...props });
+  const roof = (x0, x1, h) => { for (let x = x0; x <= x1; x++) for (let y = H - h; y < H; y++) grid[y][x] = '#'; };
+  const spike = (x, h) => { if (grid[H - h - 1]) grid[H - h - 1][x] = '^'; };
+  for (let y = 0; y < H; y++) { grid[y][0] = '#'; grid[y][W - 1] = '#'; }
+  let x = 9, h = 4, sinceCp = 0;                       // start at the height everyone respawns at
+  roof(1, 8, h);
+  while (x < W - 24) {
+    const kind = Math.floor(r() * 6);
+    if (kind === 0) {                                       // a simple jump
+      const gap = 2 + Math.floor(r() * 2), w = 4 + Math.floor(r() * 4), nh = Math.max(3, Math.min(14, h + Math.floor(r() * 5) - 2));
+      roof(x + gap, x + gap + w - 1, nh); x += gap + w; h = nh;
+    } else if (kind === 1) {                                // kill bricks on a long platform
+      const w = 9 + Math.floor(r() * 4);
+      roof(x + 2, x + 2 + w - 1, h);
+      spike(x + 5, h); spike(x + 6, h); if (w > 10) spike(x + 9 + Math.floor(r() * 2), h);
+      x += 2 + w;
+    } else if (kind === 2) {                                // a moving platform over a wide gap
+      const gap = 7 + Math.floor(r() * 2);
+      add('mover', x, H - h, 3, 1, { range: gap - 3, freq: 0.14, phase: r() });
+      roof(x + gap, x + gap + 4, h); x += gap + 5;
+    } else if (kind === 3) {                                // a jump pad up to a tall tower
+      const nh = Math.min(16, h + 5 + Math.floor(r() * 2));
+      roof(x, x + 3, h); add('bounce', x + 1, H - h - 1, 2, 1);
+      roof(x + 6, x + 11, nh); x += 12; h = nh;
+    } else if (kind === 4) {                                // tiny pillars: hop, hop, hop
+      for (let i = 0; i < 3; i++) { const ph = Math.max(3, Math.min(15, h + (r() < 0.5 ? 1 : -1))); roof(x + 2 + i * 3, x + 2 + i * 3, ph); h = ph; }
+      roof(x + 11, x + 15, h); x += 16;
+    } else {                                                // drop down, then a coin on a ledge
+      const nh = Math.max(3, h - 2 - Math.floor(r() * 2));
+      roof(x + 2, x + 8, nh); add('coin', x + 5, H - nh - 4, 1, 1); x += 9; h = nh;
+    }
+    if (r() < 0.25) add('coin', x - 2, H - h - 3, 1, 1);
+    if ((sinceCp += 14) > 34) {                             // a checkpoint flag on the next platform
+      sinceCp = 0;
+      roof(x + 2, x + 6, h); checkpoints.push({ x: x + 3, roof: h, personal: true }); add('flag', x + 3, H - h - 3, 1, 3); x += 7;
+    }
+  }
+  roof(x + 3, W - 2, h);
+  add('exit', W - 7, H - h - 3, 3, 3);
+  return { W, grid, objs, n, checkpoints, crates: [], slots: [], name, theme: 'sky', parkour: true, race: true,
+    objective: 'OBBY! Jump the gaps, ride the moving platforms, DON\'T touch the red kill bricks. 🚩 Flags are checkpoints. First to the end wins!' };
+}
+const OBBY = [
+  n => obbyCourse(n, 5, 'Easy Obby', 140),
+  n => obbyCourse(n, 29, 'Tower of Jumps', 180),
+  n => obbyCourse(n, 77, 'Mega Obby', 240),
 ];
 
 // ---------- top-down games: the real map lives in td.js; this is just an empty stand-in level ----------
@@ -1248,6 +1303,8 @@ export const MODES = {
   tag: { name: 'Tag', levels: [n => partyArena(n, 'tag')], min: 1, time: 90 },
   koth: { name: 'King of the Hill', levels: [n => partyArena(n, 'koth')], min: 1, time: 90 },
   chaos: { name: 'Coin Chaos', levels: [n => partyArena(n, 'chaos')], min: 1, time: 90 },
+  obby: { name: 'Obby', levels: OBBY, min: 1, dimOrder: ['verdant', 'neon', 'inferno', 'desert', 'jungle', 'storm', 'frost', 'candy'] },
+  lava: { name: 'The Floor is Lava', levels: [n => partyArena(n, 'lava')], min: 1, time: 75 },
   parkour: { name: 'Parkour', levels: PARKOUR, min: 1, dimOrder: ['verdant', 'neon', 'inferno', 'desert', 'jungle', 'storm', 'frost', 'hitbox'] },
   colors: { name: 'Color Blocks', levels: [tdLevel('colors')], min: 1 },
   nights: { name: '99 Nights in the Dimensions', levels: [tdLevel('nights')], min: 1 },

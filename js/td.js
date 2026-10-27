@@ -90,7 +90,7 @@ export function goTo(world, b, target, speed, dt) {
 }
 
 // ---------- drawing ----------
-const TILE_COL = {
+export const TILE_COL = {
   [TILE.FLOOR]: '#3a4a3a', [TILE.WALL]: '#1c1f2b', [TILE.VOID]: '#05050a', [TILE.TREE]: '#2f6b2f', [TILE.WATER]: '#1f5a9a',
   [TILE.ROCK]: '#6a6a72', [TILE.DOOR]: '#8a6a3a', [TILE.GLASS]: '#9fe8ff', [TILE.BUSH]: '#3f8f3a', [TILE.TRACK]: '#5a4a3a', [TILE.WOOD]: '#7a5a3a', [TILE.STUMP]: '#6b4a2a', [TILE.SAND]: '#d8b878', [TILE.ROOM]: '#4a5068',
 };
