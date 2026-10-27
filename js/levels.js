@@ -562,15 +562,15 @@ function obbyCourse(n, seed, name, len) {
   for (let y = 0; y < H; y++) { grid[y][0] = '#'; grid[y][W - 1] = '#'; }
   let x = 9, h = 4, sinceCp = 0;                       // start at the height everyone respawns at
   roof(1, 8, h);
-  while (x < W - 24) {
+  while (x < W - 30) {
     const kind = Math.floor(r() * 6);
     if (kind === 0) {                                       // a simple jump
       const gap = 2 + Math.floor(r() * 2), w = 4 + Math.floor(r() * 4), nh = Math.max(3, Math.min(14, h + Math.floor(r() * 5) - 2));
       roof(x + gap, x + gap + w - 1, nh); x += gap + w; h = nh;
     } else if (kind === 1) {                                // kill bricks on a long platform
-      const w = 9 + Math.floor(r() * 4);
+      const w = 17 + Math.floor(r() * 2);                 // room to land before the bricks, and after them
       roof(x + 2, x + 2 + w - 1, h);
-      spike(x + 5, h); spike(x + 6, h); if (w > 10) spike(x + 9 + Math.floor(r() * 2), h);
+      spike(x + 9, h); spike(x + 10, h);
       x += 2 + w;
     } else if (kind === 2) {                                // a moving platform over a wide gap
       const gap = 7 + Math.floor(r() * 2);
@@ -593,7 +593,7 @@ function obbyCourse(n, seed, name, len) {
       roof(x + 2, x + 6, h); checkpoints.push({ x: x + 3, roof: h, personal: true }); add('flag', x + 3, H - h - 3, 1, 3); x += 7;
     }
   }
-  roof(x + 3, W - 2, h);
+  roof(Math.min(x + 3, W - 10), W - 2, h);              // the last platform always reaches under the finish
   add('exit', W - 7, H - h - 3, 3, 3);
   return { W, grid, objs, n, checkpoints, crates: [], slots: [], name, theme: 'sky', parkour: true, race: true,
     objective: 'OBBY! Jump the gaps, ride the moving platforms, DON\'T touch the red kill bricks. 🚩 Flags are checkpoints. First to the end wins!' };

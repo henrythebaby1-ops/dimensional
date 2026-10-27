@@ -456,7 +456,8 @@ function spawnPoint(dim, slot) {
   }
   if (level.dash) { const g = DIMS[dim].grav || 1; return { x: level.checkpoints[0].x * T, y: g > 0 ? (H - 1) * T - PH - 0.01 : T + 0.01 }; }
   let cp = level.checkpoints[0];
-  for (const c of level.checkpoints) if (!c.link || signals[c.link]) cp = c;
+  for (const c of level.checkpoints) if (!c.personal && (!c.link || signals[c.link])) cp = c;   // personal flags (Parkour, Obby) only count for your own respawns
+  if (level.parkour) return { x: (cp.x + (slot ?? laneIndex(dim)) * 0.6) * T + 4, y: (H - 4) * T - PH - 1 };   // stand on the first rooftop
   const x = level.spread ? (4 + (((slot ?? laneIndex(dim)) * 9) % (level.W - 10))) * T : (cp.x + (slot ?? laneIndex(dim)) * 0.9) * T + 4;
   const g = DIMS[dim].grav;
   const y = g > 0 ? (H - 1) * T - PH - 0.01 : g < 0 ? T + 0.01 : MIDY - PH / 2 - laneIndex(dim) * T * 1.5;
@@ -587,6 +588,7 @@ function startLevel(idx, ids, rs, m = gameMode, sc = scores, res = null, dk = nu
   held.clear();
   if (idx >= modeLevels().length) return showVictory();
   recorded = false;
+  for (const q of [P, ...[...botActors.values()].map(b => b.p)]) if (q) { q.cpX = 0; q.cpRoof = 0; }   // checkpoint flags belong to one course
   $('cutscene').classList.add('hidden');
   $('offer').classList.add('hidden');
   if (gameMode === 'story' && ids.includes(me.id)) writeSave(idx + 1);
@@ -755,6 +757,7 @@ function updateActor(p, inp, dt) {
       if (g && p.vy * g > -100) {
         p.vy = -g * (level.dash ? level.dash.jv * 1.45 : JV * 1.5);
         p.onGround = false;
+        p.padLift = true;
         p.airJumps = DIMS[p.dim].jumps - 1;
         if (local) sfx('bounce');
       }
@@ -1006,7 +1009,8 @@ function physics(p, inp, h) {
     p.jumpBuf = 0;
   } else {
     let gm = G * D.gravMul * (level.mod === 'lowgrav' ? 0.5 : 1) * (pl.grav || 1);
-    if (!inp.has('jump') && g * p.vy < 0) gm *= 1.9;
+    if (g * p.vy >= 0 || p.onGround) p.padLift = false;
+    if (!inp.has('jump') && g * p.vy < 0 && !p.padLift) gm *= 1.9;   // (a jump pad always launches you all the way)
     if (p.role === 'glider' && inp.has('jump') && g * p.vy > 0) { p.vy = g * Math.min(g * p.vy, 110); gm = 0; }   // float down   // short hops when jump is released
     if (p.inFan) p.vy += (-g * 470 - p.vy) * Math.min(1, 9 * h);   // a fan's updraft beats gravity
     else p.vy += g * gm * h;
@@ -1531,7 +1535,7 @@ function botThink(b, dt) {
   if (goal.stop) { if (D.bounce) inp.add('down'); return; }   // Red Light: freeze
   const cx = p.x + PW / 2, cy = p.y + PH / 2;
   // climbing: follow a ledge waypoint until standing on it
-  if (b.way?.bounce && !p.onGround && Math.abs(p.vy) > 500) b.way = null;   // launched: now steer toward the real goal
+  if (b.way?.bounce && !p.onGround && Math.abs(p.vy) > 500) b.way = b.way.land ? { ...b.way.land, t: 3 } : null;   // launched: steer onto the platform I bounced for (or toward the real goal)
   if (b.way) {
     b.way.t -= dt;
     const onIt = p.onGround && Math.abs(b.way.x - cx) < T * 0.7 && Math.floor(cy / T) === b.way.row;
@@ -1629,15 +1633,32 @@ function botThink(b, dt) {
     const bodyRow = Math.floor(cy / T);
     const spike = [0, 1].some(i => /[\^v]/.test(level.grid[bodyRow]?.[tx + dir * i] || '') || /[\^v]/.test(level.grid[feet - g]?.[tx + dir * i] || ''));
     const laser = level.objs.some(o => o.type === 'laser' && o.dim === p.dim && laserOn(o) && Math.abs((o.x + 0.5) * T - (cx + dir * 30)) < T * 1.2);
-    if (laser) dir = 0;                       // wait for my laser to switch off
-    else if (gap >= 4 && D.jumps <= 1) dir = 0;  // too wide: wait for a bridge
+    // the next ground past a little gap is a moving platform: don't jump at it, let it come to me
+    const moverNear = gap > 0 && level.movers.some(o => { const mx = moverX(o) / T, c = tx + dir * gap; return c >= Math.floor(mx) && c < mx + o.w && [feet, feet - g, feet - 2 * g].includes(o.y); });
+    // riding a moving platform: stay on it until there's real ground next to me
+    const ccol = Math.floor(cx / T), riding = level.movers.find(o => { const mx = moverX(o) / T; return ccol >= Math.floor(mx) && ccol < mx + o.w && o.y === feet; });
+    if (riding) {
+      const mx = moverX(riding) / T, lead = (cx + dir * (PW / 2 + 5)) / T;          // where my front foot would be
+      const stillOn = dir > 0 ? lead < mx + riding.w : lead > mx;
+      if (!stillOn && !solid(Math.floor(lead), feet, p.dim)) { dir = 0; b.waitT = 0.3; gap = 0; }
+    }
+    if (laser) { dir = 0; b.waitT = 0.3; }    // wait for my laser to switch off
+    else if ((gap >= 4 || moverNear) && D.jumps <= 1) { dir = 0; b.waitT = 0.3; }  // too wide: wait for a bridge (or for the moving platform to come right up to me)
     else if ((wall || gap || spike) && p.onGround) {
       p.jumpBuf = 0.14;
       b.jumpHold = 0.45;
       if (gap || spike) b.commit = { dir, t: 0.9 };   // a jump over a gap: keep going until we land
+      if (gap && !spike) {                            // a narrow landing (Obby pillars): aim for it instead of sailing past
+        const lc = tx + dir * gap;
+        const ground = c => [-2, -1, 0, 1, 2].some(k => solid(c, feet - g * k, p.dim));   // something to stand on near my height
+        let wide = 0;
+        while (wide < 3 && ground(lc + dir * wide)) wide++;
+        if (wide <= 2) b.commit.landX = (lc + (wide > 1 ? dir * 0.5 : 0) + 0.5) * T;
+      }
     }
     const above = g > 0 ? goal.y < p.y - T * 1.5 : goal.y > p.y + PH + T * 1.5;
-    const ledge = !solid(tx, feet, p.dim);
+    const onMover = level.movers.some(o => { const mx = moverX(o) / T; return tx >= Math.floor(mx) && tx < mx + o.w && o.y === feet; });
+    const ledge = !solid(tx, feet, p.dim) && !onMover;   // a moving platform right there is ground, not a ledge to jump from
     if (above && p.onGround && ((Math.abs(dx) < T * 4 && Math.abs(dx) > T * 0.4) || ledge)) { p.jumpBuf = 0.14; b.jumpHold = 0.4; }
     // a wall too tall to jump: find the highest ledge within reach nearby and climb onto it
     b.climbT = (b.climbT || 0) - dt;
@@ -1645,11 +1666,25 @@ function botThink(b, dt) {
       const row = Math.floor(cy / T), col = Math.floor(cx / T);
       let tall = 0;
       if (wall) for (let k = 0; k < 6 && solid(col + dir, row - g * k, p.dim); k++) tall++;
+      // a tower on the far side of a gap that's too high to jump to (Obby): count how far up its top is
+      let land = null;
+      if (!wall && gap && gap < 5) {
+        const lc = tx + dir * gap;
+        let rise = 0;
+        while (rise < 16 && solid(lc, feet - g * (rise + 1), p.dim)) rise++;
+        if (rise >= 4) {
+          let w = 0;
+          while (w < 8 && solid(lc + dir * w, feet - g * rise, p.dim) && !solid(lc + dir * w, feet - g * (rise + 1), p.dim)) w++;
+          const top = feet - g * rise;            // the row of the tower's top tiles
+          land = { x: (lc + dir * Math.max(0, Math.floor(w / 2)) + 0.5) * T, y: (top - g) * T, row: top - g };
+          tall = rise;
+        }
+      }
       if (tall >= 4) {
         // a wall too tall to climb: a bounce pad nearby can launch us over it
         const pad = level.objs.filter(o => o.type === 'bounce' && needGrav(o) === g && Math.abs((o.x + 1) * T - cx) < T * 12)
           .sort((a, c) => Math.abs(a.x * T - cx) - Math.abs(c.x * T - cx))[0];
-        if (pad) b.way = { x: (pad.x + 1) * T, y: (pad.y + 0.5) * T, row: -99, t: 4, bounce: true };
+        if (pad) { b.way = { x: (pad.x + 1) * T, y: (pad.y + 0.5) * T, row: -99, t: 4, bounce: true, land }; if (land) { b.commit = null; p.jumpBuf = 0; b.jumpHold = 0; } }   // don't jump the gap: go bounce
         else b.climbT = 6;                      // keep stepping up ledge by ledge for a while
       }
       if (b.climbT > 0) planClimb(b, p, g, cx, cy, dir || 1);
@@ -1665,7 +1700,14 @@ function botThink(b, dt) {
   if (b.commit) {
     b.commit.t -= dt;
     if ((p.onGround && b.commit.t < 0.75) || b.commit.t <= 0) b.commit = null;
-    else { dir = b.commit.dir; if (b.commit.t > 0.45) inp.add('jump'); }
+    else {
+      dir = b.commit.dir;
+      if (b.commit.landX !== undefined) {           // over the pillar: brake (steer back if momentum would carry me past) and drop onto it
+        const ahead = (b.commit.landX - (cx + p.vx * 0.15)) * dir;
+        if (ahead < -T * 0.1) dir = -dir; else if (ahead < T * 0.2) dir = 0;
+      }
+      if (b.commit.t > 0.45) inp.add('jump');
+    }
   }
   // danger sense: look half a second ahead at every enemy shot and get out of the way
   const threat = botThreat(p, cx, cy);
@@ -1689,6 +1731,7 @@ function botThink(b, dt) {
   if (p.inFan) dir = Math.sign(goal.x - cx) || 1;   // riding a fan's updraft: keep heading for the goal
   // not getting any closer for a while? back off, then take a running jump (or try the other way)
   const dist = Math.hypot(goal.x - cx, goal.y - cy);
+  if (b.waitT > 0) { b.waitT -= dt; b.progT = 0; }       // waiting on purpose isn't being stuck
   if (b.prog === undefined || dist < b.prog - T) { b.prog = dist; b.progT = 0; }
   else if (!b.escape) b.progT = (b.progT || 0) + dt;
   if (b.progT > 4 && !b.escape && dist > T * 2) { b.escape = { t: 1.6, back: Math.random() < 0.7 }; b.progT = 0; b.prog = undefined; b.way = null; }
@@ -1698,7 +1741,12 @@ function botThink(b, dt) {
     if (b.escape.t > 0.9) dir = b.escape.back ? -fwd : fwd;
     else { dir = fwd; if (p.onGround) { p.jumpBuf = 0.14; b.jumpHold = 0.45; } }
     if (b.escape.t <= 0) b.escape = null;
+    // backing up for a run-up: never back off a ledge
+    const g2 = g || 1, feetRow = g2 > 0 ? Math.floor((p.y + PH + 4) / T) : Math.floor((p.y - 4) / T);
+    if (p.onGround && dir && !solid(Math.floor((cx + dir * 20) / T), feetRow, p.dim)) dir = 0;
   }
+  // walking onto a jump pad: let the pad do the jumping (jumping first would waste the bounce)
+  if (b.way?.bounce && p.onGround && Math.abs(b.way.x - cx) < T * 3) { p.jumpBuf = 0; b.jumpHold = 0; b.escape = null; b.progT = 0; }
   if (b.jumpHold > 0) { b.jumpHold -= dt; inp.add('jump'); }
   if (dir) {
     const key = D.mirror ? -dir : dir;      // mirrored dimensions swap controls
@@ -5328,6 +5376,7 @@ fillDimPicker();
 
 if (location.hostname === 'localhost') window.__dim = { get P() { return P; }, get level() { return level; }, get signals() { return signals; }, get boss() { return boss; }, get killed() { return [...killed]; }, mobs: () => level.mobs.filter(o => !killed.has(o.id)).map(o => ({ id: o.id, ...mobPos(o), o })), get bolts() { return bolts.length; }, goto,
   autopilot(on = true) { autoMe = on ? { p: P, inp: held, stuck: 0, lastX: 0, jumpHold: 0, think: 0 } : null; },
+  get auto() { return autoMe; },
   get levelIdx() { return levelIdx; },
   get crates() { return crates; },
   moverX: o => moverX(o), get levelT() { return levelT; },
