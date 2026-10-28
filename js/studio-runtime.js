@@ -21,9 +21,19 @@ scene.background = sky; scene.fog = new THREE.Fog(sky, 80, 400);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x556070, 1.5));
 const sun = new THREE.DirectionalLight(0xffffff, 1.8); sun.position.set(-40, 80, 30); scene.add(sun);
 const cam = new THREE.PerspectiveCamera(65, 1, 0.1, 1000);
+// 2D: a flat side view (like the platformer levels). The world is squashed onto one line: depth (z) is ignored,
+// so you run left/right and land on anything that lines up. 🎥 / V switches at any time.
+const flat = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 2000);
+let mode2d = G.settings?.view === '2d';
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: G.settings?.ground || '#5aa040', roughness: 0.9 }));
 ground.rotation.x = -Math.PI / 2; ground.visible = G.settings?.baseplate !== false; scene.add(ground);
-function resize() { gl.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.fov = innerWidth < innerHeight ? 80 : 65; cam.updateProjectionMatrix(); }
+// seen side-on in 2D the flat ground vanishes, so 2D shows a thick slab of it instead
+const slab = new THREE.Mesh(new THREE.BoxGeometry(2000, 40, 10), ground.material); slab.position.set(0, -20, -200); slab.visible = false; scene.add(slab);
+function resize() {
+  gl.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.fov = innerWidth < innerHeight ? 80 : 65; cam.updateProjectionMatrix();
+  const h = innerWidth < innerHeight ? 16 : 13, w = h * innerWidth / innerHeight;
+  Object.assign(flat, { left: -w, right: w, top: h, bottom: -h }); flat.updateProjectionMatrix();
+}
 addEventListener('resize', resize); resize();
 
 const GEO = { block: new THREE.BoxGeometry(1, 1, 1), ball: new THREE.SphereGeometry(0.5, 20, 14), cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, 20), coin: new THREE.CylinderGeometry(0.5, 0.5, 0.12, 20), wedge: (() => { const g = new THREE.BufferGeometry(); const v = [-.5, -.5, .5, .5, -.5, .5, -.5, -.5, -.5, .5, -.5, -.5, -.5, .5, -.5, .5, .5, -.5]; g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.setIndex([0, 1, 4, 1, 5, 4, 2, 4, 5, 2, 5, 3, 0, 4, 2, 1, 3, 5, 0, 2, 1, 1, 2, 3]); g.computeVertexNormals(); return g; })() };
@@ -111,6 +121,13 @@ addEventListener('touchstart', e => { for (const t of e.changedTouches) if (t.cl
 addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === stick.id) { stick.x = Math.max(-1, Math.min(1, (t.clientX - stick.ox) / 50)); stick.y = Math.max(-1, Math.min(1, (t.clientY - stick.oy) / 50)); } }, { passive: true });
 addEventListener('touchend', e => { for (const t of e.changedTouches) if (t.identifier === stick.id) { stick.id = null; stick.x = stick.y = 0; } });
 let jumpHeld = false;
+const viewBtn = document.getElementById('view');
+function setView(two) {
+  mode2d = two; viewBtn.textContent = two ? '🎥 2D' : '🎥 3D'; slab.visible = two && ground.visible;
+  if (two) { pl.yaw = Math.PI / 2 * (pl.yaw > 0 ? 1 : -1); scene.fog.near = 1e4; scene.fog.far = 2e4; } else { scene.fog.near = 80; scene.fog.far = 400; }
+}
+viewBtn.addEventListener('click', () => { setView(!mode2d); viewBtn.blur(); });
+addEventListener('keydown', e => { if (e.code === 'KeyV' && !e.repeat) setView(!mode2d); });
 jumpBtn.addEventListener('pointerdown', e => { e.preventDefault(); jumpHeld = true; });
 jumpBtn.addEventListener('pointerup', () => { jumpHeld = false; });
 
@@ -148,6 +165,7 @@ const game = {
     o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
   },
   get time() { return clock; },
+  get view() { return mode2d ? '2d' : '3d'; }, set view(v) { setView(v === '2d'); },
 };
 window.game = game;
 function banner(t, c) { const b = document.getElementById('banner'); b.textContent = t; b.style.color = c; b.style.display = 'block'; }
@@ -167,7 +185,7 @@ function collide(axis) {
   for (const p of parts) {
     if (!p.d.collide || p.d.type === 'coin') continue;
     const [x0, y0, z0, x1, y1, z1] = p.box();
-    if (pl.x + PR <= x0 || pl.x - PR >= x1 || pl.z + PR <= z0 || pl.z - PR >= z1 || pl.y + PH <= y0 || pl.y >= y1) continue;
+    if (pl.x + PR <= x0 || pl.x - PR >= x1 || (!mode2d && (pl.z + PR <= z0 || pl.z - PR >= z1)) || pl.y + PH <= y0 || pl.y >= y1) continue;
     if (axis === 'y') { if (pl.vy <= 0 && pl.y < y1 && pl.y > y1 - 1.2) { pl.y = y1; pl.vy = 0; pl.onGround = true; } else if (pl.vy > 0) { pl.y = y0 - PH; pl.vy = 0; } }
     else if (axis === 'x') pl.x = pl.x < (x0 + x1) / 2 ? x0 - PR : x1 + PR;
     else pl.z = pl.z < (z0 + z1) / 2 ? z0 - PR : z1 + PR;
@@ -175,7 +193,7 @@ function collide(axis) {
 }
 const touching = new Set();
 let clock = 0, last = performance.now();
-respawn(); drawHud();
+respawn(); drawHud(); setView(mode2d);
 startFns.length = 0;
 try { new Function('game', 'player', 'console', G.script || '')(game, game.player, console); } catch (e) { out('error', e.message); }
 for (const f of startFns) safe(f);
@@ -186,11 +204,14 @@ function frame(now) {
   const side = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + stick.x;
   if (!over) {
     const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
-    let dx = fx * fwd - fz * side, dz = fz * fwd + fx * side; const l = Math.hypot(dx, dz); if (l > 1) { dx /= l; dz /= l; }
-    if (l > 0.1) pl.yaw += Math.atan2(Math.sin(Math.atan2(-dx, -dz) - pl.yaw), Math.cos(Math.atan2(-dx, -dz) - pl.yaw)) * Math.min(1, dt * 12);
+    let dx = fx * fwd - fz * side, dz = fz * fwd + fx * side;
+    if (mode2d) { dx = Math.max(-1, Math.min(1, side)); dz = 0; }            // 2D: left and right only; up / W jumps
+    const l = Math.hypot(dx, dz); if (l > 1) { dx /= l; dz /= l; }
+    if (mode2d && Math.abs(dx) > 0.1) pl.yaw = dx > 0 ? -Math.PI / 2 : Math.PI / 2;
+    else if (l > 0.1) pl.yaw += Math.atan2(Math.sin(Math.atan2(-dx, -dz) - pl.yaw), Math.cos(Math.atan2(-dx, -dz) - pl.yaw)) * Math.min(1, dt * 12);
     pl.x += dx * pl.speed * dt; collide('x');
-    pl.z += dz * pl.speed * dt; collide('z');
-    if ((keys.has('Space') || jumpHeld) && pl.onGround) { pl.vy = pl.jump; game.sound(520, 0.08, 'triangle'); }
+    if (!mode2d) { pl.z += dz * pl.speed * dt; collide('z'); }
+    if ((keys.has('Space') || jumpHeld || (mode2d && (keys.has('KeyW') || keys.has('ArrowUp') || stick.y < -0.6))) && pl.onGround) { pl.vy = pl.jump; game.sound(520, 0.08, 'triangle'); }
     pl.vy -= game.gravity * dt; pl.onGround = false;
     pl.y += pl.vy * dt; collide('y');
     if (ground.visible && pl.y <= 0) { pl.y = 0; pl.vy = 0; pl.onGround = true; }
@@ -200,7 +221,7 @@ function frame(now) {
     for (const p of [...parts]) {
       if (!touchFns.has(p) || !p.d.visible) continue;
       const [x0, y0, z0, x1, y1, z1] = p.box();
-      if (pl.x + PR + 0.1 > x0 && pl.x - PR - 0.1 < x1 && pl.z + PR + 0.1 > z0 && pl.z - PR - 0.1 < z1 && pl.y + PH > y0 && pl.y - 0.1 < y1) { now2.add(p); if (!touching.has(p)) for (const f of touchFns.get(p) || []) safe(f, game.player); }
+      if (pl.x + PR + 0.1 > x0 && pl.x - PR - 0.1 < x1 && (mode2d || (pl.z + PR + 0.1 > z0 && pl.z - PR - 0.1 < z1)) && pl.y + PH > y0 && pl.y - 0.1 < y1) { now2.add(p); if (!touching.has(p)) for (const f of touchFns.get(p) || []) safe(f, game.player); }
     }
     touching.clear(); for (const p of now2) touching.add(p);
     for (const f of updateFns) safe(f, dt);
@@ -209,9 +230,14 @@ function frame(now) {
   guy.position.set(pl.x, pl.y, pl.z); guy.rotation.y = pl.yaw;
   const k = Math.min(1, Math.hypot(fwd, side)), h = pl.onGround ? Math.abs(Math.sin(clock * 12)) * 0.14 * k : 0;
   bob.position.y = h;
-  cam.position.set(pl.x + Math.sin(camYaw) * camDist * Math.cos(camPitch), pl.y + 2 + Math.sin(camPitch) * camDist, pl.z + Math.cos(camYaw) * camDist * Math.cos(camPitch));
-  cam.lookAt(pl.x, pl.y + 1.8, pl.z);
-  gl.render(scene, cam);
+  if (mode2d) {
+    flat.position.set(pl.x, pl.y + 3, 500); flat.lookAt(pl.x, pl.y + 3, 0);
+    gl.render(scene, flat);
+  } else {
+    cam.position.set(pl.x + Math.sin(camYaw) * camDist * Math.cos(camPitch), pl.y + 2 + Math.sin(camPitch) * camDist, pl.z + Math.cos(camYaw) * camDist * Math.cos(camPitch));
+    cam.lookAt(pl.x, pl.y + 1.8, pl.z);
+    gl.render(scene, cam);
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

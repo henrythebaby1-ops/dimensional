@@ -79,8 +79,14 @@ Everyone plays as the same rounded-square guy as in the 2D levels.
 - **▶ Play** runs it. Errors and `console.log` show in **🧾 Output**.
 - Templates: Obby, Coin hunt, Rising lava.
 
-Games save in your browser. **Export** gives you a file a friend can **Import**. Games run in a sandboxed frame,
-so a script can't reach the main site or your account.
+- **2D or 3D**: every Studio game plays in full 3D *or* as a flat side-view platformer. Press **🎥** (or **V**) while
+  playing to switch. In 2D you run left and right, and the world lines up side by side. Pick which view your game
+  starts in under World → *Starts in*, or switch from a script with `game.view = "2d"`.
+
+**🌐 Publish** (you need to be logged in with 👤 on the menu) puts your game online. Everyone can then play it from
+**🎮 Studio games** on the main menu (also in 🌐 Player levels → 🧱 Studio games), like it, or **🧱 Remix** it to get
+their own copy to edit. Publishing again updates your game. Games also save in your browser, and **Export** /
+**Import** move them as a file. Games run in a sandboxed frame, so a script can't reach the main site or anyone's account.
 
 ## ✈️ Flight (3D)
 Fly a Boeing-style airliner over a big 3D island, with friends (everyone flies their own plane) or alone. Take off from

@@ -75,6 +75,7 @@
     <button id="export">⬇️ Export</button>
     <button id="import">⬆️ Import</button>
     <button id="playbtn" class="go">▶ Play</button>
+    <button id="publish">🌐 Publish</button>
   </div>
   <div id="main">
     <div class="side" id="parts">
@@ -98,6 +99,8 @@
       <div class="row"><label>Ground</label><input type="color" id="ground"></div>
       <div class="row"><label>Baseplate</label><input type="checkbox" id="baseplate"></div>
       <div class="row"><label>Player</label><input type="color" id="pcolor"></div>
+      <div class="row"><label>Starts in</label><select id="startview"><option value="3d">🧊 3D</option><option value="2d">➡️ 2D (side view)</option></select></div>
+      <p style="font-size:11px;color:var(--muted);margin:2px 0 0">Players can switch 2D / 3D with 🎥 (or V) while playing. In 2D you run left and right, and everything lines up side by side.</p>
     </div>
   </div>
   <div id="bottom">
@@ -117,6 +120,7 @@
         <code>player.x / y / z / speed / jumpPower / color</code> <code>player.respawn()</code> <code>player.launch(30)</code><br>
         <code>game.say("text")</code> <code>game.score += 1</code> <code>game.win("text")</code> <code>game.lose()</code><br>
         <code>await game.wait(2)</code> <code>game.random(1, 6)</code> <code>game.sound(440, 0.2)</code> <code>game.sky("#000")</code> <code>game.gravity = 30</code><br>
+        <code>game.view = "2d"</code> or <code>"3d"</code> switch the view (players can press 🎥 / V too)<br>
         <code>console.log(...)</code> shows in 🧾 Output<br><br>
         <b style="color:var(--text)">UI (HTML)</b>: your HTML and CSS sit on top of the game. Scripts can change it with <code>document.getElementById</code>.<br><br>
         Built in: <b>Coins</b> add to the score, <b>Kill bricks</b> send you back, <b>Bounce pads</b> launch you, the <b>Goal</b> wins, you start on the <b>Spawn</b>.

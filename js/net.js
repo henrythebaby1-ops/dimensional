@@ -179,6 +179,22 @@ export async function getLevel(id) {
   if (error) throw error;
   return data;
 }
+// Studio games (made in studio.html): published with a small top-down sketch in data.thumb for the menu cards
+export const publishStudio = (token, name, data, id = null) => rpc('dim_publish_studio', { p_token: token, p_name: name, p_data: data, p_id: id });
+export const unpublishStudio = (token, id) => rpc('dim_unpublish_studio', { p_token: token, p_id: id });
+export async function browseStudio(sort = 'new') {
+  const { data, error } = await sb.from('dim_studio_games').select('id,name,author,plays,likes,created_at,thumb:data->thumb')
+    .order(sort === 'top' ? 'likes' : sort === 'played' ? 'plays' : 'updated_at', { ascending: false }).limit(40);
+  if (error) throw error;
+  return data;
+}
+export async function getStudio(id) {
+  const { data, error } = await sb.from('dim_studio_games').select('id,name,author,data,plays,likes').eq('id', id).single();
+  if (error) throw error;
+  return data;
+}
+export const studioPlayed = id => rpc('dim_studio_played', { p_id: id }).catch(() => {});
+export const studioLike = id => rpc('dim_studio_like', { p_id: id });
 export const levelPlayed = id => rpc('dim_level_played', { p_id: id }).catch(() => {});
 export const likeLevel = id => rpc('dim_level_like', { p_id: id });
 

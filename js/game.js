@@ -21,7 +21,7 @@ import './city3d.js';
 import './fps3d.js';
 import './mars3d.js';
 const MIDY = MID * T;
-import { friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
+import { browseStudio, studioLike, friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH, drawPattern } from './render3d.js';
 import { drawBanana2D } from './banana2d.js';
@@ -4931,8 +4931,49 @@ $('open-maker').onclick = () => {
   });
   requestAnimationFrame(() => maker.show());
 };
-let communitySort = 'new';
+let communitySort = 'new', communityKind = 'levels';
+// Studio games: a card with a top-down sketch of the parts; Play / Remix open studio.html
+function drawStudioThumb(cv, thumb) {
+  cv.width = 160; cv.height = 100;
+  const g = cv.getContext('2d'), t = Array.isArray(thumb) ? thumb : [];
+  g.fillStyle = '#5aa040'; g.fillRect(0, 0, 160, 100);
+  if (!t.length) return;
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const [x, z, w, d] of t) { x0 = Math.min(x0, x - w / 2); x1 = Math.max(x1, x + w / 2); z0 = Math.min(z0, z - d / 2); z1 = Math.max(z1, z + d / 2); }
+  const k = Math.min(150 / Math.max(1, x1 - x0), 90 / Math.max(1, z1 - z0)), ox = 80 - (x0 + x1) / 2 * k, oz = 50 - (z0 + z1) / 2 * k;
+  for (const [x, z, w, d, c] of t) { g.fillStyle = /^#[0-9a-f]{6}$/i.test(c) ? c : '#a0a8b8'; g.fillRect(ox + (x - w / 2) * k, oz + (z - d / 2) * k, Math.max(1.5, w * k), Math.max(1.5, d * k)); }
+}
+async function renderStudioGames() {
+  const grid = $('community-grid');
+  grid.innerHTML = '<p class="muted">Loading…</p>';
+  let list = [];
+  try { list = await browseStudio(communitySort); } catch { grid.innerHTML = '<p class="muted">Could not load Studio games.</p>'; return; }
+  grid.replaceChildren();
+  if (!list.length) { grid.innerHTML = '<p class="muted">No Studio games yet — make one in 🧱 Studio and press 🌐 Publish!</p>'; return; }
+  let liked = [];
+  try { liked = JSON.parse(localStorage.getItem('dim-sliked') || '[]'); } catch {}
+  for (const G of list) {
+    const card = document.createElement('div');
+    card.className = 'lvl-card';
+    const cv = document.createElement('canvas');
+    drawStudioThumb(cv, G.thumb);
+    const nm = document.createElement('b'); nm.textContent = `🧱 ${G.name}`;
+    const meta = document.createElement('span'); meta.className = 'lvl-meta'; meta.textContent = `by ${G.author} · ▶ ${G.plays} · 👍 ${G.likes}`;
+    const btns = document.createElement('div'); btns.className = 'lvl-btns';
+    const play = document.createElement('button'); play.className = 'btn primary small-btn'; play.textContent = '▶ Play';
+    play.onclick = () => { location.href = `studio.html?play=${G.id}`; };
+    const remix = document.createElement('button'); remix.className = 'btn small-btn'; remix.textContent = '🧱 Remix';
+    remix.onclick = () => { location.href = `studio.html?remix=${G.id}`; };
+    const like = document.createElement('button'); like.className = 'btn small-btn';
+    like.textContent = liked.includes(G.id) ? '👍' : '👍 Like'; like.disabled = liked.includes(G.id);
+    like.onclick = async () => { like.disabled = true; try { await studioLike(G.id); liked.push(G.id); localStorage.setItem('dim-sliked', JSON.stringify(liked)); like.textContent = '👍'; meta.textContent = `by ${G.author} · ▶ ${G.plays} · 👍 ${G.likes + 1}`; } catch { like.disabled = false; } };
+    btns.append(play, remix, like);
+    card.append(cv, nm, meta, btns);
+    grid.append(card);
+  }
+}
 async function renderCommunity() {
+  if (communityKind === 'studio') return renderStudioGames();
   const grid = $('community-grid');
   grid.innerHTML = '<p class="muted">Loading…</p>';
   let list = [];
@@ -4977,8 +5018,16 @@ for (const t of document.querySelectorAll('#community-tabs .tab[data-s]')) t.onc
   for (const k of document.querySelectorAll('#community-tabs .tab')) k.classList.toggle('sel', k === t);
   renderCommunity();
 };
-$('community-make').onclick = () => { $('community').classList.add('hidden'); $('open-maker').click(); };
-$('open-community').onclick = () => { $('community').classList.remove('hidden'); renderCommunity(); };
+$('community-make').onclick = () => { if (communityKind === 'studio') { location.href = 'studio.html'; return; } $('community').classList.add('hidden'); $('open-maker').click(); };
+function communityOf(kind) {
+  communityKind = kind;
+  for (const k of document.querySelectorAll('#community-kind .tab')) k.classList.toggle('sel', k.dataset.k === kind);
+  $('community').querySelector('h2').textContent = kind === 'studio' ? '🎮 Studio games' : '🌐 Player levels';
+  $('community').classList.remove('hidden'); renderCommunity();
+}
+for (const k of document.querySelectorAll('#community-kind .tab')) k.onclick = () => communityOf(k.dataset.k);
+$('open-community').onclick = () => communityOf('levels');
+$('open-studio-games').onclick = () => communityOf('studio');
 $('community-close').onclick = () => $('community').classList.add('hidden');
 
 // ---------- friends: add by username, see who's online and where, join or invite ----------

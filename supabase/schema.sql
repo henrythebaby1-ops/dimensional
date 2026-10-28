@@ -65,3 +65,9 @@ create index if not exists dim_clears_daily_idx on public.dim_clears (mode, crea
 --   rpc dim_friend_request(token, user) -> 'sent' | 'friends' (auto-accepts if they already asked you)
 --   rpc dim_friend_respond(token, user, accept) (decline/remove deletes the row), dim_friend_list(token) -> [{ u, ok, in }]
 --   who's online + invites use the Realtime presence channel 'dimensional:online'
+
+-- v7: Studio games (migration dim_studio_games)
+--   table dim_studio_games(id, name, author, data, plays, likes, created_at, updated_at) (RLS on, public read)
+--   data = { parts, script, html, settings, thumb } (max 400 KB, 2000 parts)
+--   rpc dim_publish_studio(token, name, data, id?) -> id (new: logged in, 5/hour; with id: update your own game)
+--   rpc dim_unpublish_studio(token, id), dim_studio_played(id), dim_studio_like(id)

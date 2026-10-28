@@ -3,6 +3,7 @@
 // a file to share. Play runs the game in a sandboxed frame (studio-runtime.js) so a script can't touch the main site.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { whoAmI, publishStudio, getStudio, studioPlayed, studioLike } from './net.js';
 
 const $ = id => document.getElementById(id);
 const LOOK = { block: '#a0a8b8', ball: '#3a8aff', cylinder: '#ff8a1a', wedge: '#8a5cff', spawn: '#39ff88', coin: '#ffd23a', kill: '#ff3355', bounce: '#3affff', goal: '#ffd23a', sign: '#6b4a2a' };
@@ -231,6 +232,8 @@ function worldInputs() {
   $('ground').oninput = () => { s.ground = $('ground').value; rebuild(); };
   $('baseplate').onchange = () => { s.baseplate = $('baseplate').checked; rebuild(); };
   $('pcolor').oninput = () => { s.playerColor = $('pcolor').value; };
+  $('startview').value = s.view === '2d' ? '2d' : '3d';
+  $('startview').onchange = () => { s.view = $('startview').value; };
 }
 
 // ---------- code editor tabs ----------
@@ -250,10 +253,9 @@ function log(text, kind = 'log') { const d = document.createElement('div'); d.cl
 
 // ---------- play: run the game in a sandboxed frame ----------
 let runtime = null, frame = null;
-async function play() {
-  save(true);
+async function play(game) {
+  if (!game) { save(true); game = { parts: proj.parts, html: proj.html, script: proj.script, settings: proj.settings }; }
   runtime ??= await fetch('js/studio-runtime.js').then(r => r.text());
-  const game = { parts: proj.parts, html: proj.html, script: proj.script, settings: proj.settings };
   const safeJSON = JSON.stringify(game).replace(/</g, '\\u003c');
   const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Rubik,system-ui,sans-serif;touch-action:none}
@@ -263,9 +265,10 @@ async function play() {
 #toast div{background:rgba(0,0,0,.65);color:#fff;padding:8px 14px;border-radius:10px;font-weight:700}
 #banner{display:none;position:fixed;left:0;right:0;top:40%;text-align:center;font:900 42px sans-serif;text-shadow:0 3px 10px #000}
 #stick{display:none;position:fixed;left:24px;bottom:24px;width:110px;height:110px;border-radius:50%;border:2px solid rgba(255,255,255,.4);pointer-events:none}
+#view{position:fixed;left:14px;top:44px;padding:6px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(0,0,0,.5);color:#fff;font:700 13px sans-serif}
 #jump{display:none;position:fixed;right:24px;bottom:30px;width:76px;height:76px;border-radius:50%;font-size:28px;background:rgba(255,255,255,.2);color:#fff;border:2px solid rgba(255,255,255,.5)}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
-</head><body><canvas id="c"></canvas><div id="ui"></div><div id="hud"></div><div id="toast"></div><div id="banner"></div><div id="stick"></div><button id="jump">⤴</button>
+</head><body><canvas id="c"></canvas><div id="ui"></div><div id="hud"></div><div id="toast"></div><div id="banner"></div><div id="stick"></div><button id="jump">⤴</button><button id="view">🎥 3D</button>
 <script>window.__GAME=${safeJSON};<\/script><script type="module">${runtime.replace(/<\/script/gi, '<\\/script')}<\/script></body></html>`;
   frame?.remove();
   frame = document.createElement('iframe');
@@ -274,16 +277,35 @@ async function play() {
   frame.srcdoc = doc;
   $('play').append(frame); $('play').style.display = 'block';
   frame.focus();
-  log(`▶ Playing "${proj.name}"`);
+  if (proj) log(`▶ Playing "${proj.name}"`);
 }
-function stop() { frame?.remove(); frame = null; $('play').style.display = 'none'; }
+function stop() { if (playOnly) { location.href = './'; return; } frame?.remove(); frame = null; $('play').style.display = 'none'; }
 addEventListener('message', e => {
   if (!frame || e.source !== frame.contentWindow || !e.data?.studio) return;
   log(e.data.text, e.data.kind);
   if (e.data.kind === 'error') { showTab('console'); }
 });
 addEventListener('keydown', e => { if (e.key === 'Escape' && frame) stop(); });
-$('playbtn').onclick = play; $('stop').onclick = stop;
+$('playbtn').onclick = () => play(); $('stop').onclick = stop;
+
+// ---------- 🌐 publish, so everyone can play it from the game's menu ----------
+// a tiny top-down sketch of the parts for the menu card
+const thumb = parts => parts.filter(p => p.visible).slice(0, 300).map(p => { const q = Math.round(p.ry / 90) % 2 !== 0; return [Math.round(p.x * 2) / 2, Math.round(p.z * 2) / 2, Math.round((q ? p.sz : p.sx) * 2) / 2, Math.round((q ? p.sx : p.sz) * 2) / 2, p.color]; });
+$('publish').onclick = async () => {
+  let tok = null; try { tok = localStorage.getItem('dim-token'); } catch {}
+  const me = tok ? await whoAmI(tok).catch(() => null) : null;
+  if (!me?.username) { alert('To publish, log in first: go back to the game (← Game), press 👤 Log in at the top of the menu, and log in or sign up. Then come back here.'); return; }
+  proj.name = $('name').value.trim().slice(0, 40) || 'My game';
+  const update = proj.pubId && proj.pubAuthor === me.username;
+  if (!confirm(update ? `Update your published game "${proj.name}"?` : `Publish "${proj.name}" so everyone can play it from the menu?\n\nPlayers will see your username (${me.username}), your game, and its code.`)) return;
+  try {
+    const id = await publishStudio(tok, proj.name, { parts: proj.parts, script: proj.script, html: proj.html, settings: proj.settings, thumb: thumb(proj.parts) }, update ? proj.pubId : null);
+    proj.pubId = id; proj.pubAuthor = me.username; save(true);
+    const link = new URL(`studio.html?play=${id}`, location.href).href;
+    try { await navigator.clipboard.writeText(link); } catch {}
+    log(`🌐 ${update ? 'Updated' : 'Published'}! Everyone can play it from 🎮 Studio games on the menu. Link copied: ${link}`, 'win'); showTab('console');
+  } catch (e) { log('Could not publish: ' + e.message, 'error'); showTab('console'); }
+};
 
 // ---------- files ----------
 $('new').onclick = () => { if (confirm('Start a new game? (Your current one is saved.)')) { save(true); load(blank()); } };
@@ -325,5 +347,30 @@ $('file').onchange = async () => {
 };
 $('name').oninput = () => { proj.name = $('name').value; };
 
-// start with the last game you worked on (or the Obby template the first time)
-{ const s = store.get(); const last = s.projects?.[s.last]; if (last) load(structuredClone(last), s.last); else load(TEMPLATES.obby()); }
+// start: ?play=ID plays a published game full screen; ?remix=ID opens a copy of it to edit;
+// otherwise the last game you worked on (or the Obby template the first time)
+const q = new URLSearchParams(location.search), playId = +q.get('play') || 0, remixId = +q.get('remix') || 0;
+let playOnly = !!playId;
+const fromOnline = d => { const p = blank(); p.script = String(d.script || ''); p.html = String(d.html || ''); p.settings = { ...p.settings, ...(d.settings || {}) }; p.parts = (Array.isArray(d.parts) ? d.parts : []).slice(0, 2000).map(x => ({ ...part(LOOK[x.type] ? x.type : 'block'), ...x, id: uid() })); return p; };
+if (playOnly) {
+  $('app').style.display = 'none';
+  $('stop').textContent = '← Back to the menu';
+  getStudio(playId).then(g => {
+    document.title = `${g.name} — Dimensional Studio`;
+    studioPlayed(playId);
+    const p = fromOnline(g.data);
+    play({ parts: p.parts, html: p.html, script: p.script, settings: p.settings });
+    const bar = document.createElement('div');
+    bar.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:2;align-items:center;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:10px';
+    const t = document.createElement('span'); t.textContent = `🧱 ${g.name} · by ${g.author}`;
+    const like = document.createElement('button'); like.textContent = '👍 Like';
+    let liked = []; try { liked = JSON.parse(localStorage.getItem('dim-sliked') || '[]'); } catch {}
+    if (liked.includes(playId)) { like.textContent = '👍 Liked'; like.disabled = true; }
+    like.onclick = async () => { like.disabled = true; try { await studioLike(playId); liked.push(playId); localStorage.setItem('dim-sliked', JSON.stringify(liked)); like.textContent = '👍 Liked'; } catch { like.disabled = false; } };
+    const remix = document.createElement('button'); remix.textContent = '🧱 Remix'; remix.onclick = () => { location.href = `studio.html?remix=${playId}`; };
+    bar.append(t, like, remix); $('play').append(bar);
+  }).catch(() => { alert('Could not find that game. It may have been deleted.'); location.href = './'; });
+} else if (remixId) {
+  getStudio(remixId).then(g => { const p = fromOnline(g.data); p.name = `${g.name} (remix)`.slice(0, 40); load(p); save(true); history.replaceState(null, '', 'studio.html'); log(`🧱 Remixing "${g.name}" by ${g.author}. It's your own copy now.`, 'win'); })
+    .catch(() => { log('Could not load that game to remix.', 'error'); load(TEMPLATES.obby()); });
+} else { const s = store.get(); const last = s.projects?.[s.last]; if (last) load(structuredClone(last), s.last); else load(TEMPLATES.obby()); }
