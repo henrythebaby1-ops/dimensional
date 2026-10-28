@@ -1,6 +1,6 @@
 // Party games: Musical Chairs, Hide and Seek, Simon Says. The host runs each round and shares the state;
 // every machine judges its own bodies (me, and the bots on the host) and reports who's out.
-import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, tileOf, drawDark, bigText } from './td.js';
+import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, tileOf, drawDark, bigText, screen } from './td.js';
 import { playMusic } from './audio.js';
 
 const alive = (api, out) => api.ids().filter(id => out[id] === undefined);
@@ -223,7 +223,7 @@ registerTD('hide', {
   draw(api, ctx, v) {
     const s = this.st, me = api.meId();
     if (s.ph === 'count' && this.isSeeker(me)) {
-      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, v.VW, v.VH);
+      ctx.fillStyle = '#000'; screen(ctx, () => ctx.fillRect(0, 0, v.VW, v.VH));
       bigText(ctx, v.VW, v.VH / 2 - 20, '🙈 COUNTING…', '#ffffff', 26);
       bigText(ctx, v.VW, v.VH / 2 + 30, String(Math.max(1, Math.ceil(s.t))), '#ffe23a', 46);
       return;
@@ -319,7 +319,7 @@ registerTD('simon', {
     const s = this.st, c = s.cmd;
     if ((s.ph === 'say' || s.ph === 'judge') && c) {
       const text = `${c.simon ? 'SIMON SAYS: ' : ''}${c.kind === 'freeze' ? 'FREEZE!' : 'GO TO ' + ZONES[c.z][0].toUpperCase() + '!'}`;
-      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(0, 80, v.VW, 60);
+      ctx.fillStyle = 'rgba(0,0,0,.7)'; screen(ctx, () => ctx.fillRect(0, 80, v.VW, 60));
       bigText(ctx, v.VW, 120, text, c.kind === 'freeze' ? '#9feaff' : ZONES[c.z][1], 24);
       if (s.ph === 'say') bar(ctx, v.VW / 2 - 100, 146, 200, 8, s.t / Math.max(2.2, 4.5 - s.round * 0.12), '#fff');
     }

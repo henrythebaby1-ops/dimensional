@@ -39,6 +39,30 @@ Easter egg: stay on the main menu for a while in retro style and the game slowly
 Every top-down game (roleplay maps, Color Blocks, Imposter, Tower Defense, Simon Says…) now shows in a **Roblox-style 3D
 view**: blocky avatars that walk and swing their arms, block walls and trees with shadows, and a tilted camera that
 follows you. Press **🎥** in a game (or ⚙️ Settings) to switch back to the classic flat 2D view.
+The side-view games get a 3D camera too, swung round so you see the tops and sides of the blocks.
+
+**Turn the camera** like Roblox: **← →** turn it round you, **↑ ↓** zoom in and out (or tilt, in side-view games), and
+you move with **W A S D** — W always walks "up the screen", whichever way the camera faces. Phones get **⟲ ⟳ ＋ －**
+buttons. Switch it off in ⚙️ Settings and the arrow keys move you again.
+
+The **🧊 3D games** tile on the menu (and the **All / 3D / 2D** tabs in Solo and the lobby) lists every 3D game.
+The dimension card in the corner has a **✕** to shrink it to just your hearts and coins; **ℹ️** brings it back.
+
+## ✈️ Flight (3D)
+Fly a Boeing-style airliner over a big 3D island, with friends (everyone flies their own plane) or alone. Take off from
+Dimension Intl, fly through all **11 rings** (past mountains, radio towers, a city and two storms), then land on runway 09
+at Cloud Peak Airfield. First to land and stop wins. Crash and you're back at your last ring.
+
+Controls: **Shift/Space** throttle up, **X/Ctrl** throttle down, **← →** bank, **↑ ↓** climb/dive (**I** swaps to real pilot
+style), **G** gear, **F** flaps, **↓ on the runway** brakes, **C** camera (chase, cockpit, far), **M** callouts on/off.
+Phones: the stick flies, plus on-screen throttle, gear and flaps buttons.
+
+**Cockpit callouts** (like a real Boeing GPWS): "TERRAIN, TERRAIN", "WHOOP WHOOP, PULL UP", "OBSTACLE, OBSTACLE",
+"CAUTION TERRAIN", "SINK RATE", "DON'T SINK", "TOO LOW, GEAR", "TOO LOW, FLAPS", "TOO LOW, TERRAIN", "BANK ANGLE",
+"AIRSPEED LOW", "STALL" (with the stick shaker), "OVERSPEED" (with the clacker), "WINDSHEAR", "GLIDESLOPE",
+"TAKEOFF CONFIG", the takeoff calls ("eighty knots", "V one", "rotate", "positive rate") and the altitude calls on
+landing ("one thousand… five hundred… minimums… fifty, forty, thirty, twenty, ten"). The voice is your browser's
+built-in speech voice and the alarm sounds are made in the browser — they aren't recordings from a real Boeing.
 
 ## Game modes
 - **Story Chapter 1 — The Spectre**: 13 co-op levels. An intro cutscene shows how the

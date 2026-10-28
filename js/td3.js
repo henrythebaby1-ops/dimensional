@@ -1,6 +1,6 @@
 // Imposter: an Among Us–style game. Crewmates do tasks; the imposter secretly takes them out.
 // Report bodies or press the emergency button to call a meeting, talk it over in chat, and vote someone off.
-import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, drawDark, bar, bigText } from './td.js';
+import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, drawDark, bar, bigText, screen } from './td.js';
 
 const ROOMS = [
   ['Cafeteria', 18, 2, 28, 10], ['Weapons', 32, 2, 38, 8], ['Engine', 2, 11, 9, 18], ['Medbay', 12, 12, 18, 18],
@@ -259,6 +259,7 @@ registerTD('imposter', {
     if (p && s.alive[id] && s.ph === 'play') drawDark(ctx, v, 0.88, [{ x: p.x, y: p.y, r: (this.imp.has(id) ? 7 : 5.5) * TS }]);
     // task progress bar (top) and my task list
     bar(ctx, v.VW / 2 - 150, 8, 300, 14, this.doneCount() / Math.max(1, this.totalTasks()), '#39ff88');
+    screen(ctx, () => {
     ctx.fillStyle = '#fff'; ctx.font = '700 10px Rubik'; ctx.textAlign = 'center'; ctx.fillText('TOTAL TASKS', v.VW / 2, 19);
     ctx.textAlign = 'left'; ctx.font = '700 13px Rubik';
     if (this.imp.has(id)) {
@@ -267,8 +268,9 @@ registerTD('imposter', {
       (this.tasks[id] || []).forEach((i, n) => { ctx.fillStyle = s.done[`${id}|${i}`] ? '#39ff88' : '#fff'; ctx.fillText(`${s.done[`${id}|${i}`] ? '✓' : '•'} ${TASKS[i][0]}`, 16, v.VH - 90 + n * 16); });
       if (me.taskT > 0) { bar(ctx, v.VW / 2 - 100, v.VH / 2 + 40, 200, 14, me.taskT / 2.5, '#ffe23a'); }
     }
+    });
     if (s.ph === 'eject' && s.eject) {
-      ctx.fillStyle = 'rgba(0,0,10,.85)'; ctx.fillRect(0, 0, v.VW, v.VH);
+      ctx.fillStyle = 'rgba(0,0,10,.85)'; screen(ctx, () => ctx.fillRect(0, 0, v.VW, v.VH));
       const e = s.eject;
       bigText(ctx, v.VW, v.VH / 2 - 10, e.id ? `${api.name(e.id)} was ejected.` : 'No one was ejected. (Skipped)', '#fff', 22);
       if (e.id) bigText(ctx, v.VW, v.VH / 2 + 30, e.was ? `${api.name(e.id)} WAS The Imposter.` : `${api.name(e.id)} was not The Imposter.`, e.was ? '#39ff88' : '#ff3355', 18);

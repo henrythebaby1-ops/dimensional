@@ -44,6 +44,7 @@
       <p id="menu-err" class="err"></p>
       <button id="daily-btn" class="btn daily-btn">📅 <b>Daily Challenge</b> <span id="daily-desc"></span></button>
       <div class="more-grid">
+        <button id="open-3d" class="mini-tile"><i>🧊</i>3D games</button>
         <button id="open-minigames" class="mini-tile"><i>🎲</i>Mini games</button>
         <button id="open-gallery" class="mini-tile"><i>🗺️</i>All levels</button>
         <button id="open-maker" class="mini-tile"><i>🛠️</i>Level maker</button>
@@ -129,7 +130,8 @@
       </div>
       <label class="check public-check"><input type="checkbox" id="set-egg"> ⏳ Time-travel easter egg (stay on the main menu a long time and see what happens…)</label>
       <label class="check public-check"><input type="checkbox" id="set-pixel3d"> 🎮 Chunky pixel 3D in retro style</label>
-      <label class="check public-check"><input type="checkbox" id="set-view3d"> 🧊 3D view in top-down games (Roblox style) — or switch with 🎥 in game</label>
+      <label class="check public-check"><input type="checkbox" id="set-view3d"> 🧊 3D view in every game (Roblox style) — or switch with 🎥 in game</label>
+      <label class="check public-check"><input type="checkbox" id="set-camkeys"> 🔄 Turn the 3D camera with the arrow keys (move with W A S D) or the ⟲ ⟳ buttons</label>
       <h3>📱 Phone controls</h3>
       <div class="tset">
         <span>Stick size</span><div class="seg" id="t-stick"><button data-v="0.8">S</button><button data-v="1">M</button><button data-v="1.25">L</button></div>
@@ -197,6 +199,7 @@
       <button id="copy-link" class="btn small">Copy invite link</button>
       <button id="lobby-friends" class="btn small">👫 Invite friends</button>
       <h3>Game mode</h3>
+      <div class="tabs game-tabs" id="mode-tabs"><button class="tab sel" data-f="all">🎮 All</button><button class="tab" data-f="3d">🧊 3D games</button><button class="tab" data-f="2d">➡️ 2D side view</button></div>
       <div id="modes" class="modes">
         <button class="mode" data-mode="story"><b>Story Ch.1</b><span>The Spectre — 13 co-op levels</span></button>
         <button class="mode" data-mode="story2"><b>Story Ch.2</b><span>The Unicoder — Builders &amp; Walkers</span></button>
@@ -222,6 +225,7 @@
         <button class="mode" data-mode="banana"><b>🍌 Into the Bananaverse</b><span>Everyone top-down in the banana world — beat Captain Peel</span></button>
         <button class="mode" data-mode="parallel"><b>💀 Parallel World</b><span>The opposite game: your goal is to DIE (it's hard)</span></button>
         <button class="mode" data-mode="area51"><b>🛸 Area 51 (Roleplay)</b><span>Jobs, aliens, keycards — chat is the game</span></button>
+        <button class="mode" data-mode="flight"><b>✈️ Flight (3D)</b><span>Fly a Boeing: take off, 11 rings, land — real cockpit callouts</span></button>
         <button class="mode" data-mode="obby"><b>🧗 Obby (2D)</b><span>Roblox-style obstacle course race</span></button>
         <button class="mode" data-mode="lava"><b>🌋 The Floor is Lava (2D)</b><span>The floor melts — stay on the blocks</span></button>
         <button class="mode" data-mode="chairs"><b>🪑 Musical Chairs</b><span>Grab a chair when the music stops</span></button>
@@ -310,6 +314,7 @@
     </div>
     <ul id="hud-players"></ul>
     <div id="hud-dim">
+      <button id="dim-toggle" aria-label="Hide the dimension card" title="Hide / show the dimension card">✕</button>
       <div id="dim-name"></div>
       <div id="dim-desc"></div>
       <div id="hearts"></div>
@@ -320,6 +325,7 @@
     <button id="skip" aria-label="Skip level">⏭</button>
     <button id="pause-btn" aria-label="Pause">⏸</button>
     <button id="view-btn" class="hidden" aria-label="Switch 3D / 2D view">🎥</button>
+    <div id="cam-btns" class="hidden"><button data-c="l" aria-label="Turn camera left">⟲</button><button data-c="r" aria-label="Turn camera right">⟳</button><button data-c="u" aria-label="Camera in">＋</button><button data-c="d" aria-label="Camera out">－</button></div>
   </div>
 
   <div id="toasts"></div>
@@ -371,6 +377,7 @@
     <div class="panel shop-panel">
       <div class="shop-head"><h2>🎮 Solo</h2><button id="solo-close" class="btn small-btn">✕</button></div>
       <p class="muted small">Pick a game and it starts right away. Want bots? Create a room and add them in the lobby.</p>
+      <div class="tabs game-tabs" id="solo-tabs"><button class="tab sel" data-f="all">🎮 All</button><button class="tab" data-f="3d">🧊 3D games</button><button class="tab" data-f="2d">➡️ 2D side view</button></div>
       <div id="solo-list" class="solo-list"></div>
     </div>
   </section>

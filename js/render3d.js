@@ -865,8 +865,9 @@ export class Renderer3D {
       const c = grid[ty][tx];
       if (c === '#') {
         solid.push([tx, ty]);
-        if (ty > 0 && grid[ty - 1][tx] !== '#') edges.push([tx, H - ty - 0.09]);
-        if (ty < H - 1 && grid[ty + 1][tx] !== '#') edges.push([tx, H - ty - 1 + 0.09]);
+        // the grass edge sits a hair above the block, or the two tops flicker into stripes when the 3D camera sees them
+        if (ty > 0 && grid[ty - 1][tx] !== '#') edges.push([tx, H - ty - 0.09 + 0.025]);
+        if (ty < H - 1 && grid[ty + 1][tx] !== '#') edges.push([tx, H - ty - 1 + 0.09 - 0.025]);
       } else if (c === '^' || c === 'v') spikes.push([tx, ty, c]);
     }
     const tiles = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, DEPTH), this.groundMat, solid.length);
@@ -1806,7 +1807,21 @@ export class Renderer3D {
       o.position.set(this.camX, this.camY, 100);
       o.lookAt(this.camX, this.camY, 0);
       this.cam = o;
+    } else if (this.angled) {
+      // the 3D camera: swung round to the side and up a little, so you see the blocks' tops and sides (Roblox style);
+      // the player turns it with yaw (round the side) and pitch (up and over)
+      const a = this.angleK = (this.angleK ?? 0) + (1 - (this.angleK ?? 0)) * Math.min(1, dt * 3);
+      const yaw = (this.yaw ?? 0.33) * a, pit = 0.16 + ((this.pitch ?? 0.38) - 0.16) * a;
+      // the more it's turned, the more it looks straight at you (not the middle of the level), so you stay on screen
+      const turn = Math.min(1, Math.abs(yaw) / 0.6 + Math.max(0, pit - 0.4) * 1.5);
+      const lx = this.camX + (X(target.x) - this.camX) * turn, ly = this.camY + (Y(target.y) - this.camY) * turn * 0.8;
+      this.lookX = this.lookX === undefined || k === 1 ? lx : this.lookX + (lx - this.lookX) * k;
+      this.lookY = this.lookY === undefined || k === 1 ? ly : this.lookY + (ly - this.lookY) * k;
+      const d = dist * (1 - 0.25 * turn);
+      this.persp.position.set(this.lookX + d * Math.sin(yaw) * Math.cos(pit), this.lookY + up * d * Math.sin(pit), d * Math.cos(yaw) * Math.cos(pit));
+      this.persp.lookAt(this.lookX, this.lookY + up * 0.3, 0);
     } else {
+      this.angleK = 0;
       this.persp.position.set(this.camX, this.camY + up * dist * 0.16, dist);
       this.persp.lookAt(this.camX, this.camY + up * 0.3, 0);
       this.cam = this.persp;

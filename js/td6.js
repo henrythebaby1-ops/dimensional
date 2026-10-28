@@ -1,6 +1,6 @@
 // Area 51: a roleplay map. No winning or losing — pick a job, talk (chat is the main thing), and play it out.
 // Keycard doors, an alarm, a blackout switch, an intercom, a UFO, alien containment cells, a cafeteria and a free wardrobe.
-import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, tileOf, drawDark, bigText } from './td.js';
+import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, tileOf, drawDark, bigText, screen } from './td.js';
 
 export const JOBS = {
   guard: { icon: '🪖', name: 'Guard', card: 3, col: '#3a5a3a', act: 'Cuff / uncuff (F)', lines: ['Badge, please.', 'Nothing to see here!', 'Keep moving.', 'Who goes there?', 'This area is restricted!'] },
@@ -268,15 +268,15 @@ registerTD('area51', {
   draw(api, ctx, v) {
     const s = this.st;
     if (s.blackout > 0) drawDark(ctx, v, 0.92, api.all().map(o => ({ x: o.x, y: o.y, r: 2.6 * TS })));
-    if (s.alarm && Math.floor(performance.now() / 400) % 2) { ctx.fillStyle = 'rgba(255,0,40,.18)'; ctx.fillRect(0, 0, v.VW, v.VH); }
-    if (this.tint && this.tint.t > 0) { ctx.fillStyle = this.tint.c; ctx.fillRect(0, 0, v.VW, v.VH); this.tint.t -= 1 / 60; }
+    if (s.alarm && Math.floor(performance.now() / 400) % 2) { ctx.fillStyle = 'rgba(255,0,40,.18)'; screen(ctx, () => ctx.fillRect(0, 0, v.VW, v.VH)); }
+    if (this.tint && this.tint.t > 0) { ctx.fillStyle = this.tint.c; screen(ctx, () => ctx.fillRect(0, 0, v.VW, v.VH)); this.tint.t -= 1 / 60; }
     if (this.flashAt && this.flashAt.t > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashAt.t * 2})`; ctx.beginPath(); ctx.arc(v.sx(this.flashAt.x), v.sy(this.flashAt.y), 90 * v.k, 0, 7); ctx.fill(); this.flashAt.t -= 1 / 60; }
     if (s.ann && s.ann.until > this.now) {
-      ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(0, 86, v.VW, 46);
+      ctx.fillStyle = 'rgba(0,0,0,.75)'; screen(ctx, () => ctx.fillRect(0, 86, v.VW, 46));
       bigText(ctx, v.VW, 116, `📢 ${api.name(s.ann.by)}: ${s.ann.t}`, '#ffe23a', 16);
     }
     const j = JOBS[s.jobs[api.meId()]];
-    if (j) { ctx.font = '700 13px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.fillText(`${j.icon} ${j.name} · 🔑 keycard ${j.card} · F: ${j.act.replace(' (F)', '')} · E: use`, 16, v.VH - 20); }
+    if (j) screen(ctx, () => { ctx.font = '700 13px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.fillText(`${j.icon} ${j.name} · 🔑 keycard ${j.card} · F: ${j.act.replace(' (F)', '')} · E: use`, 16, v.VH - 20); });
   },
   hud(api) { const s = this.st; return `${s.alarm ? '🚨 LOCKDOWN · ' : ''}${api.ids().length} people on base · /rp for commands`; },
 });

@@ -149,6 +149,14 @@ export function drawBody(ctx, v, b, { color = '#6ee26e', name = '', alpha = 1, d
     ctx.fillText(label, x, y - s * 2.6 + 11 * Math.max(1, v.k * 0.9));
   }
 }
+// When the 3D camera is turned, game.js draws the games' world pictures through a turning matrix. XF.base is the
+// plain screen; screen() draws HUD things (scores, banners, darkness) on the plain screen so they don't turn.
+export const XF = { base: null, v: null };
+export function screen(ctx, fn) {
+  if (!XF.base) return fn();
+  ctx.save(); ctx.setTransform(XF.base);
+  try { fn(); } finally { ctx.restore(); }
+}
 // darkness with holes of light (campfires, flashlights)
 let shade = null;
 export function drawDark(ctx, v, amount, lights) {
@@ -162,19 +170,21 @@ export function drawDark(ctx, v, amount, lights) {
   g.fillRect(0, 0, v.VW, v.VH);
   g.globalCompositeOperation = 'destination-out';
   for (const l of lights) {
-    const x = v.sx(l.x), y = v.sy(l.y), r = l.r * v.k;
+    const { x, y } = v.sp ? v.sp(l.x, l.y) : { x: v.sx(l.x), y: v.sy(l.y) }, r = l.r * v.k;
     const gr = g.createRadialGradient(x, y, r * 0.3, x, y, r);
     gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = gr;
     g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
   }
-  ctx.drawImage(shade, 0, 0);
+  screen(ctx, () => ctx.drawImage(shade, 0, 0));
 }
 export function bar(ctx, x, y, w, h, k, col, back = 'rgba(0,0,0,.6)') {
+  if (XF.base) return screen(ctx, () => { const b = XF.base; XF.base = null; try { bar(ctx, x, y, w, h, k, col, back); } finally { XF.base = b; } });
   ctx.fillStyle = back; ctx.fillRect(x, y, w, h);
   ctx.fillStyle = col; ctx.fillRect(x + 1, y + 1, Math.max(0, (w - 2) * Math.max(0, Math.min(1, k))), h - 2);
 }
 export function bigText(ctx, VW, y, text, col = '#fff', size = 28) {
+  if (XF.base) return screen(ctx, () => { const b = XF.base; XF.base = null; try { bigText(ctx, VW, y, text, col, size); } finally { XF.base = b; } });
   ctx.font = `900 ${size}px Orbitron, 'Press Start 2P', sans-serif`;
   ctx.textAlign = 'center';
   ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.strokeText(text, VW / 2, y);
@@ -273,8 +283,7 @@ registerTD('colors', {
     const s = this.st;
     if (s.ph === 'pick') {
       const [col, nm] = COLORS[s.target];
-      ctx.fillStyle = col; ctx.fillRect(v.VW / 2 - 90, 70, 180, 60);
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.strokeRect(v.VW / 2 - 90, 70, 180, 60);
+      screen(ctx, () => { ctx.fillStyle = col; ctx.fillRect(v.VW / 2 - 90, 70, 180, 60); ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.strokeRect(v.VW / 2 - 90, 70, 180, 60); });
       bigText(ctx, v.VW, 112, nm, '#fff', 26);
       bar(ctx, v.VW / 2 - 90, 136, 180, 10, s.t / Math.max(1.4, 5 - s.round * 0.3), '#fff');
     } else if (s.ph === 'drop') bigText(ctx, v.VW, 110, 'DROP!', '#ff3355', 34);
@@ -400,7 +409,7 @@ registerTD('chameleon', {
     const s = this.st;
     if (s.ph === 'hide') {
       bigText(ctx, v.VW, 100, `HIDE! ${Math.ceil(s.t)}`, '#ffe23a', 30);
-      if (s.seeker.includes(api.meId())) { ctx.fillStyle = 'rgba(0,0,0,.92)'; ctx.fillRect(0, 0, v.VW, v.VH); bigText(ctx, v.VW, v.VH / 2, `You're the SEEKER — counting… ${Math.ceil(s.t)}`, '#ff3355', 22); }
+      if (s.seeker.includes(api.meId())) { ctx.fillStyle = 'rgba(0,0,0,.92)'; screen(ctx, () => ctx.fillRect(0, 0, v.VW, v.VH)); bigText(ctx, v.VW, v.VH / 2, `You're the SEEKER — counting… ${Math.ceil(s.t)}`, '#ff3355', 22); }
     } else if (s.crazyT < 3) bigText(ctx, v.VW, 100, `CRAZY IN ${Math.ceil(s.crazyT)}…`, '#ff8a1a', 24);
   },
   hud(api) { const s = this.st; const hiders = api.ids().filter(id => !s.seeker.includes(id)).length; return s.ph === 'hide' ? `Hiding… ${Math.ceil(s.t)}s` : `⏱ ${Math.ceil(s.left)}s · 🦎 ${hiders} hiding · 👀 ${s.seeker.length} seeking`; },

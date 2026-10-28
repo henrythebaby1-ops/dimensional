@@ -21,6 +21,8 @@ export function unlockAudio() {
 }
 
 export const isMuted = () => muted;
+// for games that make their own continuous sounds (the plane's engines, cockpit alarms)
+export function audioOut() { unlockAudio(); return ac ? { ac, bus: sfxBus } : null; }
 export function setMuted(m) {
   muted = m;
   try { localStorage.setItem('dim-mute', m ? '1' : '0'); } catch {}

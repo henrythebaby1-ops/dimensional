@@ -1,5 +1,5 @@
 // 99 Nights in the Dimensions: keep the campfire burning, survive the monsters of the night, rescue the lost kids.
-import { registerTD, World, TILE, TS, rng, dist, steer, tileOf, center, drawDark, bar, bigText } from './td.js';
+import { registerTD, World, TILE, TS, rng, dist, steer, tileOf, center, drawDark, bar, bigText, screen } from './td.js';
 
 const DAY = 22, NIGHT = 26, GOAL = 99;
 const ROLES = {
@@ -300,11 +300,13 @@ registerTD('nights', {
     drawDark(ctx, v, dark, lights);
     // my status: hearts, logs, role
     const me = this.me, role = this.role(api.meId());
+    screen(ctx, () => {
     ctx.font = '700 14px Rubik, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
     const y = v.VH - 64;
     ctx.fillText(`${role.icon} ${role.name}   ${'❤️'.repeat(Math.max(0, me.hp))}${'🖤'.repeat(Math.max(0, MAXHP - me.hp))}   🪵 ${me.logs}/${role.carry}`, 16, y);
     bar(ctx, 16, y + 8, 200, 12, s.fuel / s.fireMax, s.fuel < 20 ? '#ff3355' : '#ff8a1a');
     ctx.fillStyle = '#fff'; ctx.font = '700 10px Rubik, sans-serif'; ctx.fillText(`🔥 FIRE ${Math.round(s.fuel)}`, 20, y + 18);
+    });
     if (this.dead[api.meId()]) bigText(ctx, v.VW, v.VH / 2, '💀 Waiting for dawn…', '#ff3355', 22);
     else if (s.ph === 'day' && s.t < 5) bigText(ctx, v.VW, 100, 'NIGHT IS COMING — GET TO THE FIRE!', '#ff8a1a', 18);
   },

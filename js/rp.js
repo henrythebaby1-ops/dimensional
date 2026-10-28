@@ -6,7 +6,7 @@
 //   speedOf(id), canOpen(api, id, lock, x, y), botGoal(api, b, job), under(api, ctx, v), over(api, ctx, v), hudText(api).
 // A lock is null (anyone) or a list of job keys. Everything shared lives in `this.st`, which the host re-sends a few
 // times a second; actions go out with `emit`, which applies them on every machine.
-import { registerTD, World, TILE, TS, dist, goTo, center, tileOf, bigText } from './td.js';
+import { registerTD, World, TILE, TS, dist, goTo, center, tileOf, bigText, screen } from './td.js';
 
 const doorKey = (x, y) => x + ',' + y;
 export const rpHash = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
@@ -190,11 +190,11 @@ const BASE = {
       ctx.fillText(o.ic, v.sx(b.x), v.sy(b.y) - (40 + (2 - o.t) * 26) * v.k);
       ctx.globalAlpha = 1;
     }
-    if (s.alarm && Math.floor(performance.now() / 400) % 2) { ctx.fillStyle = 'rgba(255,0,40,.16)'; ctx.fillRect(0, 0, v.VW, v.VH); }
+    if (s.alarm && Math.floor(performance.now() / 400) % 2) { ctx.fillStyle = 'rgba(255,0,40,.16)'; screen(ctx, () => ctx.fillRect(0, 0, v.VW, v.VH)); }
     if (this.flashAt && this.flashAt.t > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashAt.t * 2})`; ctx.beginPath(); ctx.arc(v.sx(this.flashAt.x), v.sy(this.flashAt.y), 90 * v.k, 0, 7); ctx.fill(); this.flashAt.t -= 1 / 60; }
-    if (s.ann && s.ann.until > this.now) { ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(0, 86, v.VW, 46); bigText(ctx, v.VW, 116, `📢 ${api.name(s.ann.by)}: ${s.ann.t}`, '#ffe23a', 16); }
+    if (s.ann && s.ann.until > this.now) { ctx.fillStyle = 'rgba(0,0,0,.75)'; screen(ctx, () => ctx.fillRect(0, 86, v.VW, 46)); bigText(ctx, v.VW, 116, `📢 ${api.name(s.ann.by)}: ${s.ann.t}`, '#ffe23a', 16); }
     const j = this.jobs[s.jobs[api.meId()]];
-    if (j) { ctx.font = '700 13px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.fillText(`${j.icon} ${j.name} · F: ${j.act} · E: use${this.footer ? ' · ' + this.footer(api) : ''}`, 16, v.VH - 20); }
+    if (j) screen(ctx, () => { ctx.font = '700 13px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.fillText(`${j.icon} ${j.name} · F: ${j.act} · E: use${this.footer ? ' · ' + this.footer(api) : ''}`, 16, v.VH - 20); });
   },
   hud(api) { return this.hudText?.(api) || `${api.ids().length} people · /rp for commands`; },
 };

@@ -3,7 +3,7 @@ import { buildLevel, laneIndex, MODES, T, H, MID, dailyInfo, TRAIN_ROLES, custom
 import { makeMaker, paintSprite } from './maker2.js';
 import { createLogic } from './logic.js';
 import { startPixelIcons } from './pixels.js';
-import { MODES_TD, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
+import { MODES_TD, XF, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
 import { TD3D } from './td3d.js';
 import './td2.js';
 import './td3.js';
@@ -15,6 +15,7 @@ import './td8.js';
 import './td9.js';
 import './td10.js';
 import './td11.js';
+import './flight.js';
 const MIDY = MID * T;
 import { friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -133,6 +134,7 @@ addEventListener('keydown', e => {
   if (paused) return;
   if (room && (mode === 'play' || mode === 'lobby') && (e.code === 'KeyT' || e.code === 'Slash' || (e.code === 'Enter' && !(P && canDrag(P))))) { e.preventDefault(); openChat(); return; }
   if (mode !== 'play') return;
+  if (CAM_KEYS[e.code] && camKeysOn()) { e.preventDefault(); camHeld.add(CAM_KEYS[e.code]); return; }   // arrows turn the 3D camera
   if (/^Digit[1-8]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; }
   if (P && canDrag(P) && ['Space', 'KeyF', 'Enter'].includes(e.code)) {
     e.preventDefault();
@@ -145,7 +147,37 @@ addEventListener('keydown', e => {
   if (!held.has(a)) pressAction(a);
   held.add(a);
 });
-addEventListener('keyup', e => { const a = KEYMAP[e.code]; if (a) held.delete(a); });
+addEventListener('keyup', e => { const a = KEYMAP[e.code]; if (a) held.delete(a); if (CAM_KEYS[e.code]) camHeld.delete(CAM_KEYS[e.code]); });
+// Roblox-style camera: ← → turn the 3D camera round you, ↑ ↓ zoom (or tilt in side games), and you move with W A S D.
+// Phones get ⟲ ⟳ buttons. Settings can switch it off, and then the arrows move you again.
+const CAM_KEYS = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd' };
+const camHeld = new Set();
+function camKeysOn() {
+  if (ui$.camKeys === false || ui$.view3d === false || mode !== 'play' || !level || paused) return false;
+  if (level.td) return td3d.ok && !MODES_TD[level.td]?.render3d;          // Flight flies with the arrows
+  const D = DIMS[P?.dim];
+  return !level.dash && !!D && !D.flat && !D.topdown;
+}
+let camT = 0;
+function camStep() { const now = performance.now(), dt = Math.min(0.1, (now - (camT || now)) / 1000); camT = now; return dt; }
+function camHint() {
+  if (ui$.camHinted || !camKeysOn()) return;
+  ui$.camHinted = true; saveUi();
+  toast('🔄 Arrow keys (or ⟲ ⟳) turn the camera — move with W A S D. Switch it off in ⚙️ Settings.', '#9feaff');
+}
+const camDir = () => [(camHeld.has('r') ? 1 : 0) - (camHeld.has('l') ? 1 : 0), (camHeld.has('d') ? 1 : 0) - (camHeld.has('u') ? 1 : 0)];
+function turnCamera(t) {
+  camHint();
+  const dt = camStep(), [turn, zoom] = camKeysOn() ? camDir() : [0, 0];
+  t.yaw = ((t.yaw || 0) + turn * 1.9 * dt) % (Math.PI * 2);
+  t.zoom = clamp((t.zoom || 1) * (1 - zoom * 0.9 * dt), 0.6, 1.8);
+}
+function turnSideCamera(r) {
+  camHint();
+  const dt = camStep(), [turn, tilt] = camKeysOn() ? camDir() : [0, 0];
+  r.yaw = clamp((r.yaw ?? 0.33) + turn * 1.3 * dt, -1.0, 1.0);
+  r.pitch = clamp((r.pitch ?? 0.38) - tilt * 0.9 * dt, -0.15, 0.85);
+}
 // Sniper God: aim with the mouse, click to fire
 const mouseAim = { on: false, x: 0, y: 0 };
 addEventListener('mousemove', e => { mouseAim.on = true; mouseAim.x = e.clientX; mouseAim.y = e.clientY; });
@@ -155,7 +187,7 @@ addEventListener('mousedown', e => {
   held.add('fire');
 });
 addEventListener('mouseup', () => { if (party?.kind === 'sniper') held.delete('fire'); });
-addEventListener('blur', () => held.clear());
+addEventListener('blur', () => { held.clear(); camHeld.clear(); });
 
 function pressAction(a) {
   if (!P || P.dead > 0) return;
@@ -2388,11 +2420,13 @@ function startTD() {
 }
 // move a body with 8-direction input
 function tdMove(p, inp, dt, id) {
+  if (tdMode.ownMove) { p.vx = p.vy = 0; return; }        // games with their own controls (Flight)
   if (tdMode.frozen?.(tdApi, id) || tdMode.isOut?.(id) || p.dead > 0) { p.vx = p.vy = 0; return; }
   let ix = (inp.has('right') ? 1 : 0) - (inp.has('left') ? 1 : 0), iy = (inp.has('down') ? 1 : 0) - (inp.has('jump') || inp.has('up') ? 1 : 0);
   if (p === P && analogX && inp === held) ix = analogX;
   const len = Math.hypot(ix, iy);
   if (len > 1) { ix /= len; iy /= len; }
+  if (p === P && td3d.ok && ui$.view3d !== false && td3d.yaw) [ix, iy] = td3d.groundDir(ix, iy);   // W always walks up the screen
   const sp = tdMode.speed?.(tdApi, id) ?? 180;
   p.vx = ix * sp; p.vy = iy * sp;
   if (ix || iy) { p.fx = Math.sign(ix) * 0.8; p.fy = iy ? Math.sign(iy) : 0.3; }
@@ -2429,13 +2463,29 @@ function patternFill(p) {
 }
 let td3dT = 0;
 function tdDraw() {
+  if (tdMode.render3d && td3d.ok) {                        // a fully 3D game draws its own world
+    $('td3d').style.visibility = 'visible'; $('view-btn').classList.add('hidden'); $('cam-btns').classList.add('hidden');
+    ctx.clearRect(0, 0, VW, VH);
+    const now = performance.now(), dt = Math.min(0.1, (now - (td3dT || now)) / 1000); td3dT = now;
+    tdMode.render3d(tdApi, td3d.gl, ctx, VW, VH, dt);
+    if (flash.t > 0) { ctx.globalAlpha = Math.min(0.5, flash.t * 1.5); ctx.fillStyle = flash.col; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
+    return;
+  }
   const three = td3d.ok && ui$.view3d !== false;
   $('td3d').style.visibility = three ? 'visible' : 'hidden';
   $('view-btn').classList.remove('hidden');
+  $('cam-btns').classList.toggle('hidden', !camKeysOn());
+  if (three) turnCamera(td3d);
+  else td3d.yaw = 0;
   const v = three ? td3d.view(tdApi) : tdView(tdApi);
   if (three) { if (td3d.world !== tdMode.world) td3d.setWorld(tdMode.world); ctx.clearRect(0, 0, VW, VH); }
   else drawTiles(ctx, tdMode.world, v, (x, y, t) => tdMode.tileColor?.(x, y, t));
+  // the camera is turned: the games draw as if it faced north, and this matrix turns their drawing to match
+  const base = ctx.getTransform(), turned = three && v.xf ? base.multiply(v.xf) : null;
+  const world = on => { if (!turned) return; if (on) { XF.base = base; ctx.setTransform(turned); } else { XF.base = null; ctx.setTransform(base); } };
+  world(true);
   tdMode.drawUnder?.(tdApi, ctx, v);
+  world(false);
   const bodies3d = [];
   for (const o of tdApi.all()) {
     const look = tdMode.look?.(tdApi, o.id, me.id) || {};
@@ -2458,31 +2508,33 @@ function tdDraw() {
       const txt = String(em.x || EMOTES[em.i]);
       ctx.font = '700 12px Rubik, sans-serif'; ctx.textAlign = 'center';
       const lines = txt.length > 26 ? [txt.slice(0, txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) : 26), txt.slice(txt.lastIndexOf(' ', 26) > 10 ? txt.lastIndexOf(' ', 26) + 1 : 26)] : [txt];
-      const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, h = lines.length * 15 + 8, bx = v.sx(o.x), by = (three ? v.head(o.y) - 24 : v.sy(o.y) - 52) - h;
+      const at = three ? v.sp(o.x, o.y) : null;
+      const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, h = lines.length * 15 + 8, bx = three ? at.x : v.sx(o.x), by = (three ? at.y - v.hd - 24 : v.sy(o.y) - 52) - h;
       ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.beginPath(); ctx.roundRect(bx - w / 2, by, w, h, 8); ctx.fill();
       ctx.beginPath(); ctx.moveTo(bx - 5, by + h); ctx.lineTo(bx + 5, by + h); ctx.lineTo(bx, by + h + 7); ctx.fill();
       ctx.fillStyle = '#111'; lines.forEach((l, i) => ctx.fillText(l, bx, by + 15 + i * 15));
     }
   }
   if (three) { const now = performance.now(), dt = Math.min(0.1, (now - (td3dT || now)) / 1000); td3dT = now; td3d.render(tdMode, bodies3d, { x: v.cx, y: v.cy, k: v.k }, dt); }
+  world(true);
   for (const p of particles) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.col; ctx.fillRect(v.sx(p.x), v.sy(p.y), 4, 4); }
   ctx.globalAlpha = 1;
-  tdMode.draw?.(tdApi, ctx, v);
+  try { tdMode.draw?.(tdApi, ctx, v); } finally { world(false); }
   if (flash.t > 0) { ctx.globalAlpha = Math.min(0.5, flash.t * 1.5); ctx.fillStyle = flash.col; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
 }
 
 // in 3D the avatar is a model, so only its ground ring and name tag go on the 2D canvas
 function label3d(v, o, b) {
-  const x = v.sx(o.x), y = v.sy(o.y), s = 12 * v.k;
+  const { x, y } = v.sp(o.x, o.y), s = 12 * v.k;
   if (b.ring && b.alpha > 0.3) { ctx.strokeStyle = b.ring; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y, s * 1.3, s * 0.75, 0, 0, 7); ctx.stroke(); }
   if (!b.name || b.alpha <= 0.3) return;
-  const label = b.tag ? `${b.tag} ${b.name}` : b.name, top = v.head(o.y) - 18;
+  const label = b.tag ? `${b.tag} ${b.name}` : b.name, top = y - v.hd - 18;
   ctx.font = `700 ${Math.max(10, 9 * v.k)}px Rubik, sans-serif`; ctx.textAlign = 'center';
   const w = ctx.measureText(label).width + 10;
   ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x - w / 2, top, w, Math.max(14, 12 * v.k));
   ctx.fillStyle = '#fff'; ctx.fillText(label, x, top + Math.max(11, 9.5 * v.k));
 }
-$('view-btn').onclick = () => { ui$.view3d = ui$.view3d === false; saveUi(); $('set-view3d').checked = ui$.view3d; toast(ui$.view3d ? '🧊 3D view' : '🗺️ Classic 2D view', '#9feaff'); sfx('click'); };
+$('view-btn').onclick = () => { ui$.view3d = ui$.view3d === false; saveUi(); $('set-view3d').checked = ui$.view3d; toast(ui$.view3d ? '🧊 3D view' : (level?.td ? '🗺️ Classic 2D view' : '➡️ Flat side view'), '#9feaff'); sfx('click'); };
 
 // ---------- chat box ----------
 const BAD = /\b(f+u+c+k+\w*|sh+i+t+\w*|b+i+t+c+h+\w*|a+s+s+h+o+l+e+\w*|d+i+c+k+\w*|c+u+n+t+\w*|n+i+g+\w*|f+a+g+\w*|r+e+t+a+r+d+\w*|k+y+s+)\b/gi;
@@ -4044,10 +4096,14 @@ function drawGame(dt) {
     if (flash.t > 0) { ctx.globalAlpha = Math.min(0.5, flash.t * 1.5); ctx.fillStyle = flash.col; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
     playMusic('banana');
     spawnTrails();
+    $('cam-btns').classList.add('hidden');
     return;
   }
   $('game').style.visibility = '';
-  $('td3d').style.visibility = 'hidden'; $('view-btn').classList.add('hidden');
+  $('td3d').style.visibility = 'hidden'; $('view-btn').classList.remove('hidden');
+  renderer.angled = ui$.view3d !== false && !level.dash;   // rhythm dashes stay straight-on so you can read the beat
+  turnSideCamera(renderer);
+  $('cam-btns').classList.toggle('hidden', !camKeysOn());
   // chapter style repaints the world, except for dimensions with a look of their own
   const VD = level.theme && !D.flat && !D.topdown && D.key !== 'unicode' ? { ...D, ...THEMES[level.theme] } : D;
   renderer.frame({
@@ -4394,7 +4450,7 @@ function step(dt, draw) {
     sendT -= dt;
     if (sendT <= 0) { sendT = 1 / (gameRoster.length > 8 ? 8 : SEND_HZ); sendState(); }
     if (draw) { drawGame(dt); updateHud(dt); }
-  } else if (draw) { $('game').style.visibility = ''; $('td3d').style.visibility = 'hidden'; $('view-btn').classList.add('hidden'); drawMenu(dt); playMusic(mode === 'victory' ? 'victory' : 'menu'); }
+  } else if (draw) { $('game').style.visibility = ''; $('td3d').style.visibility = 'hidden'; $('view-btn').classList.add('hidden'); $('cam-btns').classList.add('hidden'); drawMenu(dt); playMusic(mode === 'victory' ? 'victory' : 'menu'); }
 }
 
 // ---------- wiring ----------
@@ -4730,11 +4786,22 @@ function applyStyle(keep = 0) {
   $('set-egg').checked = ui$.egg;
   $('set-pixel3d').checked = ui$.pix3d;
   $('set-view3d').checked = ui$.view3d !== false;
+  $('set-camkeys').checked = ui$.camKeys !== false;
 }
 $('style-retro').onclick = () => { ui$.style = 'retro'; eraT = 0; eraStage = 0; saveUi(); applyStyle(); sfx('click'); };
 $('style-modern').onclick = () => { ui$.style = 'modern'; saveUi(); applyStyle(); sfx('click'); };
 $('set-egg').onchange = () => { ui$.egg = $('set-egg').checked; eraT = 0; eraStage = 0; saveUi(); applyStyle(); };
+// the ✕ on the dimension card shrinks it to just hearts and coins; ℹ️ brings it back
+function dimCard() { $('hud-dim').classList.toggle('mini', !!ui$.dimMini); $('dim-toggle').textContent = ui$.dimMini ? 'ℹ️' : '✕'; $('dim-toggle').title = ui$.dimMini ? 'Show the dimension card' : 'Hide the dimension card'; }
+$('dim-toggle').onclick = e => { e.stopPropagation(); ui$.dimMini = !ui$.dimMini; saveUi(); dimCard(); sfx('click'); $('dim-toggle').blur(); };
+dimCard();
 $('set-view3d').onchange = () => { ui$.view3d = $('set-view3d').checked; saveUi(); };
+$('set-camkeys').onchange = () => { ui$.camKeys = $('set-camkeys').checked; saveUi(); camHeld.clear(); };
+for (const b of document.querySelectorAll('#cam-btns button')) {
+  const c = b.dataset.c, off = () => camHeld.delete(c);
+  b.addEventListener('pointerdown', e => { e.preventDefault(); camHeld.add(c); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, off);
+}
 $('set-pixel3d').onchange = () => { ui$.pix3d = $('set-pixel3d').checked; saveUi(); applyStyle(eraStage); };
 $('open-settings').onclick = () => $('settings').classList.remove('hidden');
 // phone control settings
@@ -5044,13 +5111,14 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['geo', '🔺 Geometry Beats', '8 rhythm-dash levels, works solo'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
+  ['3D games', [['flight', '✈️ Flight', 'Fly a Boeing through the rings — real cockpit callouts']]],
   ['Roleplay', [['school', '🏫 School', 'Roleplay: classes, bells, detention'], ['city', '🏙️ City', 'Roleplay: money, cars, houses, cops & robbers'], ['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
   ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['obby', '🧗 Obby', '2D obstacle course race, Roblox style'], ['lava', '🌋 The Floor is Lava', '2D: stay off the lava'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb'], ['chairs', '🪑 Musical Chairs', 'Grab a chair when the music stops'], ['simon', '🗣️ Simon Says', 'Only obey when Simon says'], ['hide', '🙈 Hide and Seek', 'Hide in the dark house (add bots)']]],
 ];
-const SOLO_BOTS = { obby: 2, lava: 3, chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const SOLO_BOTS = { flight: 3, obby: 2, lava: 3, chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
-  const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay';
+  const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay' || head === '3D games';
   const h = document.createElement('h3');
   h.textContent = head;
   if (!mg) h.classList.add('not-mg');
@@ -5059,6 +5127,7 @@ for (const [head, list] of SOLO) {
     const b = document.createElement('button');
     b.className = 'mode' + (mg ? '' : ' not-mg');
     b.innerHTML = `<b>${name}</b><span>${desc}</span>`;
+    b.dataset.m = m;
     b.onclick = () => {
       $('solo-pick').classList.add('hidden');
       gameMode = m;
@@ -5069,8 +5138,20 @@ for (const [head, list] of SOLO) {
     $('solo-list').append(b);
   }
 }
-$('solo').onclick = () => { $('solo-list').classList.remove('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎮 Solo'; $('solo-pick').classList.remove('hidden'); };
-$('open-minigames').onclick = () => { $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
+// games that are 3D: Flight, and every top-down game (drawn Roblox style)
+const GAMES_3D = new Set(['flight', 'chairs', 'hide', 'simon', 'colors', 'nights', 'imposter', 'rails', 'area51', 'school', 'city', 'towers', 'infect', 'ctf', 'trails', 'blast', 'soccer', 'chameleon']);
+function gameTabs(tabs, list) {
+  const pick = f => { for (const t of tabs.querySelectorAll('.tab')) t.classList.toggle('sel', t.dataset.f === f); list.classList.toggle('f-3d', f === '3d'); list.classList.toggle('f-2d', f === '2d'); };
+  for (const t of tabs.querySelectorAll('.tab')) t.onclick = () => { pick(t.dataset.f); sfx('click'); };
+  return pick;
+}
+for (const b of document.querySelectorAll('#solo-list .mode')) b.dataset.kind = GAMES_3D.has(b.dataset.m) ? '3d' : '2d';
+for (const b of document.querySelectorAll('#modes .mode')) b.dataset.kind = GAMES_3D.has(b.dataset.mode) ? '3d' : '2d';
+const soloTab = gameTabs($('solo-tabs'), $('solo-list'));
+gameTabs($('mode-tabs'), $('modes'));
+$('open-3d').onclick = () => { $('solo-list').classList.remove('mg-only'); soloTab('3d'); $('solo-pick').querySelector('h2').textContent = '🧊 3D games'; $('solo-pick').classList.remove('hidden'); };
+$('solo').onclick = () => { soloTab('all'); $('solo-list').classList.remove('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎮 Solo'; $('solo-pick').classList.remove('hidden'); };
+$('open-minigames').onclick = () => { soloTab('all'); $('solo-list').classList.add('mg-only'); $('solo-pick').querySelector('h2').textContent = '🎲 Mini games'; $('solo-pick').classList.remove('hidden'); };
 
 // ---------- level gallery: a picture of every level, and play any of them ----------
 const GALLERY = [['story', 'Ch.1 Spectre'], ['story2', 'Ch.2 Unicoder'], ['story3', 'Ch.3 Floatter'], ['story4', 'Ch.4 Troppa'], ['story5', 'Ch.5 Conductor'], ['geo', '🔺 Geometry'], ['story6', 'Ch.6 The Ship'], ['parkour', '🛹 Parkour'], ['space', '🪐 Worlds'], ['time', '⏳ Time'], ['sea', '🌊 Sea'], ['banana', '🍌 Bananaverse'], ['parallel', '💀 Parallel'],

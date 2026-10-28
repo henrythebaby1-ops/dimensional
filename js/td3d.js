@@ -49,14 +49,48 @@ export class TD3D {
     this.VW = 1; this.VH = 1;
   }
   resize(w, h) { if (!this.ok) return; this.VW = w; this.VH = h; this.gl.setSize(w, h, false); this.canvas.style.width = w + 'px'; this.canvas.style.height = h + 'px'; }
-  // the same zoom as the flat view, but a bit closer
+  // the same zoom as the flat view, but a bit closer (times this.zoom, which the player can change)
+  // The games draw their icons with sx/sy as if the camera faced north; when the player turns the camera (this.yaw),
+  // `xf` is the matrix that moves that drawing to where it really is on screen, and sp(x, y) is a point's true spot.
   view(api) {
     const { VW, VH } = api.size();
-    const k = ZOOM * Math.max(0.6, Math.min(VW / (22 * TS), VH / (13 * TS)));
+    const k = ZOOM * (this.zoom || 1) * Math.max(0.6, Math.min(VW / (22 * TS), VH / (13 * TS)));
     const f = api.focus();
-    return { k, VW, VH, cx: f.x, cy: f.y, three: true, sx: x => (x - f.x) * k + VW / 2, sy: y => (y - f.y) * k * SIN + VH / 2,
+    this.aim(f, k);
+    const hd = BODY_H * TS * k * COS, turned = Math.abs(this.yaw || 0) > 1e-4;
+    const sp = (x, y) => { _p.set(x / TS, 0, y / TS).project(this.cam); return { x: (_p.x + 1) / 2 * VW, y: (1 - _p.y) / 2 * VH }; };
+    let xf = null, G = null;
+    {
+      const o = sp(f.x, f.y), ex = sp(f.x + 100, f.y), ey = sp(f.x, f.y + 100);
+      const a = (ex.x - o.x) / 100, b = (ex.y - o.y) / 100, c = (ey.x - o.x) / 100, d = (ey.y - o.y) / 100;
+      G = new DOMMatrix([a, b, c, d, o.x - a * f.x - c * f.y, o.y - b * f.x - d * f.y]);         // ground pixels -> screen
+      if (turned) xf = G.multiply(new DOMMatrix().translate(f.x, f.y).scale(1 / k, 1 / (k * SIN)).translate(-VW / 2, -VH / 2));
+    }
+    this.G = G;
+    return { k, VW, VH, cx: f.x, cy: f.y, three: true, xf, hd, sp: turned ? sp : (x, y) => ({ x: (x - f.x) * k + VW / 2, y: (y - f.y) * k * SIN + VH / 2 }),
+      sx: x => (x - f.x) * k + VW / 2, sy: y => (y - f.y) * k * SIN + VH / 2,
       // where the top of someone's head is on screen (for name tags and speech bubbles)
-      head: y => (y - f.y) * k * SIN + VH / 2 - BODY_H * TS * k * COS };
+      head: y => (y - f.y) * k * SIN + VH / 2 - hd };
+  }
+  // turn a direction on screen (the keys you press) into a direction on the ground, for the turned camera
+  groundDir(ix, iy) {
+    if (!this.G || !Math.abs(this.yaw || 0)) return [ix, iy];
+    const m = this.G, det = m.a * m.d - m.b * m.c;
+    if (!det) return [ix, iy];
+    let gx = (m.d * ix - m.c * iy) / det, gy = (-m.b * ix + m.a * iy) / det;
+    const l = Math.hypot(gx, gy), want = Math.hypot(ix, iy);
+    return l ? [gx / l * want, gy / l * want] : [ix, iy];
+  }
+  // point the camera: behind and above the focus, turned round it by this.yaw
+  aim(f, k) {
+    const fx = f.x / TS, fz = f.y / TS, yaw = this.yaw || 0;
+    const halfW = this.VW / 2 / (k * TS), halfH = this.VH / 2 / (k * TS);
+    Object.assign(this.cam, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
+    this.cam.position.set(fx + 40 * COS * Math.sin(yaw), 40 * SIN, fz + 40 * COS * Math.cos(yaw));
+    this.cam.up.set(0, 1, 0);
+    this.cam.lookAt(fx, 0, fz);
+    this.cam.updateProjectionMatrix();
+    this.cam.updateMatrixWorld();
   }
   // (re)build the blocks when a new game starts
   setWorld(world) {
@@ -169,12 +203,8 @@ export class TD3D {
     }
     for (const [id, a] of this.avatars) if (!seen.has(id)) { this.scene.remove(a.g); this.avatars.delete(id); }
     // the camera floats behind and above the focus point, always facing north
-    const fx = focus.x / TS, fz = focus.y / TS, k = focus.k;
-    const halfW = this.VW / 2 / (k * TS), halfH = this.VH / 2 / (k * TS);
-    Object.assign(this.cam, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
-    this.cam.position.set(fx, 40 * SIN, fz + 40 * COS);
-    this.cam.lookAt(fx, 0, fz);
-    this.cam.updateProjectionMatrix();
+    const fx = focus.x / TS, fz = focus.y / TS;
+    this.aim(focus, focus.k);
     this.sun.position.set(fx - 10, 24, fz + 8); this.sun.target.position.set(fx, 0, fz);
     this.gl.render(this.scene, this.cam);
   }

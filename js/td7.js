@@ -1,5 +1,5 @@
 // Tower Defense: dimension monsters march along the road to your base. Build and upgrade towers together.
-import { registerTD, World, TILE, TS, dist, steer, goTo, center, tileOf, bar, bigText } from './td.js';
+import { registerTD, World, TILE, TS, dist, steer, goTo, center, tileOf, bar, bigText, screen } from './td.js';
 
 const MW = 40, MH = 26;
 const ROUTE = [[0, 4], [10, 4], [10, 20], [20, 20], [20, 6], [30, 6], [30, 20], [39, 20]];
@@ -247,8 +247,7 @@ registerTD('towers', {
   },
   draw(api, ctx, v) {
     const s = this.st;
-    ctx.font = '700 15px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffe23a';
-    ctx.fillText(`🪙 ${s.coins}   ❤️ base ${s.base}/20`, 16, v.VH - 22);
+    screen(ctx, () => { ctx.font = '700 15px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffe23a'; ctx.fillText(`🪙 ${s.coins}   ❤️ base ${s.base}/20`, 16, v.VH - 22); });
     if (s.ph === 'build') bigText(ctx, v.VW, 90, `Build! Wave ${s.wave + 1} in ${Math.ceil(s.t)}s`, '#39ff88', 20);
   },
   hud(api) { const s = this.st; return `Wave ${s.wave}/${WAVES} · 👹 ${s.foes.length} · 🏰 ${s.base}/20 · 🪙 ${s.coins}`; },

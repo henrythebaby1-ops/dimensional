@@ -1,6 +1,6 @@
 // Plays top-down games made in the Level Creator: painted floors, sprites, keys and doors, enemies,
 // signs, and the Scratch-style rules from the Logic tab.
-import { registerTD, World, TILE, TS, dist, steer, goTo, center, tileOf, bigText } from './td.js';
+import { registerTD, World, TILE, TS, dist, steer, goTo, center, tileOf, bigText, screen } from './td.js';
 import { getCustom } from './levels.js';
 import { createLogic } from './logic.js';
 import { paintSprite } from './maker2.js';
@@ -129,6 +129,6 @@ registerTD('tdcustom', {
     }
     for (const e of this.st.enemies) { const x = v.sx(e.x), y = v.sy(e.y); ctx.fillStyle = '#c83aff'; ctx.beginPath(); ctx.arc(x, y, 12 * k, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y - 2 * k, 5 * k, 0, 7); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x, y - 2 * k, 2.5 * k, 0, 7); ctx.fill(); }
   },
-  draw(api, ctx, v) { if (this.score) { ctx.font = '700 15px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23a'; ctx.fillText(`🪙 ${this.score}`, 16, v.VH - 22); } },
+  draw(api, ctx, v) { if (this.score) screen(ctx, () => { ctx.font = '700 15px Rubik'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23a'; ctx.fillText(`🪙 ${this.score}`, 16, v.VH - 22); }); },
   hud() { return `🎮 "${this.name}" — made in the Level Creator`; },
 });

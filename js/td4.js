@@ -1,6 +1,6 @@
 // Emergency Response: a Dead Rails–style ride. Keep the rescue train fueled with coal, fight off the zombies
 // (mostly at night), rescue survivors at the stations, and reach the Safe Zone 3.5 km away.
-import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, drawDark, bar, bigText } from './td.js';
+import { registerTD, World, TILE, TS, rng, dist, steer, goTo, center, drawDark, bar, bigText, screen } from './td.js';
 
 const W = 360, H = 22, TRACK = 11, GOAL_X = (W - 16) * TS;
 const DAY = 40, NIGHT = 34, MAXHP = 5, SPEED = 3.3 * TS;
@@ -278,11 +278,13 @@ registerTD('rails', {
       drawDark(ctx, v, dark, lights);
     }
     const y = v.VH - 66, tr = s.train;
+    screen(ctx, () => {
     ctx.font = '700 14px Rubik, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
     ctx.fillText(`${'❤️'.repeat(Math.max(0, me.hp))}${'🖤'.repeat(Math.max(0, MAXHP - me.hp))}   ⛏️ coal in hands: ${me.coal}/2   🚑 rescued ${s.rescued}`, 16, y);
     bar(ctx, 16, y + 8, 220, 12, tr.fuel / 100, tr.fuel < 20 ? '#ff3355' : '#ff8a1a');
     ctx.font = '700 10px Rubik'; ctx.fillStyle = '#fff'; ctx.fillText(`🔥 ENGINE FUEL ${Math.round(tr.fuel)}${tr.stop > 0 ? `  ·  STATION STOP ${Math.ceil(tr.stop)}s` : ''}`, 20, y + 18);
     bar(ctx, v.VW / 2 - 160, 8, 320, 10, tr.x / GOAL_X, '#39ff88');
+    });
     if (s.dead[api.meId()]) bigText(ctx, v.VW, v.VH / 2, `💀 Back on the train in ${Math.ceil(s.dead[api.meId()])}s`, '#ff3355', 20);
   },
   hud(api) { const s = this.st; return `${s.ph === 'night' ? '🌙 Night' : '☀️ Day'} ${s.night} · ${Math.round(s.train.x / TS * 10)} / ${Math.round(GOAL_X / TS * 10)} m · 🧟 ${s.zs.length}`; },
