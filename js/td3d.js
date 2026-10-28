@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { TILE, TS, TILE_COL } from './td.js';
 import { makeHat } from './render3d.js';
-import { makeGuy, hop } from './g3d.js';
+import { makeGuy, hop, skinTexture } from './g3d.js';
+import { patternKey } from './skins.js';
 
 const PITCH = 42 * Math.PI / 180, SIN = Math.sin(PITCH), COS = Math.cos(PITCH);
 const ZOOM = 1.3;                                  // a little closer than the flat view
@@ -176,7 +177,9 @@ export class TD3D {
       a.g.visible = alpha > 0.02;
       if (!a.g.visible) continue;
       const col = parseCol(b.dead ? '#888888' : b.color, '#3a8aff');
-      a.mat.color.copy(col); a.mat.emissive.copy(col);
+      const pk = b.dead ? '' : patternKey(b.pattern);
+      if (a.pk !== pk) { a.pk = pk; a.mat.map = pk ? skinTexture(b.pattern) : null; a.mat.needsUpdate = true; }
+      if (pk) { a.mat.color.set('#ffffff'); a.mat.emissive.set('#000000'); } else { a.mat.color.copy(col); a.mat.emissive.copy(col); }
       for (const m of a.mats) { m.transparent = alpha < 1; m.opacity = alpha; }
       a.g.position.set(b.x / TS, 0.12, b.y / TS);
       const moving = Math.hypot(b.vx || 0, b.vy || 0) > 20;

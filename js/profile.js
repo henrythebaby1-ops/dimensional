@@ -1,4 +1,5 @@
 // Your progress on this device: coins, things you bought, stars per level, unlocked dimensions, daily streak.
+import { PIXEL_SKINS, decodePx } from './skins.js';
 const KEY = 'dim-profile';
 export const START_DIMS = ['verdant', 'inverted', 'frost', 'lunar', 'inferno', 'mirror', 'banana', 'illusion', 'hitbox'];
 
@@ -44,6 +45,8 @@ export const SHOP = {
   ],
   skin: [
     { id: 'default', name: 'My dimension', icon: '🎨', price: 0 },
+    // pixel skins (Minecraft style), painted onto your guy
+    ...PIXEL_SKINS,
     { id: 'tomato', name: 'Tomato', icon: '🍅', price: 50, color: '#ff4a3a' },
     { id: 'tangerine', name: 'Tangerine', icon: '🍊', price: 50, color: '#ff9a2a' },
     { id: 'bubblegum', name: 'Bubblegum', icon: '🩷', price: 70, color: '#ff7ac8' },
@@ -141,19 +144,21 @@ export const skinColor = (id, t = 0, custom) => {
 };
 // a skin's pattern, if it has one: { pat, c1, c2 }
 export function skinPattern(id, custom) {
-  if (id === 'custom') { const c = custom || profile.custom; return c && c.pat !== 'solid' ? { pat: c.pat, c1: c.c1, c2: c.c2 } : null; }
+  if (id === 'custom') { const c = custom || profile.custom; return c?.pat === 'px' ? { pat: 'px', c1: c.c1, c2: '', px: c.px } : c && c.pat !== 'solid' ? { pat: c.pat, c1: c.c1, c2: c.c2 } : null; }
   const s = SHOP.skin.find(k => k.id === id);
-  return s?.pat ? { pat: s.pat, c1: s.color, c2: s.c2 } : null;
+  return s?.pat === 'px' ? { pat: 'px', c1: s.color, c2: '', px: s.px } : s?.pat ? { pat: s.pat, c1: s.color, c2: s.c2 } : null;
 }
 // custom skins travel to other players as one short string
-export const encodeCustom = c => (c ? [c.c1, c.c2, c.pat].join('|') : '');
+// (a pixel skin is "px|" + its code)
+export const encodeCustom = c => (c ? c.pat === 'px' ? 'px|' + c.px : [c.c1, c.c2, c.pat].join('|') : '');
 export function decodeCustom(s) {
+  if (String(s || '').startsWith('px|')) { const code = String(s).slice(3), d = decodePx(code); return d ? { pat: 'px', px: code, c1: d.pal[d.px[8 * 16 + 8]] || '#6ee26e', c2: '' } : null; }
   const [c1, c2, pat] = String(s || '').split('|');
   const hex = v => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : null);
   return hex(c1) ? { c1: hex(c1), c2: hex(c2) || '#111111', pat: ['solid', 'stripes', 'spots', 'checker', 'split', 'stars'].includes(pat) ? pat : 'solid' } : null;
 }
 export function setCustomSkin(c) {
-  profile.custom = { c1: c.c1, c2: c.c2, pat: c.pat };
+  profile.custom = c.pat === 'px' ? { pat: 'px', px: c.px, c1: c.c1, c2: '' } : { c1: c.c1, c2: c.c2, pat: c.pat };
   if (!owns('skin', 'custom')) profile.owned.push('skin:custom');
   profile.equip.skin = 'custom';
   save();

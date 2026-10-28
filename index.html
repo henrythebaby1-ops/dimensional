@@ -45,6 +45,7 @@
       <button id="daily-btn" class="btn daily-btn">📅 <b>Daily Challenge</b> <span id="daily-desc"></span></button>
       <div class="more-grid">
         <button id="open-3d" class="mini-tile"><i>🧊</i>3D games</button>
+        <button id="open-servers" class="mini-tile"><i>🖥️</i>Servers</button>
         <a id="open-studio" class="mini-tile" href="studio.html" style="text-decoration:none;color:inherit"><i>🧱</i>Studio</a>
         <button id="open-studio-games" class="mini-tile"><i>🎮</i>Studio games</button>
         <button id="open-minigames" class="mini-tile"><i>🎲</i>Mini games</button>
@@ -168,6 +169,54 @@
     </div>
   </section>
 
+  <section id="servers" class="panel-screen hidden">
+    <div class="panel shop-panel">
+      <div class="shop-head"><h2>🖥️ Servers</h2><button id="srv-close" class="btn small-btn">✕</button></div>
+      <p class="muted small">A server always has the same code and runs the game its owner picked. Join any time and drop straight in. Survival and Creative worlds are saved, so what you build is still there next time.</p>
+      <div class="tabs" id="srv-tabs"><button class="tab sel" data-t="public">🌍 Public servers</button><button class="tab" data-t="mine">⭐ My servers</button><button class="tab" data-t="make">➕ Make a server</button></div>
+      <div class="srv-codebox"><input id="srv-code" maxlength="4" placeholder="CODE" class="code-input" autocomplete="off"><button id="srv-join" class="btn small-btn">Join by code</button></div>
+      <div id="srv-list" class="srv-list"></div>
+      <div id="srv-form" class="hidden srv-form">
+        <h3 id="srv-form-title">➕ Make a server</h3>
+        <label class="field">Name<input id="srv-name" maxlength="30"></label>
+        <label class="field">Game mode<select id="srv-mode"></select></label>
+        <label class="field">Message of the day<input id="srv-motd" maxlength="120" placeholder="Welcome! Be nice and have fun."></label>
+        <label class="check"><input type="checkbox" id="srv-public" checked> 🌍 Public (listed for everyone; private servers are join-by-code)</label>
+        <button id="srv-go" class="btn primary">➕ Make my server</button>
+        <p class="muted small">You need to be logged in. Up to 3 servers each.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="pixeled" class="panel-screen hidden">
+    <div class="panel shop-panel">
+      <div class="shop-head"><h2>🖌️ Pixel skin editor</h2><button id="pe-close" class="btn small-btn">✕</button></div>
+      <div class="pe-wrap">
+        <canvas id="pe-grid" width="320" height="320"></canvas>
+        <div class="pe-side">
+          <canvas id="pe-prev" width="150" height="170"></canvas>
+          <div id="pe-pal" class="pe-pal"></div>
+          <label class="sm-col">Color <input type="color" id="pe-color"></label>
+          <div class="seg" id="pe-tools"><button data-t="pen" class="sel">✏️ Pen</button><button data-t="fill">🪣 Fill</button><button data-t="pick">💧 Pick</button></div>
+          <label class="check"><input type="checkbox" id="pe-mirror"> ↔️ Mirror</label>
+          <select id="pe-start"><option value="">Start from…</option></select>
+          <div class="row-btns"><button id="pe-undo" class="btn small-btn">↩️ Undo</button><button id="pe-clear" class="btn small-btn">🧽 Clear</button></div>
+        </div>
+      </div>
+      <p class="muted small">Your eyes sit on top around rows 4–6, so leave that area for a face, visor or mask. Each square is one pixel of your guy's front.</p>
+      <input id="pe-name" class="field-input" maxlength="24" placeholder="Skin name (for sharing)">
+      <div class="row-btns"><button id="pe-save" class="btn primary">✅ Save & wear (free)</button><button id="pe-publish" class="btn">🌐 Share with everyone</button></div>
+    </div>
+  </section>
+
+  <section id="skincat" class="panel-screen hidden">
+    <div class="panel shop-panel gallery-panel">
+      <div class="shop-head"><h2>🌐 Community skins</h2><button id="sc-close" class="btn small-btn">✕</button></div>
+      <div class="tabs" id="sc-tabs"><button class="tab sel" data-s="new">🆕 Newest</button><button class="tab" data-s="top">👍 Most liked</button><button class="tab" data-s="worn">👕 Most worn</button><button class="tab" id="sc-make">🖌️ Make one</button></div>
+      <div id="sc-grid" class="gallery-grid"></div>
+    </div>
+  </section>
+
   <section id="friends" class="panel-screen hidden">
     <div class="panel">
       <div class="shop-head"><h2>👫 Friends</h2><button id="friends-close" class="btn small-btn">✕</button></div>
@@ -236,6 +285,9 @@
         <button class="mode" data-mode="mars3d"><b>🤖 Mars Rover (3D)</b><span>Robotics mission: drill samples, fly the scout drone</span></button>
         <button class="mode" data-mode="flightfree"><b>🕊️ Free Flight (3D)</b><span>Fly the Boeing anywhere — no rings, no clock</span></button>
         <button class="mode" data-mode="doors3d"><b>🚪 Dimendoors (3D)</b><span>DOORS, Dimensional style — 50 spooky doors, hide from Rush</span></button>
+        <button class="mode" data-mode="survival3d"><b>⛏️ Survival (3D)</b><span>Minecraft-style: mine, craft, survive zombie nights</span></button>
+        <button class="mode" data-mode="creative3d"><b>🧱 Creative (3D)</b><span>Every block, fly, build anything together</span></button>
+        <button class="mode" data-mode="tower3d"><b>🗼 Tower of Doom (3D)</b><span>Tower of Hell style — climb before time runs out</span></button>
         <button class="mode" data-mode="obby"><b>🧗 Obby (2D)</b><span>Roblox-style obstacle course race</span></button>
         <button class="mode" data-mode="lava"><b>🌋 The Floor is Lava (2D)</b><span>The floor melts — stay on the blocks</span></button>
         <button class="mode" data-mode="chairs"><b>🪑 Musical Chairs</b><span>Grab a chair when the music stops</span></button>

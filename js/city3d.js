@@ -4,7 +4,7 @@
 // you're BUSTED. Lose them, or drive through the Spray Shop. Friends play in the same city.
 import { registerTD, World, TILE } from './td.js';
 import { audioOut } from './audio.js';
-import { THREE, clamp, wrap, hash, std, keys, markLive, moveInput, buttonBar, setLabel, makeScene, makePerson, walk, makeCar, spinWheels, Net, toScreen, tag, panel, big, help, sound, Hum, hue, onKey, takeLook, pointerLocked } from './g3d.js';
+import { THREE, clamp, wrap, hash, std, keys, markLive, moveInput, buttonBar, setLabel, makeScene, makePerson, personFor, walk, makeCar, spinWheels, Net, toScreen, tag, panel, big, help, sound, Hum, hue, onKey, takeLook, pointerLocked } from './g3d.js';
 
 const NB = 8, BLK = 60, RD = 16, CELL = BLK + RD, SIZE = NB * CELL + RD;
 const roadC = k => k * CELL + RD / 2;                      // the middle of road k (0..NB), in x or z
@@ -389,7 +389,7 @@ const CITY = {
     for (const [id, o] of net.others) if (!o.v.car) folk.set(id, { ...o.v, down: !!o.v.down });
     for (const [id, f] of folk) {
       let m = sc.people.get(id);
-      if (!m) { m = makePerson(new THREE.Color(hue(id)).getHex()); sc.scene.add(m); sc.people.set(id, m); }
+      if (!m) { m = personFor(api, id); sc.scene.add(m); sc.people.set(id, m); }
       m.position.set(f.x, f.y + 0.3 + (f.down ? 0.4 : 0), f.z); m.rotation.set(f.down ? -Math.PI / 2 : 0, f.yaw, 0, 'YXZ'); walk(m, f.down ? 0 : f.spd, dt);
     }
     for (const [id, m] of sc.people) if (!folk.has(id)) { sc.scene.remove(m); sc.people.delete(id); }

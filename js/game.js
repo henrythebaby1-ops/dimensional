@@ -21,10 +21,13 @@ import './city3d.js';
 import './fps3d.js';
 import './mars3d.js';
 import './doors3d.js';
+import './survival3d.js';
+import './tower3d.js';
 const MIDY = MID * T;
-import { browseStudio, studioLike, friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
+import { serverCreate, serverUpdate, serverDelete, serverGet, serverMine, serverSaveWorld, browseServers, publishSkin, browseSkins, skinLike, skinWorn, browseStudio, studioLike, friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
 import { Renderer3D, PW, PH, drawPattern } from './render3d.js';
+import { patternKey, decodePx, encodePx, PX, readyCode, DESIGN_NAMES, pixelCanvas } from './skins.js';
 import { drawBanana2D } from './banana2d.js';
 import { unlockAudio, sfx, playMusic, playBeat, isMuted, setMuted } from './audio.js';
 import { skinPattern, encodeCustom, decodeCustom, setCustomSkin, SECRETS, hasSecret, addSecret, grantItem, replaceProfile, profileScore, profile, onProfile, addCoins, SHOP, buy, equip, owns, dimUnlocked, unlockDim, DIM_PRICE, skinColor, recordLevel, finishDaily, todayKey } from './profile.js';
@@ -140,7 +143,7 @@ addEventListener('keydown', e => {
   if (room && (mode === 'play' || mode === 'lobby') && (e.code === 'KeyT' || e.code === 'Slash' || (e.code === 'Enter' && !(P && canDrag(P))))) { e.preventDefault(); openChat(); return; }
   if (mode !== 'play') return;
   if (CAM_KEYS[e.code] && camKeysOn()) { e.preventDefault(); camHeld.add(CAM_KEYS[e.code]); return; }   // arrows turn the 3D camera
-  if (/^Digit[1-8]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; }
+  if (/^Digit[1-8]$/.test(e.code) && !(level?.td && tdMode?.render3d)) { sendEmote(+e.code.slice(5) - 1); return; }   // (3D games use the number keys themselves)
   if (P && canDrag(P) && ['Space', 'KeyF', 'Enter'].includes(e.code)) {
     e.preventDefault();
     if (!e.repeat) toggleGrab();
@@ -2399,6 +2402,18 @@ const tdApi = {
   customCode: () => encodeCustom(profile.custom),
   skinColorOf: (id, code) => skinColor(id, time, decodeCustom(code)),
   skinPatternOf: (id, code) => skinPattern(id, decodeCustom(code)),
+  // servers keep block worlds: an id for this browser's copy, the saved world, and a way to save it online
+  serverWorld: () => (server ? 'srv-' + server.code : null),
+  serverSave: () => server?.world || null,
+  serverStore(data, force) { if (!server || !isHost()) return; server.world = data; const now = Date.now(); if (!force && now - (server.savedAt || 0) < 20000) return; server.savedAt = now; serverSaveWorld(server.code, data); },
+  // what someone looks like: { color, pattern } from their equipped skin (bots and players alike)
+  skinOf(id) {
+    if (id === me.id) return { color: skinColor(profile.equip.skin, time) || chatColor(id), pattern: skinPattern(profile.equip.skin) };
+    const co = id === me.id ? null : botActors.get(id)?.p?.cos || remotes.get(id)?.co;
+    if (!Array.isArray(co)) return { color: chatColor(id), pattern: null };
+    const cu = decodeCustom(co[5]);
+    return { color: skinColor(co[3], time, cu) || chatColor(id), pattern: skinPattern(co[3], cu) };
+  },
   focus: () => tdMode?.focus?.(tdApi) || (P ? { x: P.x, y: P.y } : { x: 0, y: 0 }),
   held: () => held,
   isHost: () => isHost(),
@@ -2462,7 +2477,7 @@ function tdFrame(dt, draw) {
 }
 const patFills = {};
 function patternFill(p) {
-  const key = `${p.pat}|${p.c1}|${p.c2}`;
+  const key = patternKey(p);
   if (!patFills[key]) { const c = document.createElement('canvas'); c.width = c.height = 64; drawPattern(c.getContext('2d'), 64, p); patFills[key] = ctx.createPattern(c, 'repeat'); }
   return patFills[key];
 }
@@ -2506,7 +2521,7 @@ function tdDraw() {
     };
     if (three) {
       const hat = o.id === me.id ? profile.equip.hat : remotes.get(o.id)?.co?.[0];
-      bodies3d.push({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy, color: body.color, alpha: body.alpha, dead: body.dead, hat: typeof hat === 'string' ? hat : '' });
+      bodies3d.push({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy, color: body.color, pattern: look.color ? null : pat, alpha: body.alpha, dead: body.dead, hat: typeof hat === 'string' ? hat : '' });
       label3d(v, o, body);
     } else drawBody(ctx, v, { x: o.x, y: o.y, fx, fy }, body);
     const em = emoting.get(o.id);
@@ -3510,6 +3525,7 @@ function onMsg(t, d) {
   switch (t) {
     case 'st': if (mode === 'play') onState(d); break;
     case 'snap': onSnapshot(d); break;
+    case 'roster': if (mode === 'play' && Array.isArray(d.r)) gameRoster = d.r.filter(x => typeof x === 'string').slice(0, 40); break;
     case 'need': if (isHost() && mode === 'play' && typeof d.id === 'string') goto(levelIdx, null, d.id); break;
     case 'goto':
       if (d.to && d.to !== me.id) break;
@@ -3616,11 +3632,20 @@ function onPresence(list) {
     const missing = gameRoster.filter(id => !ids.has(id) && !isBot(id));
     for (const p of list) if (!gameRoster.includes(p.id) && !announced.has(p.id)) {
       announced.add(p.id);
+      if (OPEN_WORLD.has(gameMode)) {                 // open worlds: drop straight in
+        gameRoster = [...gameRoster, p.id];
+        send('roster', { r: gameRoster }); send('toast', { m: `👋 ${p.name} joined` }); toast(`👋 ${p.name} joined`);
+        goto(levelIdx, null, p.id);
+        continue;
+      }
       send('toast', { m: `${p.name} will join next level` });
       toast(`${p.name} will join next level`);
       goto(levelIdx, null, p.id);
     }
-    if (missing.length) {
+    if (missing.length && OPEN_WORLD.has(gameMode)) {   // open worlds: just let them go
+      gameRoster = gameRoster.filter(id => ids.has(id) || isBot(id)); send('roster', { r: gameRoster });
+      for (const id of missing) announced.delete(id);
+    } else if (missing.length) {
       rosterTimer = setTimeout(() => {
         const now = new Set(roster.map(p => p.id));
         if (mode === 'play' && isHost() && gameRoster.some(id => !now.has(id) && !isBot(id))) {
@@ -3686,6 +3711,8 @@ $('pause-leave').onclick = () => { setPaused(false); send('pause', { on: false, 
 
 function leaveRoom() {
   setTimeout(updateWhere, 100);
+  if (level?.td && mode === 'play') tdMode?.flush?.(tdApi);   // block worlds save one last time
+  server = null;
   isPublic = false;
   board?.stop();
   bots = [];
@@ -4696,6 +4723,186 @@ $('sm-random').onclick = () => { smDraft = randomCustom(); $('sm-c1').value = sm
 $('sm-close').onclick = () => $('skinmaker').classList.add('hidden');
 $('sm-save').onclick = () => { setCustomSkin(smDraft); sfx('buy'); toast('🎨 Your custom skin is on!', '#39ff88'); $('skinmaker').classList.add('hidden'); renderShop?.(); };
 
+// ---------- 🖥️ servers: a room with a fixed code that's always listed, running the game mode its owner picked ----------
+let server = null;
+const OPEN_WORLD = new Set(['survival3d', 'creative3d', 'city3d', 'school', 'city', 'area51', 'flightfree', 'mars3d', 'doors3d', 'fps3d', 'tdcustom']);
+const SERVER_MODES = [['survival3d', '⛏️ Survival'], ['creative3d', '🧱 Creative'], ['city3d', '🌆 Open City'], ['fps3d', '🎯 Blaster Arena'], ['doors3d', '🚪 Dimendoors'], ['mars3d', '🤖 Mars Rover'], ['flightfree', '🕊️ Free Flight'], ['race3d', '🏎️ Car Race'], ['tower3d', '🗼 Tower of Doom'], ['disaster3d', '🌪️ Natural Disasters'], ['school', '🏫 School roleplay'], ['city', '🏙️ City roleplay'], ['area51', '🛸 Area 51 roleplay'], ['story', '📖 Story Ch.1'], ['obby', '🧗 Obby'], ['parkour', '🛹 Parkour'], ['tag', '🏃 Tag'], ['colors', '🎨 Color Blocks'], ['imposter', '🔪 Imposter'], ['nights', '🔥 99 Nights'], ['towers', '🏰 Tower Defense']].filter(([m]) => MODES[m]);
+const modeLabel = m => SERVER_MODES.find(x => x[0] === m)?.[1] || MODES[m]?.name || m;
+addEventListener('pagehide', () => { if (level?.td && mode === 'play') tdMode?.flush?.(tdApi); });
+// a server always runs its game: whoever is hosting starts it (again) whenever the room is sitting in the lobby
+setInterval(() => {
+  if (!server || !room || room.code !== server.code || mode !== 'lobby' || !isHost()) return;
+  if (gameMode !== server.mode && MODES[server.mode]) { gameMode = server.mode; isPublic = !!server.public; send('mode', { m: gameMode, pub: isPublic }); renderLobby(); }
+  if (!$('start').disabled) $('start').click();
+}, 1500);
+async function joinServer(code) {
+  let s = null;
+  try { s = await serverGet(code); } catch {}
+  if (!s) { toast('Could not find that server', '#ff7a7a'); return; }
+  server = { ...s };
+  gameMode = MODES[s.mode] ? s.mode : 'survival3d'; isPublic = !!s.public;
+  $('servers').classList.add('hidden');
+  enterRoom(s.code);
+  toast(`🖥️ ${s.name}${s.motd ? ' — ' + s.motd : ''}`, '#9feaff');
+}
+let srvTab = 'public', srvEdit = null;
+async function renderServers() {
+  const box = $('srv-list');
+  for (const t of document.querySelectorAll('#srv-tabs .tab')) t.classList.toggle('sel', t.dataset.t === srvTab);
+  $('srv-form').classList.toggle('hidden', srvTab !== 'make');
+  box.classList.toggle('hidden', srvTab === 'make');
+  if (srvTab === 'make') { fillServerForm(); return; }
+  box.innerHTML = '<p class="muted">Loading…</p>';
+  let list = [];
+  try { list = srvTab === 'mine' ? (account ? await serverMine(account.token) : []) : await browseServers(); } catch { box.innerHTML = '<p class="muted">Could not load servers.</p>'; return; }
+  const online = new Map((await getBoard().rooms(1500).catch(() => [])).map(r => [r.code, r.count]));
+  box.replaceChildren();
+  if (srvTab === 'mine' && !account) { box.innerHTML = '<p class="muted">👤 Log in (top of the menu) to make your own servers.</p>'; return; }
+  if (!list.length) { box.innerHTML = `<p class="muted">${srvTab === 'mine' ? 'You have no servers yet — press ➕ Make a server.' : 'No public servers yet. Make the first one!'}</p>`; return; }
+  for (const s of list.sort((a, b) => (online.get(b.code) || 0) - (online.get(a.code) || 0))) {
+    const row = document.createElement('div'); row.className = 'room-row srv-row';
+    const n = online.get(s.code) || 0;
+    const info = document.createElement('div'); info.className = 'srv-info';
+    const t = document.createElement('b'); t.textContent = s.name;
+    const meta = document.createElement('span'); meta.className = 'muted small'; meta.textContent = `${modeLabel(s.mode)} · by ${s.owner} · ${n ? `🟢 ${n} playing` : '⚪ empty'} · code ${s.code}${s.public === false ? ' · 🔒 private' : ''}`;
+    info.append(t, meta);
+    if (s.motd) { const m = document.createElement('span'); m.className = 'small'; m.textContent = '💬 ' + s.motd; info.append(m); }
+    const join = document.createElement('button'); join.className = 'btn primary small-btn'; join.textContent = '▶ Join'; join.onclick = () => joinServer(s.code);
+    row.append(info, join);
+    if (srvTab === 'mine') {
+      const ed = document.createElement('button'); ed.className = 'btn small-btn'; ed.textContent = '⚙️'; ed.title = 'Edit'; ed.onclick = () => { srvEdit = s; srvTab = 'make'; renderServers(); };
+      const del = document.createElement('button'); del.className = 'btn small-btn'; del.textContent = '🗑️'; del.title = 'Delete';
+      del.onclick = async () => { if (!confirm(`Delete the server "${s.name}"? Its saved world goes too.`)) return; try { await serverDelete(account.token, s.code); toast('Server deleted', '#9feaff'); renderServers(); } catch (e) { toast(e.message, '#ff7a7a'); } };
+      row.append(ed, del);
+    }
+    box.append(row);
+  }
+}
+function fillServerForm() {
+  const sel = $('srv-mode');
+  if (!sel.options.length) for (const [m, label] of SERVER_MODES) { const o = document.createElement('option'); o.value = m; o.textContent = label; sel.append(o); }
+  const s = srvEdit;
+  $('srv-name').value = s?.name || (account ? `${account.username}'s server` : '');
+  sel.value = s?.mode || 'survival3d'; $('srv-public').checked = s ? s.public !== false : true; $('srv-motd').value = s?.motd || '';
+  $('srv-go').textContent = s ? '💾 Save changes' : '➕ Make my server';
+  $('srv-form-title').textContent = s ? `⚙️ Edit "${s.name}"` : '➕ Make a server';
+}
+$('srv-go').onclick = async () => {
+  if (!account) { toast('👤 Log in first (top of the menu)', '#ffb13a'); return; }
+  const name = $('srv-name').value.trim().slice(0, 30), mode = $('srv-mode').value, pub = $('srv-public').checked, motd = $('srv-motd').value.trim().slice(0, 120);
+  if (!name) { toast('Give your server a name', '#ffb13a'); return; }
+  try {
+    if (srvEdit) { await serverUpdate(account.token, srvEdit.code, name, mode, pub, motd); toast('💾 Server saved', '#39ff88'); }
+    else { const code = await serverCreate(account.token, name, mode, pub, motd); toast(`🖥️ Your server is ready! Code ${code}`, '#39ff88'); }
+    srvEdit = null; srvTab = 'mine'; renderServers();
+  } catch (e) { toast(e.message, '#ff7a7a'); }
+};
+for (const t of document.querySelectorAll('#srv-tabs .tab')) t.onclick = () => { srvTab = t.dataset.t; srvEdit = null; sfx('click'); renderServers(); };
+$('srv-join').onclick = () => { const c = $('srv-code').value.trim().toUpperCase(); if (/^[A-Z]{4}$/.test(c)) joinServer(c); else toast('Server codes are 4 letters', '#ffb13a'); };
+$('open-servers').onclick = () => { $('servers').classList.remove('hidden'); renderServers(); };
+$('srv-close').onclick = () => $('servers').classList.add('hidden');
+
+// ---------- 🖌️ pixel skin editor (Minecraft style): paint a 16×16 picture onto the front of your guy ----------
+const PE_DEFAULT_PAL = ['#6ee26e', '#1a1a1a', '#ffffff', '#e8c39e', '#c8956a', '#6b3a1f', '#c8283a', '#ff8a1a', '#ffd23a', '#39c96a', '#2aa0a0', '#3a8aff', '#2a3a8a', '#8a3aff', '#ff6ad5', '#8a8a90'];
+const pe = { pal: [...PE_DEFAULT_PAL], px: new Uint8Array(PX * PX), cur: 1, tool: 'pen', undo: [] };
+const peCode = () => encodePx(pe.pal, pe.px);
+// a little picture of the guy wearing a skin: the rounded body, the pixels, and the eyes on top
+function drawGuyPreview(cv, pattern) {
+  const g = cv.getContext('2d'), W = cv.width, Hh = cv.height, bw = W * 0.62, bh = bw * 0.875 / 0.69, x0 = (W - bw) / 2, y0 = (Hh - bh) / 2;
+  g.clearRect(0, 0, W, Hh);
+  g.save(); g.beginPath(); g.roundRect(x0, y0, bw, bh, bw * 0.16); g.clip();
+  g.imageSmoothingEnabled = false; g.drawImage(pixelCanvas(pattern), x0, y0, bw, bh); g.restore();
+  g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 2; g.beginPath(); g.roundRect(x0, y0, bw, bh, bw * 0.16); g.stroke();
+  for (const fx of [0.312, 0.688]) { const ex = x0 + bw * fx, ey = y0 + bh * 0.337; g.fillStyle = '#fff'; g.beginPath(); g.arc(ex, ey, bw * 0.145, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(ex, ey + bw * 0.02, bw * 0.07, 0, 7); g.fill(); }
+}
+function peDraw() {
+  const cv = $('pe-grid'), g = cv.getContext('2d'), c = cv.width / PX;
+  for (let i = 0; i < PX * PX; i++) { g.fillStyle = pe.pal[pe.px[i]]; g.fillRect((i % PX) * c, Math.floor(i / PX) * c, c, c); }
+  g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1;
+  for (let i = 1; i < PX; i++) { g.beginPath(); g.moveTo(i * c + 0.5, 0); g.lineTo(i * c + 0.5, cv.height); g.moveTo(0, i * c + 0.5); g.lineTo(cv.width, i * c + 0.5); g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.setLineDash([4, 4]);           // where the eyes go
+  for (const ex of [5, 11]) { g.beginPath(); g.arc(ex * c, 5.4 * c, 2.3 * c, 0, 7); g.stroke(); }
+  g.setLineDash([]);
+  drawGuyPreview($('pe-prev'), { pat: 'px', px: peCode() });
+  const pal = $('pe-pal');
+  if (pal.children.length !== 16) { pal.replaceChildren(); pe.pal.forEach((_, i) => { const b = document.createElement('button'); b.onclick = () => { pe.cur = i; $('pe-color').value = pe.pal[i]; peDraw(); }; pal.append(b); }); }
+  [...pal.children].forEach((b, i) => { b.style.background = pe.pal[i]; b.classList.toggle('sel', i === pe.cur); });
+}
+function peLoad(code) { const d = decodePx(code); if (!d) return; pe.pal = d.pal; pe.px = d.px; pe.cur = Math.min(pe.cur, 15); $('pe-color').value = pe.pal[pe.cur]; peDraw(); }
+function openPixelEditor(code) {
+  const sel = $('pe-start');
+  if (sel.options.length < 3) for (const [id, name] of DESIGN_NAMES) { const o = document.createElement('option'); o.value = id; o.textContent = name; sel.append(o); }
+  pe.undo = [];
+  if (code) peLoad(code);
+  else if (profile.custom?.pat === 'px') peLoad(profile.custom.px);
+  else { pe.pal = [...PE_DEFAULT_PAL]; pe.px = new Uint8Array(PX * PX); }
+  $('pe-color').value = pe.pal[pe.cur];
+  $('pixeled').classList.remove('hidden'); $('shop').classList.add('hidden'); $('skincat').classList.add('hidden');
+  peDraw();
+}
+{
+  const cv = $('pe-grid');
+  let painting = false;
+  const cellOf = e => { const r = cv.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * PX), Math.floor((e.clientY - r.top) / r.height * PX)]; };
+  const set = (x, y) => { if (x < 0 || y < 0 || x >= PX || y >= PX) return; pe.px[y * PX + x] = pe.cur; if ($('pe-mirror').checked) pe.px[y * PX + (PX - 1 - x)] = pe.cur; };
+  const fill = (x, y) => { const from = pe.px[y * PX + x]; if (from === pe.cur) return; const q = [[x, y]]; while (q.length) { const [a, b] = q.pop(); if (a < 0 || b < 0 || a >= PX || b >= PX || pe.px[b * PX + a] !== from) continue; pe.px[b * PX + a] = pe.cur; q.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]); } };
+  const act = (e, first) => {
+    const [x, y] = cellOf(e);
+    if (x < 0 || y < 0 || x >= PX || y >= PX) return;
+    if (pe.tool === 'pick') { pe.cur = pe.px[y * PX + x]; $('pe-color').value = pe.pal[pe.cur]; pe.tool = 'pen'; for (const b of $('pe-tools').children) b.classList.toggle('sel', b.dataset.t === 'pen'); }
+    else if (pe.tool === 'fill') { if (first) fill(x, y); }
+    else set(x, y);
+    peDraw();
+  };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); pe.undo.push(pe.px.slice()); if (pe.undo.length > 40) pe.undo.shift(); painting = true; try { cv.setPointerCapture(e.pointerId); } catch {} act(e, true); });
+  cv.addEventListener('pointermove', e => { if (painting && pe.tool === 'pen') act(e, false); });
+  addEventListener('pointerup', () => { painting = false; });
+}
+for (const b of $('pe-tools').children) b.onclick = () => { pe.tool = b.dataset.t; for (const k of $('pe-tools').children) k.classList.toggle('sel', k === b); };
+$('pe-color').oninput = () => { pe.pal[pe.cur] = $('pe-color').value; peDraw(); };
+$('pe-undo').onclick = () => { const u = pe.undo.pop(); if (u) { pe.px = u; peDraw(); } };
+$('pe-clear').onclick = () => { pe.undo.push(pe.px.slice()); pe.px.fill(pe.cur); peDraw(); };
+$('pe-start').onchange = () => { const id = $('pe-start').value; $('pe-start').value = ''; const code = readyCode(id); if (code) { pe.undo.push(pe.px.slice()); peLoad(code); } };
+$('pe-close').onclick = () => $('pixeled').classList.add('hidden');
+$('pe-save').onclick = () => { const code = peCode(); setCustomSkin({ pat: 'px', px: code, c1: pe.pal[pe.px[8 * PX + 8]] }); sfx('buy'); toast('🖌️ Your pixel skin is on!', '#39ff88'); };
+$('pe-publish').onclick = async () => {
+  if (!account) { toast('👤 Log in first (top of the menu) to share skins', '#ffb13a'); return; }
+  const name = $('pe-name').value.trim().slice(0, 24);
+  if (!name) { toast('Give your skin a name first', '#ffb13a'); $('pe-name').focus(); return; }
+  if (!confirm(`Share "${name}" so everyone can wear it? Players will see your username (${account.username}).`)) return;
+  try { await publishSkin(account.token, name, peCode()); toast('🌐 Shared! It\'s in Community skins now.', '#39ff88'); sfx('win'); }
+  catch (e) { toast('Could not share: ' + e.message, '#ff7a7a'); }
+};
+// ---------- 🌐 community skins (UGC): wear, like, or copy into the editor ----------
+let scSort = 'new';
+async function renderSkinCat() {
+  const grid = $('sc-grid');
+  grid.innerHTML = '<p class="muted">Loading…</p>';
+  let list = [];
+  try { list = await browseSkins(scSort); } catch { grid.innerHTML = '<p class="muted">Could not load skins.</p>'; return; }
+  grid.replaceChildren();
+  if (!list.length) { grid.innerHTML = '<p class="muted">No shared skins yet — paint one and press 🌐 Share!</p>'; return; }
+  let liked = []; try { liked = JSON.parse(localStorage.getItem('dim-skliked') || '[]'); } catch {}
+  for (const S of list) {
+    if (!decodePx(S.code)) continue;
+    const card = document.createElement('div'); card.className = 'lvl-card sc-card';
+    const cv = document.createElement('canvas'); cv.width = 120; cv.height = 120; drawGuyPreview(cv, { pat: 'px', px: S.code });
+    const nm = document.createElement('b'); nm.textContent = S.name;
+    const meta = document.createElement('span'); meta.className = 'lvl-meta'; meta.textContent = `by ${S.author} · 👕 ${S.wears} · 👍 ${S.likes}`;
+    const btns = document.createElement('div'); btns.className = 'lvl-btns';
+    const wear = document.createElement('button'); wear.className = 'btn primary small-btn'; wear.textContent = '👕 Wear';
+    wear.onclick = () => { const d = decodePx(S.code); setCustomSkin({ pat: 'px', px: S.code, c1: d.pal[d.px[8 * PX + 8]] }); skinWorn(S.id); sfx('buy'); toast(`👕 You're wearing "${S.name}"!`, '#39ff88'); };
+    const like = document.createElement('button'); like.className = 'btn small-btn'; like.textContent = '👍'; like.disabled = liked.includes(S.id);
+    like.onclick = async () => { like.disabled = true; try { await skinLike(S.id); liked.push(S.id); localStorage.setItem('dim-skliked', JSON.stringify(liked)); meta.textContent = `by ${S.author} · 👕 ${S.wears} · 👍 ${S.likes + 1}`; } catch { like.disabled = false; } };
+    const edit = document.createElement('button'); edit.className = 'btn small-btn'; edit.textContent = '🖌️ Copy'; edit.title = 'Open a copy in the editor'; edit.onclick = () => openPixelEditor(S.code);
+    btns.append(wear, like, edit); card.append(cv, nm, meta, btns); grid.append(card);
+  }
+}
+function openSkinCat() { $('skincat').classList.remove('hidden'); $('shop').classList.add('hidden'); renderSkinCat(); }
+for (const t of document.querySelectorAll('#sc-tabs .tab[data-s]')) t.onclick = () => { scSort = t.dataset.s; for (const k of document.querySelectorAll('#sc-tabs .tab')) k.classList.toggle('sel', k === t); renderSkinCat(); };
+$('sc-make').onclick = () => openPixelEditor();
+$('sc-close').onclick = () => $('skincat').classList.add('hidden');
+
 // ---------- easter eggs ----------
 function foundSecret(id, extra = '') {
   if (!addSecret(id)) return false;
@@ -5175,13 +5382,13 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['geo', '🔺 Geometry Beats', '8 rhythm-dash levels, works solo'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['3D games', [['flight', '✈️ Flight', 'Fly a Boeing through the rings — real cockpit callouts'], ['race3d', '🏎️ Car Race', '3 laps, boost pads, nitro and drifting'], ['city3d', '🌆 Open City', 'GTA-style: cars, jobs, cash, police chases'], ['fps3d', '🎯 Blaster Arena', 'First-person foam-blaster battle'], ['mars3d', '🤖 Mars Rover', 'Robotics mission: drill samples, fly the drone'], ['flightfree', '🕊️ Free Flight', 'Fly anywhere, no rings, no clock'], ['doors3d', '🚪 Dimendoors', 'DOORS-style: 50 spooky doors, hide from Rush']]],
+  ['3D games', [['flight', '✈️ Flight', 'Fly a Boeing through the rings — real cockpit callouts'], ['race3d', '🏎️ Car Race', '3 laps, boost pads, nitro and drifting'], ['city3d', '🌆 Open City', 'GTA-style: cars, jobs, cash, police chases'], ['fps3d', '🎯 Blaster Arena', 'First-person foam-blaster battle'], ['mars3d', '🤖 Mars Rover', 'Robotics mission: drill samples, fly the drone'], ['flightfree', '🕊️ Free Flight', 'Fly anywhere, no rings, no clock'], ['doors3d', '🚪 Dimendoors', 'DOORS-style: 50 spooky doors, hide from Rush'], ['survival3d', '⛏️ Survival', 'Minecraft-style: mine, craft, survive the night'], ['creative3d', '🧱 Creative', 'Every block, fly, build anything'], ['tower3d', '🗼 Tower of Doom', 'Tower of Hell style: climb before time runs out']]],
   ['Roleplay', [['school', '🏫 School', 'Roleplay: classes, bells, detention'], ['city', '🏙️ City', 'Roleplay: money, cars, houses, cops & robbers'], ['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
   ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['obby', '🧗 Obby', '2D obstacle course race, Roblox style'], ['lava', '🌋 The Floor is Lava', '2D: stay off the lava'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb'], ['chairs', '🪑 Musical Chairs', 'Grab a chair when the music stops'], ['simon', '🗣️ Simon Says', 'Only obey when Simon says'], ['hide', '🙈 Hide and Seek', 'Hide in the dark house (add bots)']]],
 ];
-const BOT_RIVALS = new Set(['race3d', 'fps3d']);
-const SOLO_BOTS = { doors3d: 2, fps3d: 5, mars3d: 2, flightfree: 0, city3d: 2, race3d: 5, flight: 3, obby: 2, lava: 3, chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const BOT_RIVALS = new Set(['race3d', 'fps3d', 'tower3d']);
+const SOLO_BOTS = { tower3d: 3, doors3d: 2, fps3d: 5, mars3d: 2, flightfree: 0, city3d: 2, race3d: 5, flight: 3, obby: 2, lava: 3, chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay' || head === '3D games';
   const h = document.createElement('h3');
@@ -5204,7 +5411,7 @@ for (const [head, list] of SOLO) {
   }
 }
 // games that are 3D: Flight, and every top-down game (drawn Roblox style)
-const GAMES_3D = new Set(['doors3d', 'flight', 'flightfree', 'race3d', 'city3d', 'fps3d', 'mars3d', 'chairs', 'hide', 'simon', 'colors', 'nights', 'imposter', 'rails', 'area51', 'school', 'city', 'towers', 'infect', 'ctf', 'trails', 'blast', 'soccer', 'chameleon']);
+const GAMES_3D = new Set(['tower3d', 'survival3d', 'creative3d', 'doors3d', 'flight', 'flightfree', 'race3d', 'city3d', 'fps3d', 'mars3d', 'chairs', 'hide', 'simon', 'colors', 'nights', 'imposter', 'rails', 'area51', 'school', 'city', 'towers', 'infect', 'ctf', 'trails', 'blast', 'soccer', 'chameleon']);
 function gameTabs(tabs, list) {
   const pick = f => { for (const t of tabs.querySelectorAll('.tab')) t.classList.toggle('sel', t.dataset.f === f); list.classList.toggle('f-3d', f === '3d'); list.classList.toggle('f-2d', f === '2d'); };
   for (const t of tabs.querySelectorAll('.tab')) t.onclick = () => { pick(t.dataset.f); sfx('click'); };
@@ -5391,7 +5598,8 @@ function renderShop() {
     c.className = 'item' + (eq ? ' eq' : '');
     const ic = document.createElement('div');
     ic.className = 'ic';
-    if (swatch) { const sw = document.createElement('div'); sw.className = 'swatch-big'; sw.style.background = swatch; ic.append(sw); } else ic.textContent = icon;
+    if (typeof swatch === 'function') ic.append(swatch());           // a picture of the guy wearing it
+    else if (swatch) { const sw = document.createElement('div'); sw.className = 'swatch-big'; sw.style.background = swatch; ic.append(sw); } else ic.textContent = icon;
     const nm = document.createElement('div');
     nm.className = 'nm';
     nm.textContent = name;
@@ -5413,11 +5621,11 @@ function renderShop() {
   }
   const cat = shopTab === 'banana' ? 'skin' : shopTab;
   if (shopTab === 'skin') {                  // the skin maker lives at the top of the Skins tab
-    const mk = document.createElement('button');
-    mk.className = 'btn primary shop-note';
-    mk.textContent = '🎨 Make your own skin (free)';
-    mk.onclick = openSkinMaker;
-    grid.append(mk);
+    const row = document.createElement('div'); row.className = 'shop-note row-btns';
+    for (const [label, fn, primary] of [['🖌️ Pixel skin editor', () => openPixelEditor(), true], ['🌐 Community skins', openSkinCat, true], ['🎨 Simple skin maker', openSkinMaker]]) {
+      const b = document.createElement('button'); b.className = 'btn small-btn' + (primary ? ' primary' : ''); b.textContent = label; b.onclick = fn; row.append(b);
+    }
+    grid.append(row);
   }
   if (shopTab === 'banana') {
     const note = document.createElement('p');
@@ -5432,7 +5640,7 @@ function renderShop() {
       if (have) equip(cat, it.id);
       else if (buy(cat, it.id)) { sfx('buy'); toast(`${it.icon} ${it.name}!`, '#ffd23a'); }
       renderShop();
-    }, eq, shopTab === 'banana' && it.id !== 'default' ? null : it.swatch || (it.color && it.color !== 'rainbow' ? it.color : null));
+    }, eq, shopTab === 'banana' && it.id !== 'default' ? null : it.pixel || (it.id === 'custom' && profile.custom?.pat === 'px') ? () => { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; cv.className = 'guy-ic'; drawGuyPreview(cv, it.pixel ? it : profile.custom); return cv; } : it.swatch || (it.color && it.color !== 'rainbow' ? it.color : null));
   }
 }
 for (const t of document.querySelectorAll('#shop-tabs .tab')) t.onclick = () => { shopTab = t.dataset.tab; sfx('click'); renderShop(); };

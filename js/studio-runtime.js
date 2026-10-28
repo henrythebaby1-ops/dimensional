@@ -44,13 +44,19 @@ const parts = [];
 const touchFns = new Map();
 class Part {
   constructor(d) {
-    this.d = { type: 'block', name: 'Part', x: 0, y: 0.5, z: 0, sx: 4, sy: 1, sz: 4, ry: 0, color: '#a0a8b8', collide: true, visible: true, glow: false, text: '', tag: '', ...d };
-    const geo = this.d.type === 'ball' ? GEO.ball : this.d.type === 'cylinder' ? GEO.cylinder : this.d.type === 'coin' ? GEO.coin : this.d.type === 'wedge' ? GEO.wedge : GEO.block;
-    this.mat = new THREE.MeshStandardMaterial({ color: this.d.color, roughness: 0.6 });
-    this.mesh = new THREE.Mesh(geo, this.mat);
-    if (this.d.type === 'coin') this.mesh.rotation.x = Math.PI / 2;
+    this.d = { type: 'block', name: 'Part', x: 0, y: 0.5, z: 0, sx: 4, sy: 1, sz: 4, ry: 0, color: '#a0a8b8', collide: true, visible: true, glow: false, text: '', tag: '', spin: 0, mx: 0, my: 0, mz: 0, ms: 1, ...d };
+    const t = this.d.type;
+    const geo = t === 'ball' || t === 'light' ? GEO.ball : t === 'cylinder' || t === 'teleport' ? GEO.cylinder : t === 'coin' ? GEO.coin : t === 'wedge' ? GEO.wedge : GEO.block;
+    this.mat = new THREE.MeshStandardMaterial({ color: this.d.color, roughness: 0.6, transparent: t === 'water', opacity: t === 'water' ? 0.55 : 1 });
+    if (t === 'npc') {                       // an NPC is a guy, stretched to the part's size
+      this.mesh = new THREE.Group();
+      const b = new THREE.Mesh(new RoundedBoxGeometry(0.69, 0.875, 0.62, 3, 0.11), this.mat); b.scale.set(1 / 0.69, 1 / 0.875, 1 / 0.62); this.mesh.add(b);
+      for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffffff })); e.position.set(sx * 0.19, 0.16, -0.5); e.scale.set(1.4, 1.2, 1.4); const p = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), new THREE.MeshStandardMaterial({ color: 0x111111 })); p.position.set(sx * 0.19, 0.16, -0.62); p.scale.set(1.4, 1.2, 1.4); this.mesh.add(e, p); }
+    } else this.mesh = new THREE.Mesh(geo, this.mat);
+    if (t === 'coin') this.mesh.rotation.x = Math.PI / 2;
+    if (t === 'light') this.mesh.add(this.light = new THREE.PointLight(this.d.color, 40, 22, 1.5));
     scene.add(this.mesh);
-    if (this.d.text) this.sign();
+    if (this.d.text && t !== 'npc') this.sign();
     this.sync();
     parts.push(this);
   }
@@ -100,7 +106,7 @@ guy.add(bob); guy.scale.setScalar(2.2); scene.add(guy);
 const PR = 0.75, PH = 1.9;
 const spawnPart = () => parts.find(p => p.d.type === 'spawn');
 function respawn() {
-  const s = spawnPart();
+  const s = (typeof checkpoint !== 'undefined' && checkpoint) || spawnPart();
   Object.assign(pl, s ? { x: s.d.x, y: s.d.y + s.d.sy / 2 + 0.1, z: s.d.z } : { x: 0, y: 3, z: 0 }, { vy: 0, dead: false });
 }
 
@@ -176,7 +182,15 @@ function banner(t, c) { const b = document.getElementById('banner'); b.textConte
 function drawHud() { const coins = parts.filter(p => p.d.type === 'coin').length; hud.textContent = `⭐ ${score}${coins ? `   🪙 ${coins} left` : ''}`; }
 
 // built-in part types work without any script
+let checkpoint = null, tpCd = 0, speedT = 0, baseSpeed = null;
 for (const p of parts) {
+  const t = p.d.type;
+  if (t === 'checkpoint') touchFns.set(p, [() => { if (checkpoint !== p) { checkpoint = p; game.say('🚩 Checkpoint!'); game.sound(880, 0.2, 'triangle'); } }]);
+  if (t === 'teleport') touchFns.set(p, [() => { if (tpCd > 0) return; const to = parts.filter(q => q !== p && q.d.type === 'teleport' && q.d.tag === p.d.tag); const q = to[Math.floor(Math.random() * to.length)]; if (!q) return; tpCd = 1.2; pl.x = q.d.x; pl.z = q.d.z; pl.y = q.d.y + q.d.sy / 2 + 0.1; pl.vy = 0; game.sound(1200, 0.25, 'sine'); }]);
+  if (t === 'speed') touchFns.set(p, [() => { baseSpeed ??= pl.speed; pl.speed = baseSpeed * 1.8; speedT = 5; game.sound(990, 0.15, 'triangle'); }]);
+  if (t === 'door') touchFns.set(p, [() => { if (p.openT > 0) return; p.openT = 3; p.d.collide = false; p.mat.transparent = true; p.mat.opacity = 0.25; game.sound(220, 0.3, 'sawtooth'); }]);
+  if (t === 'npc') touchFns.set(p, [() => { if (p.d.text) game.say(`💬 ${p.d.name}: ${p.d.text}`, 3500); }]);
+  if (t === 'water') p.d.collide = false;
   if (p.d.type === 'coin') touchFns.set(p, [() => { game.score += 1; game.sound(988, 0.1); handle(p).destroy(); drawHud(); if (!parts.some(q => q.d.type === 'coin') && !parts.some(q => q.d.type === 'goal')) game.win('All coins collected! 🎉'); }]);
   if (p.d.type === 'kill') touchFns.set(p, [() => { game.sound(150, 0.3, 'sawtooth'); respawn(); }]);
   if (p.d.type === 'bounce') touchFns.set(p, [() => { pl.vy = pl.jump * 1.7; game.sound(660, 0.15, 'triangle'); }]);
@@ -190,7 +204,7 @@ function collide(axis) {
     if (!p.d.collide || p.d.type === 'coin') continue;
     const [x0, y0, z0, x1, y1, z1] = p.box();
     if (pl.x + PR <= x0 || pl.x - PR >= x1 || (!mode2d && (pl.z + PR <= z0 || pl.z - PR >= z1)) || pl.y + PH <= y0 || pl.y >= y1) continue;
-    if (axis === 'y') { if (pl.vy <= 0 && pl.y < y1 && pl.y > y1 - 1.2) { pl.y = y1; pl.vy = 0; pl.onGround = true; } else if (pl.vy > 0) { pl.y = y0 - PH; pl.vy = 0; } }
+    if (axis === 'y') { if (pl.vy <= 0 && pl.y < y1 && pl.y > y1 - 1.2) { pl.y = y1; pl.vy = 0; pl.onGround = true; pl.on = p; } else if (pl.vy > 0) { pl.y = y0 - PH; pl.vy = 0; } }
     else if (axis === 'x') pl.x = pl.x < (x0 + x1) / 2 ? x0 - PR : x1 + PR;
     else pl.z = pl.z < (z0 + z1) / 2 ? z0 - PR : z1 + PR;
   }
@@ -206,6 +220,21 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
   const fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - stick.y;
   const side = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + stick.x;
+  // parts that spin or move by themselves (and carry you if you're standing on them)
+  for (const p of parts) {
+    const d = p.d;
+    if (d.spin) { d.ry = (d.ry + d.spin * dt) % 360; p.sync(); }
+    if (d.mx || d.my || d.mz) {
+      p.base ??= { x: d.x, y: d.y, z: d.z };
+      const s = Math.sin(clock * (d.ms || 1)), nx = p.base.x + d.mx * s, ny = p.base.y + d.my * s, nz = p.base.z + d.mz * s;
+      if (pl.on === p) { pl.x += nx - d.x; pl.y += ny - d.y; pl.z += nz - d.z; }
+      d.x = nx; d.y = ny; d.z = nz; p.sync();
+    }
+    if (p.openT > 0 && (p.openT -= dt) <= 0) { p.d.collide = true; p.mat.opacity = 1; p.mat.transparent = false; }
+  }
+  tpCd -= dt;
+  if (speedT > 0 && (speedT -= dt) <= 0 && baseSpeed) pl.speed = baseSpeed;
+  const inWater = parts.some(p => p.d.type === 'water' && (() => { const [x0, y0, z0, x1, y1, z1] = p.box(); return pl.x > x0 && pl.x < x1 && pl.z > z0 && pl.z < z1 && pl.y + 0.8 > y0 && pl.y < y1; })());
   if (!over) {
     const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
     let dx = fx * fwd - fz * side, dz = fz * fwd + fx * side;
@@ -216,7 +245,9 @@ function frame(now) {
     pl.x += dx * pl.speed * dt; collide('x');
     if (!mode2d) { pl.z += dz * pl.speed * dt; collide('z'); }
     if ((keys.has('Space') || jumpHeld || (mode2d && (keys.has('KeyW') || keys.has('ArrowUp') || stick.y < -0.6))) && pl.onGround) { pl.vy = pl.jump; game.sound(520, 0.08, 'triangle'); }
-    pl.vy -= game.gravity * dt; pl.onGround = false;
+    if (inWater) { pl.vy = Math.max(pl.vy - game.gravity * 0.2 * dt, -3); if (keys.has('Space') || jumpHeld) pl.vy = 5; }   // swimming
+    else pl.vy -= game.gravity * dt;
+    pl.onGround = false; pl.on = null;
     pl.y += pl.vy * dt; collide('y');
     if (ground.visible && pl.y <= 0) { pl.y = 0; pl.vy = 0; pl.onGround = true; }
     if (pl.y < -60) respawn();

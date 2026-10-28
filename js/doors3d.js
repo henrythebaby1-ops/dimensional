@@ -6,7 +6,7 @@
 // Friends play together; if you die you come back a few seconds later. Reach door 50 to escape.
 import { registerTD, World, TILE } from './td.js';
 import { audioOut } from './audio.js';
-import { THREE, clamp, wrap, hash, std, keys, markLive, moveInput, buttonBar, setLabel, makeScene, makePerson, walk, Net, toScreen, tag, panel, big, help, sound, Hum, hue, onKey, takeLook, pointerLocked, touchHeld } from './g3d.js';
+import { THREE, clamp, wrap, hash, std, keys, markLive, moveInput, buttonBar, setLabel, makeScene, makePerson, personFor, walk, Net, toScreen, tag, panel, big, help, sound, Hum, hue, onKey, takeLook, pointerLocked, touchHeld } from './g3d.js';
 
 const LAST = 50, H = 6, T = 0.4, DOOR_W = 2.4, DOOR_H = 4.2, EYE = 1.6, SEEK_FROM = 30, SEEK_TO = 35;
 const SEED = 7;
@@ -388,7 +388,7 @@ const DOORS = {
     for (const [id, o] of net.others) {
       seen.add(id);
       let m = sc.people.get(id);
-      if (!m) { m = makePerson(new THREE.Color(hue(id)).getHex()); sc.scene.add(m); sc.people.set(id, m); }
+      if (!m) { m = personFor(api, id); sc.scene.add(m); sc.people.set(id, m); }
       m.visible = !o.v.hide && !o.v.dead; m.position.set(o.v.x, 0, o.v.z); m.rotation.y = o.v.yaw; walk(m, o.v.spd || 0, dt);
     }
     for (const [id, m] of sc.people) if (!seen.has(id)) { sc.scene.remove(m); sc.people.delete(id); }

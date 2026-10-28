@@ -3,7 +3,7 @@
 // minutes) wins. Bots fight too.
 import { registerTD, World, TILE } from './td.js';
 import { audioOut } from './audio.js';
-import { THREE, clamp, wrap, hash, std, markLive, moveInput, buttonBar, makeScene, makePerson, walk, Net, toScreen, tag, panel, big, help, sound, hue, takeLook, pointerLocked } from './g3d.js';
+import { THREE, clamp, wrap, hash, std, markLive, moveInput, buttonBar, makeScene, makePerson, personFor, walk, Net, toScreen, tag, panel, big, help, sound, hue, takeLook, pointerLocked } from './g3d.js';
 
 const A = 90, WIN = 10, TIME = 180, EYE = 1.55, DMG = 25;
 // the arena: crates and walls (x, z, w, d, h)
@@ -180,7 +180,7 @@ const FPS = {
       if (id === api.meId()) continue;
       seen.add(id);
       let m = sc.people.get(id);
-      if (!m) { m = makePerson(new THREE.Color(hue(id)).getHex()); const g = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.6), std(0xff8a1a)); g.position.set(0.5, 0.55, -0.4); m.add(g); sc.scene.add(m); sc.people.set(id, m); }
+      if (!m) { m = personFor(api, id); const g = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.6), std(0xff8a1a)); g.position.set(0.5, 0.55, -0.4); m.add(g); sc.scene.add(m); sc.people.set(id, m); }
       m.visible = !(s.deadT > 0);
       m.position.set(s.x, s.y || 0, s.z); m.rotation.y = s.yaw;
       walk(m, (this.mine.get(id)?.spd ?? s.spd) || 0, dt);

@@ -195,6 +195,38 @@ export async function getStudio(id) {
 }
 export const studioPlayed = id => rpc('dim_studio_played', { p_id: id }).catch(() => {});
 export const studioLike = id => rpc('dim_studio_like', { p_id: id });
+// shared pixel skins (UGC)
+export const publishSkin = (token, name, code) => rpc('dim_publish_skin', { p_token: token, p_name: name, p_code: code });
+export const unpublishSkin = (token, id) => rpc('dim_unpublish_skin', { p_token: token, p_id: id });
+export async function browseSkins(sort = 'new') {
+  const { data, error } = await sb.from('dim_skins').select('id,name,author,code,likes,wears,created_at')
+    .order(sort === 'top' ? 'likes' : sort === 'worn' ? 'wears' : 'created_at', { ascending: false }).limit(60);
+  if (error) throw error;
+  return data;
+}
+export const skinLike = id => rpc('dim_skin_like', { p_id: id });
+export const skinWorn = id => rpc('dim_skin_worn', { p_id: id }).catch(() => {});
+// servers: rooms that stay listed with a fixed code, a chosen game mode, and (for block worlds) a saved world
+export const serverCreate = (token, name, mode, pub, motd) => rpc('dim_server_create', { p_token: token, p_name: name, p_mode: mode, p_public: pub, p_motd: motd });
+export const serverUpdate = (token, code, name, mode, pub, motd) => rpc('dim_server_update', { p_token: token, p_code: code, p_name: name, p_mode: mode, p_public: pub, p_motd: motd });
+export const serverDelete = (token, code) => rpc('dim_server_delete', { p_token: token, p_code: code });
+export const serverGet = async code => (await rpc('dim_server_get', { p_code: code }))?.[0] || null;
+export const serverMine = token => rpc('dim_server_mine', { p_token: token });
+export const serverSaveWorld = (code, world) => rpc('dim_server_save', { p_code: code, p_world: world }).catch(() => {});
+export async function browseServers() {
+  const { data, error } = await sb.from('dim_servers').select('code,name,owner,mode,motd,updated_at').order('updated_at', { ascending: false }).limit(60);
+  if (error) throw error;
+  return data;
+}
+// shared Studio models (UGC)
+export const publishModel = (token, name, parts) => rpc('dim_publish_model', { p_token: token, p_name: name, p_parts: parts });
+export async function browseModels() {
+  const { data, error } = await sb.from('dim_models').select('id,name,author,parts,uses,likes').order('uses', { ascending: false }).order('created_at', { ascending: false }).limit(60);
+  if (error) throw error;
+  return data;
+}
+export const modelUsed = id => rpc('dim_model_used', { p_id: id }).catch(() => {});
+export const modelLike = id => rpc('dim_model_like', { p_id: id });
 export const levelPlayed = id => rpc('dim_level_played', { p_id: id }).catch(() => {});
 export const likeLevel = id => rpc('dim_level_like', { p_id: id });
 

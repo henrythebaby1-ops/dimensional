@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DIMS } from './dims.js';
+import { drawPattern, patternKey } from './skins.js';
 import { T, H, MID } from './levels.js';
 
 // Gameplay stays 2D (pixels, y down). The renderer maps it into a 3D scene
@@ -216,18 +217,9 @@ export function makeAcc(id) {
 
 // a skin pattern drawn on a small canvas (stripes, spots, checker, split, stars)
 const PAT_CACHE = {};
-export function drawPattern(g, size, { pat, c1, c2 }) {
-  g.fillStyle = c1; g.fillRect(0, 0, size, size);
-  g.fillStyle = c2;
-  const u = size / 8;
-  if (pat === 'stripes') for (let i = 0; i < 8; i += 2) g.fillRect(0, i * u, size, u);
-  if (pat === 'spots') for (const [x, y, r] of [[1.5, 1.5, 1], [5.5, 2, 1.3], [3, 5, 1.2], [6.5, 6.2, 0.9], [1, 6.8, 0.7]]) { g.beginPath(); g.arc(x * u, y * u, r * u, 0, 7); g.fill(); }
-  if (pat === 'checker') for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if ((x + y) % 2) g.fillRect(x * u, y * u, u, u);
-  if (pat === 'split') g.fillRect(size / 2, 0, size / 2, size);
-  if (pat === 'stars') for (const [x, y] of [[1, 1], [5, 1.5], [3, 3.5], [6.5, 4.5], [1.5, 6], [4.5, 6.5]]) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? 0.35 : 0.8; g.lineTo((x + Math.cos(a) * rr) * u, (y + Math.sin(a) * rr) * u); } g.fill(); }
-}
+export { drawPattern };
 function patternTexture(p) {
-  const key = `${p.pat}|${p.c1}|${p.c2}`;
+  const key = patternKey(p);
   if (PAT_CACHE[key]) return PAT_CACHE[key];
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -1409,7 +1401,7 @@ export class Renderer3D {
         g.userData.mat.emissive.set(color);
         g.userData.color = color;
       }
-      const pkey = b.pattern ? `${b.pattern.pat}|${b.pattern.c1}|${b.pattern.c2}` : '';
+      const pkey = patternKey(b.pattern);
       if (g.userData.pkey !== pkey) {                    // patterned skins: paint a texture onto the body
         g.userData.pkey = pkey;
         g.userData.mat.map = pkey ? patternTexture(b.pattern) : null;

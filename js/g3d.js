@@ -3,6 +3,7 @@
 // (registerTD) with a render3d hook, like Flight; game.js hands it the WebGL renderer and the 2D canvas for its HUD.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { drawPattern, patternKey } from './skins.js';
 
 export { THREE };
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -33,9 +34,15 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 addEventListener('mousemove', e => { if (document.pointerLockElement) { look.dx += e.movementX; look.dy += e.movementY; } });
+// first-person games lock the mouse to the game: the first click, or the first key you press
+const lockNow = () => { try { const p = document.body.requestPointerLock?.(); p?.catch?.(() => {}); } catch {} };
 addEventListener('mousedown', e => {
-  if (!isLive() || !wantLock || document.pointerLockElement || e.button !== 0 || e.target.closest('button, input, textarea, .panel, #hud, #chat')) return;
-  document.body.requestPointerLock?.();
+  if (!isLive() || !wantLock || document.pointerLockElement || e.button !== 0 || e.target.closest('button, input, textarea, .panel, #chat, a')) return;
+  lockNow();
+});
+addEventListener('keydown', e => {
+  if (!isLive() || !wantLock || document.pointerLockElement || matchMedia('(pointer: coarse)').matches || e.target.closest?.('input, textarea')) return;
+  if (/^(Key[WASDEF]|Arrow|Space|Shift)/.test(e.code)) lockNow();
 });
 export const pointerLocked = () => !!document.pointerLockElement;
 export function takeLook() { const d = [look.dx, look.dy]; look.dx = look.dy = 0; return d; }
@@ -124,8 +131,22 @@ export function hop(g, speed, dt) {
   u.bob.position.y = h;
   u.bob.scale.set(1 + (0.06 - h * 0.4) * k, 1 - (0.06 - h * 0.6) * k, 1 + (0.06 - h * 0.4) * k);
 }
-// a player in the 3D games: the guy, about 1.75 tall, looking toward -Z
-export function makePerson(color) { const g = makeGuy(color, -1); g.scale.setScalar(2); return g; }
+// a skin as a texture for the guy's body (cached)
+const SKIN_TEX = new Map();
+export function skinTexture(p) {
+  const k = patternKey(p);
+  let t = SKIN_TEX.get(k);
+  if (!t) { const c = document.createElement('canvas'); c.width = c.height = 64; drawPattern(c.getContext('2d'), 64, p); t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; SKIN_TEX.set(k, t); }
+  return t;
+}
+// a player in the 3D games: the guy, about 1.75 tall, looking toward -Z, wearing their skin if they have one
+export function makePerson(color, pattern) {
+  const g = makeGuy(color, -1); g.scale.setScalar(2);
+  if (pattern) { const m = g.userData.mat; m.map = skinTexture(pattern); m.color.set('#ffffff'); m.emissive.set('#000000'); }
+  return g;
+}
+// the guy for player `id`, in their own skin
+export function personFor(api, id) { const s = api.skinOf?.(id) || {}; return makePerson(new THREE.Color(s.color || hue(id)).getHex(), s.pattern); }
 export function walk(g, speed, dt) { hop(g, speed / 2, dt); }
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 // a chunky cartoon car, about 4.4 long, facing -Z; wheels spin with spinWheels()

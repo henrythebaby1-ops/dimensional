@@ -3,12 +3,13 @@
 // a file to share. Play runs the game in a sandboxed frame (studio-runtime.js) so a script can't touch the main site.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { whoAmI, publishStudio, getStudio, studioPlayed, studioLike } from './net.js';
+import { whoAmI, publishStudio, getStudio, studioPlayed, studioLike, publishModel, browseModels, modelUsed, modelLike } from './net.js';
 
 const $ = id => document.getElementById(id);
-const LOOK = { block: '#a0a8b8', ball: '#3a8aff', cylinder: '#ff8a1a', wedge: '#8a5cff', spawn: '#39ff88', coin: '#ffd23a', kill: '#ff3355', bounce: '#3affff', goal: '#ffd23a', sign: '#6b4a2a' };
-const SIZE = { block: [4, 1, 4], ball: [2, 2, 2], cylinder: [2, 3, 2], wedge: [4, 2, 4], spawn: [4, 0.4, 4], coin: [1.4, 1.4, 1.4], kill: [4, 0.6, 4], bounce: [4, 0.4, 4], goal: [3, 6, 0.6], sign: [4, 2, 0.4] };
-const NAMES = { block: 'Block', ball: 'Ball', cylinder: 'Cylinder', wedge: 'Wedge', spawn: 'Spawn', coin: 'Coin', kill: 'KillBrick', bounce: 'BouncePad', goal: 'Goal', sign: 'Sign' };
+const LOOK = { block: '#a0a8b8', ball: '#3a8aff', cylinder: '#ff8a1a', wedge: '#8a5cff', spawn: '#39ff88', coin: '#ffd23a', kill: '#ff3355', bounce: '#3affff', goal: '#ffd23a', sign: '#6b4a2a', light: '#fff2a0', teleport: '#c83aff', speed: '#ff8a1a', checkpoint: '#3a8aff', npc: '#ff6ad5', door: '#8a5a2a', water: '#3a8aff' };
+const SIZE = { block: [4, 1, 4], ball: [2, 2, 2], cylinder: [2, 3, 2], wedge: [4, 2, 4], spawn: [4, 0.4, 4], coin: [1.4, 1.4, 1.4], kill: [4, 0.6, 4], bounce: [4, 0.4, 4], goal: [3, 6, 0.6], sign: [4, 2, 0.4], light: [1, 1, 1], teleport: [3, 0.4, 3], speed: [4, 0.3, 4], checkpoint: [4, 0.4, 4], npc: [1.6, 2, 1.4], door: [3, 5, 0.5], water: [10, 3, 10] };
+const NAMES = { block: 'Block', ball: 'Ball', cylinder: 'Cylinder', wedge: 'Wedge', spawn: 'Spawn', coin: 'Coin', kill: 'KillBrick', bounce: 'BouncePad', goal: 'Goal', sign: 'Sign', light: 'Light', teleport: 'Teleporter', speed: 'SpeedPad', checkpoint: 'Checkpoint', npc: 'NPC', door: 'Door', water: 'Water' };
+const ICON = { block: '🟫', ball: '⚪', cylinder: '🛢️', wedge: '📐', spawn: '🟩', coin: '🪙', kill: '🟥', bounce: '🟦', goal: '🏁', sign: '🪧', light: '💡', teleport: '🌀', speed: '⚡', checkpoint: '🚩', npc: '🧍', door: '🚪', water: '🌊' };
 const START_SCRIPT = `// Your game's code (JavaScript). It runs when you press ▶ Play.
 // The 📖 list on the right shows everything you can use.
 
@@ -27,7 +28,7 @@ const START_HTML = `<!-- On-screen UI (HTML + CSS). It sits on top of the game. 
 `;
 const blank = () => ({ name: 'My game', parts: [{ id: uid(), type: 'spawn', name: 'Spawn', x: 0, y: 0.2, z: 0, sx: 4, sy: 0.4, sz: 4, ry: 0, color: LOOK.spawn, collide: true, visible: true, glow: false, tag: '', text: '' }], script: START_SCRIPT, html: START_HTML, settings: { sky: '#8fc8ff', ground: '#5aa040', baseplate: true, playerColor: '#ff6ad5' } });
 function uid() { return Math.random().toString(36).slice(2, 9); }
-function part(type, o = {}) { const [sx, sy, sz] = SIZE[type]; return { id: uid(), type, name: NAMES[type], x: 0, y: sy / 2, z: 0, sx, sy, sz, ry: 0, color: LOOK[type], collide: type !== 'coin', visible: true, glow: ['coin', 'bounce', 'goal', 'kill'].includes(type), tag: '', text: type === 'sign' ? 'Hello!' : '', ...o }; }
+function part(type, o = {}) { const [sx, sy, sz] = SIZE[type]; return { id: uid(), type, name: NAMES[type], x: 0, y: sy / 2, z: 0, sx, sy, sz, ry: 0, color: LOOK[type], collide: !['coin', 'light', 'water', 'npc'].includes(type), visible: true, glow: ['coin', 'bounce', 'goal', 'kill', 'light', 'teleport', 'speed', 'checkpoint'].includes(type), tag: type === 'teleport' ? 'tp1' : '', text: type === 'sign' ? 'Hello!' : type === 'npc' ? 'Hi! Welcome to my game!' : '', spin: 0, mx: 0, my: 0, mz: 0, ms: 1, ...o }; }
 
 // ---------- templates ----------
 const TEMPLATES = {
@@ -91,12 +92,13 @@ const meshes = new Map();
 const outline = new THREE.BoxHelper(undefined, 0xff6ad5); outline.visible = false; scene.add(outline);
 function meshFor(p) {
   let m = meshes.get(p.id);
-  const geo = GEO[p.type] || GEO.block;
+  const geo = GEO[{ light: 'ball', teleport: 'cylinder' }[p.type] || p.type] || GEO.block;
   if (!m || m.geometry !== geo) { if (m) scene.remove(m); m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.6 })); m.userData.id = p.id; scene.add(m); meshes.set(p.id, m); }
   m.position.set(p.x, p.y, p.z); m.rotation.set(p.type === 'coin' ? Math.PI / 2 : 0, p.ry * Math.PI / 180, 0, 'YXZ');
   if (p.type === 'coin') m.scale.set(p.sx, p.sz, p.sy); else m.scale.set(p.sx, p.sy, p.sz);
   m.material.color.set(p.color); m.material.emissive.set(p.glow ? p.color : '#000'); m.material.emissiveIntensity = p.glow ? 0.5 : 0;
-  m.material.transparent = !p.visible; m.material.opacity = p.visible ? 1 : 0.35;
+  m.material.transparent = !p.visible || p.type === 'water'; m.material.opacity = p.type === 'water' ? 0.5 : p.visible ? 1 : 0.35;
+  if (many.has(p.id)) { m.material.emissive.set('#ff6ad5'); m.material.emissiveIntensity = 0.45; }
   return m;
 }
 function rebuild() {
@@ -105,6 +107,7 @@ function rebuild() {
   scene.background = new THREE.Color(proj.settings.sky); base.material.color.set(proj.settings.ground); base.visible = proj.settings.baseplate !== false;
   highlight();
 }
+function paintMany() { for (const p of proj.parts) meshFor(p); }
 function highlight() { const m = sel && meshes.get(sel.id); outline.visible = !!m; if (m) outline.setFromObject(m); }
 function resize() { const r = view.getBoundingClientRect(); gl.setSize(r.width, r.height, false); cam.aspect = r.width / Math.max(1, r.height); cam.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(view);
@@ -133,8 +136,10 @@ const snapTo = (v, fine, step = 0.5) => fine ? Math.round(v * 10) / 10 : Math.ro
 canvas.addEventListener('pointerdown', e => {
   const hit = pick(e).intersectObjects([...meshes.values()])[0];
   if (!hit) return;
+  const picked = proj.parts.find(p => p.id === hit.object.userData.id);
+  if (e.shiftKey || manyMode) { toggleMany(picked); return; }
   orbit.enabled = false;                                   // this drag is for the part, not the camera
-  select(proj.parts.find(p => p.id === hit.object.userData.id));
+  select(picked);
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -sel.y), at = new THREE.Vector3();
   ray.ray.intersectPlane(plane, at);
   // how many world units one screen pixel is, at the part
@@ -171,8 +176,53 @@ addEventListener('keydown', e => {
 function select(p) { sel = p || null; renderList(); renderProps(); highlight(); }
 function renderList() {
   const box = $('list'); box.innerHTML = '';
-  for (const p of proj.parts) { const d = document.createElement('div'); d.textContent = `${{ block: '🟫', ball: '⚪', cylinder: '🛢️', wedge: '📐', spawn: '🟩', coin: '🪙', kill: '🟥', bounce: '🟦', goal: '🏁', sign: '🪧' }[p.type] || '▫️'} ${p.name}`; d.className = p === sel ? 'sel' : ''; d.onclick = () => select(p); box.append(d); }
+  for (const p of proj.parts) { const d = document.createElement('div'); d.textContent = `${ICON[p.type] || '▫️'} ${p.name}`; d.className = p === sel || many.has(p.id) ? 'sel' : ''; d.onclick = e => { if (e.shiftKey || manyMode) toggleMany(p); else select(p); }; box.append(d); }
+  $('many-n').textContent = many.size ? `${many.size} selected` : '';
 }
+// ---------- picking many parts (Shift+click, or the ☑️ Many button on phones) to share them as a model ----------
+const many = new Set();
+let manyMode = false;
+function toggleMany(p) { if (many.has(p.id)) many.delete(p.id); else many.add(p.id); renderList(); paintMany(); highlight(); }
+$('many-btn').onclick = () => { manyMode = !manyMode; $('many-btn').style.background = manyMode ? 'var(--accent)' : ''; if (!manyMode) { many.clear(); renderList(); paintMany(); } };
+$('share-model').onclick = async () => {
+  const chosen = proj.parts.filter(p => many.has(p.id));
+  if (!chosen.length) { alert('First pick the parts for your model: Shift+click them (or press ☑️ Many and tap them).'); return; }
+  let tok = null; try { tok = localStorage.getItem('dim-token'); } catch {}
+  const me = tok ? await whoAmI(tok).catch(() => null) : null;
+  if (!me?.username) { alert('To share models, log in first: go back to the game (← Game) and press 👤 Log in at the top of the menu.'); return; }
+  const name = (prompt('Name your model:', chosen[0].name) || '').trim().slice(0, 30);
+  if (!name) return;
+  const cx = chosen.reduce((a, p) => a + p.x, 0) / chosen.length, cz = chosen.reduce((a, p) => a + p.z, 0) / chosen.length, y0 = Math.min(...chosen.map(p => p.y - p.sy / 2));
+  const parts = chosen.map(({ id, ...p }) => ({ ...p, x: Math.round((p.x - cx) * 10) / 10, y: Math.round((p.y - y0) * 10) / 10, z: Math.round((p.z - cz) * 10) / 10 }));
+  try { await publishModel(tok, name, parts); log(`🌐 Shared the model "${name}" (${parts.length} parts)! Everyone can find it in 🌐 Community models.`, 'win'); showTab('console'); }
+  catch (e) { log('Could not share: ' + e.message, 'error'); showTab('console'); }
+};
+// insert a model (from the Toolbox or the community) in front of the camera
+function insertParts(list) {
+  const t = orbit.target, ox = Math.round(t.x * 2) / 2, oz = Math.round(t.z * 2) / 2;
+  const made = list.map(o => { const p = { ...part(LOOK[o.type] ? o.type : 'block'), ...o, id: uid() }; p.x = (o.x || 0) + ox; p.z = (o.z || 0) + oz; return p; });
+  proj.parts.push(...made); for (const p of made) meshFor(p);
+  select(made[0]); return made;
+}
+$('community-models').onclick = async () => {
+  const box = $('models'); box.innerHTML = '<p>Loading…</p>'; $('modelbox').style.display = 'flex';
+  let list = [];
+  try { list = await browseModels(); } catch { box.innerHTML = '<p>Could not load models.</p>'; return; }
+  box.innerHTML = list.length ? '' : '<p style="color:var(--muted)">No shared models yet. Pick some parts and press 🌐 Share as model!</p>';
+  for (const M of list) {
+    if (!Array.isArray(M.parts)) continue;
+    const card = document.createElement('div'); card.style.cssText = 'border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:4px;background:var(--panel2)';
+    const cv = document.createElement('canvas'); cv.width = 134; cv.height = 80; cv.style.cssText = 'border-radius:6px;background:#5aa040';
+    const g = cv.getContext('2d'); let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (const p of M.parts) { x0 = Math.min(x0, p.x - p.sx / 2); x1 = Math.max(x1, p.x + p.sx / 2); z0 = Math.min(z0, p.z - p.sz / 2); z1 = Math.max(z1, p.z + p.sz / 2); }
+    const k = Math.min(124 / Math.max(1, x1 - x0), 70 / Math.max(1, z1 - z0)); for (const p of [...M.parts].sort((a, b) => a.y - b.y)) { g.fillStyle = /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : '#aaa'; g.fillRect(67 + (p.x - p.sx / 2 - (x0 + x1) / 2) * k, 40 + (p.z - p.sz / 2 - (z0 + z1) / 2) * k, Math.max(2, p.sx * k), Math.max(2, p.sz * k)); }
+    const t = document.createElement('b'); t.textContent = M.name;
+    const meta = document.createElement('span'); meta.style.cssText = 'font-size:11px;color:var(--muted)'; meta.textContent = `by ${M.author} · ${M.parts.length} parts · used ${M.uses}`;
+    const ins = document.createElement('button'); ins.textContent = '➕ Insert'; ins.className = 'go';
+    ins.onclick = () => { insertParts(M.parts.slice(0, 300)); modelUsed(M.id); $('modelbox').style.display = 'none'; log(`🌐 Inserted "${M.name}" by ${M.author}`, 'win'); };
+    card.append(cv, t, meta, ins); box.append(card);
+  }
+};
+$('close-models').onclick = () => { $('modelbox').style.display = 'none'; };
 function renderProps(valuesOnly) {
   const box = $('propbox');
   if (!sel) { box.innerHTML = '<p style="color:var(--muted)">Click a part to edit it.</p>'; return; }
@@ -189,7 +239,11 @@ function renderProps(valuesOnly) {
     <div class="row"><label>Solid</label><input type="checkbox" data-k="collide" ${sel.collide ? 'checked' : ''}></div>
     <div class="row"><label>Visible</label><input type="checkbox" data-k="visible" ${sel.visible ? 'checked' : ''}></div>
     <div class="row"><label>Glow</label><input type="checkbox" data-k="glow" ${sel.glow ? 'checked' : ''}></div>
-    <div class="row"><label>Text</label><input data-k="text" value="${esc(sel.text)}" placeholder="words on top"></div>
+    <div class="row"><label>Text</label><input data-k="text" value="${esc(sel.text)}" placeholder="${sel.type === 'npc' ? 'what the NPC says' : 'words on top'}"></div>
+    <div class="row"><label>Spin °/s</label><input type="number" step="15" data-k="spin" value="${sel.spin || 0}"></div>
+    <div class="row"><label>Move</label><div class="trip"><input type="number" step="0.5" data-k="mx" value="${sel.mx || 0}" title="back and forth on x"><input type="number" step="0.5" data-k="my" value="${sel.my || 0}" title="up and down"><input type="number" step="0.5" data-k="mz" value="${sel.mz || 0}" title="back and forth on z"></div></div>
+    <div class="row"><label>Move speed</label><input type="number" step="0.25" data-k="ms" value="${sel.ms ?? 1}"></div>
+    <p style="font-size:11px;color:var(--muted);margin:2px 0">Spin and Move work by themselves when you play. No code needed. ${{ teleport: 'Teleporters with the same Tag send you to each other.', npc: 'The NPC says its Text when you walk up.', door: 'Doors swing open when you touch them.', checkpoint: 'Touch it and you come back here.', speed: 'Run fast for 5 seconds.', light: 'Glows and lights things up.', water: 'Swim in it.' }[sel.type] || ''}</p>
     <div style="display:flex;gap:6px;margin-top:8px"><button id="dup">📄 Copy</button><button id="del">🗑️ Delete</button></div>`;
   for (const i of box.querySelectorAll('[data-k]')) i.oninput = i.onchange = () => {
     const k = i.dataset.k;
