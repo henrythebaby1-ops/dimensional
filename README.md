@@ -65,10 +65,24 @@ Everyone plays as the same rounded-square guy as in the 2D levels.
   shows samples on the radar. Watch the battery (solar panels charge it, the lander charges it fast) and the dust storms.
   The team goal is 10 samples.
 - **🕊️ Free Flight**: the Flight island and plane with no rings and no clock.
+- **🚪 Dimendoors** (DOORS, Dimensional style): a spooky first-person hotel of 50 numbered doors, alone or with friends.
+  Walk into a door to open it. Search drawers (E) for gold and keys, because some doors are locked. The monsters:
+  - **Rush**: the lights flicker, then it races through. Hide in a wardrobe (E)!
+  - **Ambush**: like Rush, but it comes back again and again.
+  - **Eyes**: a purple glow. Don't look at it.
+  - **Screech**: "psst" in a dark room. Turn round and look at it.
+  - **Seek**: from door 30 it chases you down the red halls. RUN!
+
+  F turns on the flashlight. If you die you come back a few seconds later. Get through door 50 to escape.
 
 ## 🧱 Studio (make your own 3D game)
 **Studio** on the main menu opens a Roblox-style game maker (`studio.html`):
-- Add parts (block, ball, cylinder, wedge, spawn, coin, kill brick, bounce pad, goal, sign) and drag them around.
+- Add parts (block, ball, cylinder, wedge, spawn, coin, kill brick, bounce pad, goal, sign), then tap one and **drag**
+  it with a tool: **✋ Move** (slide it along the floor), **↕️ Up/Down**, **⤢ Size** (sideways = wider, up/down = taller),
+  **⬌ Depth**, or **🔄 Turn**. Keys 1–5 pick the tools on a computer. No typing numbers needed, though Properties still has them.
+- **On a phone**: the 3D view fills the screen, the tools are a row along the bottom, and the floating
+  **➕** (parts and toolbox), **▶** (play) and **⚙️** (edit) buttons open everything else. While playing, a joystick
+  appears under your left thumb. Drag on the right side to look, and the big ⤴ button jumps.
 - Set position, size, turn, color, solid, glow and tags in Properties.
 - The **🧰 Toolbox** has ready-made models: tree, house, tower, bridge, stairs, moving platform, moving lava,
   checkpoint, coin row, finish, lamp, car, jump pad, wall, lava floor and speed coil. The ones that need code add it

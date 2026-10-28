@@ -110,38 +110,61 @@ function resize() { const r = view.getBoundingClientRect(); gl.setSize(r.width, 
 new ResizeObserver(resize).observe(view);
 (function loop() { orbit.update(); gl.render(scene, cam); requestAnimationFrame(loop); })();
 
-// click to select, drag to move along the floor (Shift = no snapping)
+// ---------- drag tools: tap a part to pick it, then drag it (works with a mouse or a finger) ----------
+//   ✋ Move: slide it along the floor · ↕️ Up/Down · ⤢ Size: drag sideways = wider, up/down = taller
+//   ⬌ Depth: drag = deeper · 🔄 Turn: drag sideways to turn it. Drag empty space to look around.
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-let dragging = null;
+let dragging = null, tool = 'move';
+const TOOLS = [['move', '✋ Move'], ['lift', '↕️ Up/Down'], ['size', '⤢ Size'], ['depth', '⬌ Depth'], ['turn', '🔄 Turn']];
 function pick(e) {
   const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
   ray.setFromCamera(ndc, cam);
   return ray;
 }
+function setTool(t) { tool = t; for (const b of document.querySelectorAll('#tools [data-tool]')) b.classList.toggle('sel', b.dataset.tool === t); }
+{
+  const bar = $('tools');
+  for (const [t, label] of TOOLS) { const b = document.createElement('button'); b.dataset.tool = t; b.textContent = label; b.onclick = () => setTool(t); bar.append(b); }
+  const c = document.createElement('button'); c.textContent = '📄'; c.title = 'Copy'; c.onclick = () => dup(); bar.append(c);
+  const d = document.createElement('button'); d.textContent = '🗑️'; d.title = 'Delete'; d.onclick = () => del(); bar.append(d);
+  setTool('move');
+}
+const snapTo = (v, fine, step = 0.5) => fine ? Math.round(v * 10) / 10 : Math.round(v / step) * step;
 canvas.addEventListener('pointerdown', e => {
   const hit = pick(e).intersectObjects([...meshes.values()])[0];
   if (!hit) return;
+  orbit.enabled = false;                                   // this drag is for the part, not the camera
   select(proj.parts.find(p => p.id === hit.object.userData.id));
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -sel.y), at = new THREE.Vector3();
   ray.ray.intersectPlane(plane, at);
-  dragging = { plane, dx: sel.x - at.x, dz: sel.z - at.z, id: e.pointerId, moved: false };
-  orbit.enabled = false;
-});
+  // how many world units one screen pixel is, at the part
+  const r = canvas.getBoundingClientRect(), d = cam.position.distanceTo(meshes.get(sel.id).position);
+  const upp = 2 * d * Math.tan(cam.fov * Math.PI / 360) / r.height;
+  dragging = { plane, dx: sel.x - at.x, dz: sel.z - at.z, id: e.pointerId, x0: e.clientX, y0: e.clientY, upp, start: { ...sel } };
+  canvas.setPointerCapture?.(e.pointerId);
+}, { capture: true });
 addEventListener('pointermove', e => {
   if (!dragging || e.pointerId !== dragging.id) return;
-  const at = new THREE.Vector3();
-  if (!pick(e).ray.intersectPlane(dragging.plane, at)) return;
-  const snap = v => e.shiftKey ? Math.round(v * 10) / 10 : Math.round(v * 2) / 2;
-  sel.x = snap(at.x + dragging.dx); sel.z = snap(at.z + dragging.dz); dragging.moved = true;
+  const g = dragging, fine = e.shiftKey, mx = (e.clientX - g.x0) * g.upp, my = -(e.clientY - g.y0) * g.upp, s0 = g.start;
+  if (tool === 'move') {
+    const at = new THREE.Vector3();
+    if (!pick(e).ray.intersectPlane(g.plane, at)) return;
+    sel.x = snapTo(at.x + g.dx, fine); sel.z = snapTo(at.z + g.dz, fine);
+  } else if (tool === 'lift') sel.y = snapTo(s0.y + my, fine);
+  else if (tool === 'size') { sel.sx = Math.max(0.5, snapTo(s0.sx + mx * 2, fine)); const sy = Math.max(0.2, snapTo(s0.sy + my * 2, fine)); sel.y += (sy - sel.sy) / 2; sel.sy = sy; }
+  else if (tool === 'depth') sel.sz = Math.max(0.2, snapTo(s0.sz + (mx + my) * 2, fine));
+  else if (tool === 'turn') sel.ry = ((snapTo(s0.ry + (e.clientX - g.x0) * 0.8, fine, 15) % 360) + 360) % 360;
   meshFor(sel); highlight(); renderProps(true);
 });
-addEventListener('pointerup', () => { if (dragging) { dragging = null; orbit.enabled = true; } });
+addEventListener('pointerup', e => { if (dragging && e.pointerId === dragging.id) { dragging = null; orbit.enabled = true; } });
+addEventListener('pointercancel', () => { if (dragging) { dragging = null; orbit.enabled = true; } });
 addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || !sel) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); del(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'd') { e.preventDefault(); dup(); }
   const step = e.shiftKey ? 0.1 : 0.5, mv = { ArrowLeft: ['x', -step], ArrowRight: ['x', step], ArrowUp: ['z', -step], ArrowDown: ['z', step], PageUp: ['y', step], PageDown: ['y', -step] }[e.key];
   if (mv) { e.preventDefault(); sel[mv[0]] = Math.round((sel[mv[0]] + mv[1]) * 10) / 10; meshFor(sel); highlight(); renderProps(true); }
+  const t = { 1: 'move', 2: 'lift', 3: 'size', 4: 'depth', 5: 'turn' }[e.key]; if (t) setTool(t);
 });
 
 // ---------- explorer & properties ----------
@@ -153,7 +176,7 @@ function renderList() {
 function renderProps(valuesOnly) {
   const box = $('propbox');
   if (!sel) { box.innerHTML = '<p style="color:var(--muted)">Click a part to edit it.</p>'; return; }
-  if (valuesOnly) { for (const k of ['x', 'y', 'z']) { const i = box.querySelector(`[data-k="${k}"]`); if (i && document.activeElement !== i) i.value = sel[k]; } return; }
+  if (valuesOnly) { for (const k of ['x', 'y', 'z', 'sx', 'sy', 'sz', 'ry']) { const i = box.querySelector(`[data-k="${k}"]`); if (i && document.activeElement !== i) i.value = sel[k]; } return; }
   const num = k => `<input type="number" step="0.5" data-k="${k}" value="${sel[k]}">`;
   box.innerHTML = `
     <div class="row"><label>Name</label><input data-k="name" value="${esc(sel.name)}"></div>
@@ -236,6 +259,18 @@ function worldInputs() {
   $('startview').onchange = () => { s.view = $('startview').value; };
 }
 
+// ---------- phones: drawers for parts and properties; the code panel starts folded ----------
+const small = () => matchMedia('(max-width: 820px)').matches;
+$('f-parts').onclick = () => $('m-parts').click();
+$('f-props').onclick = () => $('m-props').click();
+$('f-play').onclick = () => play();
+$('m-parts').onclick = () => { $('parts').classList.toggle('open'); $('props').classList.remove('open'); };
+$('m-props').onclick = () => { $('props').classList.toggle('open'); $('parts').classList.remove('open'); };
+canvas.addEventListener('pointerdown', () => { if (small()) { $('parts').classList.remove('open'); $('props').classList.remove('open'); } });
+// on a phone, adding something closes the drawer so you can see (and drag) it straight away
+for (const b of document.querySelectorAll('#parts button')) b.addEventListener('click', () => { if (small()) $('parts').classList.remove('open'); });
+if (small()) { $('bottom').classList.add('small'); $('fold').textContent = '▴'; }
+
 // ---------- code editor tabs ----------
 const code = $('code');
 const consoleBox = document.createElement('div'); consoleBox.id = 'console'; consoleBox.style.display = 'none'; $('panes').prepend(consoleBox);
@@ -264,11 +299,15 @@ async function play(game) {
 #toast{position:fixed;left:50%;top:60px;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center}
 #toast div{background:rgba(0,0,0,.65);color:#fff;padding:8px 14px;border-radius:10px;font-weight:700}
 #banner{display:none;position:fixed;left:0;right:0;top:40%;text-align:center;font:900 42px sans-serif;text-shadow:0 3px 10px #000}
-#stick{display:none;position:fixed;left:24px;bottom:24px;width:110px;height:110px;border-radius:50%;border:2px solid rgba(255,255,255,.4);pointer-events:none}
+#stick{display:none;position:fixed;left:30px;bottom:40px;width:110px;height:110px;border-radius:50%;border:3px solid rgba(255,255,255,.45);background:rgba(0,0,0,.15);pointer-events:none;opacity:.6}
+#stick.on{opacity:1}
+#knob{position:absolute;left:30px;top:30px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.7)}
+#looktip{display:none;position:fixed;right:20px;bottom:135px;color:rgba(255,255,255,.6);font:700 12px sans-serif;pointer-events:none}
+@media (pointer:coarse){#looktip{display:block}}
 #view{position:fixed;left:14px;top:44px;padding:6px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(0,0,0,.5);color:#fff;font:700 13px sans-serif}
-#jump{display:none;position:fixed;right:24px;bottom:30px;width:76px;height:76px;border-radius:50%;font-size:28px;background:rgba(255,255,255,.2);color:#fff;border:2px solid rgba(255,255,255,.5)}</style>
+#jump{display:none;position:fixed;right:24px;bottom:30px;width:90px;height:90px;border-radius:50%;font-size:34px;background:rgba(255,255,255,.22);color:#fff;border:3px solid rgba(255,255,255,.55);touch-action:none}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}<\/script>
-</head><body><canvas id="c"></canvas><div id="ui"></div><div id="hud"></div><div id="toast"></div><div id="banner"></div><div id="stick"></div><button id="jump">⤴</button><button id="view">🎥 3D</button>
+</head><body><canvas id="c"></canvas><div id="ui"></div><div id="hud"></div><div id="toast"></div><div id="banner"></div><div id="stick"><div id="knob"></div></div><div id="looktip">drag here to look ↔</div><button id="jump">⤴</button><button id="view">🎥 3D</button>
 <script>window.__GAME=${safeJSON};<\/script><script type="module">${runtime.replace(/<\/script/gi, '<\\/script')}<\/script></body></html>`;
   frame?.remove();
   frame = document.createElement('iframe');
@@ -374,3 +413,4 @@ if (playOnly) {
   getStudio(remixId).then(g => { const p = fromOnline(g.data); p.name = `${g.name} (remix)`.slice(0, 40); load(p); save(true); history.replaceState(null, '', 'studio.html'); log(`🧱 Remixing "${g.name}" by ${g.author}. It's your own copy now.`, 'win'); })
     .catch(() => { log('Could not load that game to remix.', 'error'); load(TEMPLATES.obby()); });
 } else { const s = store.get(); const last = s.projects?.[s.last]; if (last) load(structuredClone(last), s.last); else load(TEMPLATES.obby()); }
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__studio = { cam, meshes, get proj() { return proj; }, get sel() { return sel; }, setTool, canvas };

@@ -117,9 +117,13 @@ addEventListener('wheel', e => { camDist = Math.max(5, Math.min(40, camDist + e.
 const stick = { x: 0, y: 0, id: null, ox: 0, oy: 0 };
 const pad = document.getElementById('stick'), jumpBtn = document.getElementById('jump');
 if (matchMedia('(pointer: coarse)').matches) { pad.style.display = 'block'; jumpBtn.style.display = 'block'; }
-addEventListener('touchstart', e => { for (const t of e.changedTouches) if (t.clientX < innerWidth * 0.45 && stick.id === null && t.target === canvas) { stick.id = t.identifier; stick.ox = t.clientX; stick.oy = t.clientY; } }, { passive: true });
-addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === stick.id) { stick.x = Math.max(-1, Math.min(1, (t.clientX - stick.ox) / 50)); stick.y = Math.max(-1, Math.min(1, (t.clientY - stick.oy) / 50)); } }, { passive: true });
-addEventListener('touchend', e => { for (const t of e.changedTouches) if (t.identifier === stick.id) { stick.id = null; stick.x = stick.y = 0; } });
+// the stick appears wherever your thumb lands on the left side, and the knob follows it
+const knob = document.getElementById('knob');
+const placeStick = (x, y) => { pad.style.left = x - 55 + 'px'; pad.style.top = y - 55 + 'px'; pad.style.bottom = 'auto'; };
+const moveKnob = () => { knob.style.transform = `translate(${stick.x * 34}px, ${stick.y * 34}px)`; };
+addEventListener('touchstart', e => { for (const t of e.changedTouches) if (t.clientX < innerWidth * 0.45 && stick.id === null && t.target === canvas) { stick.id = t.identifier; stick.ox = t.clientX; stick.oy = t.clientY; placeStick(t.clientX, t.clientY); pad.classList.add('on'); } }, { passive: true });
+addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === stick.id) { stick.x = Math.max(-1, Math.min(1, (t.clientX - stick.ox) / 45)); stick.y = Math.max(-1, Math.min(1, (t.clientY - stick.oy) / 45)); moveKnob(); } }, { passive: true });
+addEventListener('touchend', e => { for (const t of e.changedTouches) if (t.identifier === stick.id) { stick.id = null; stick.x = stick.y = 0; moveKnob(); pad.classList.remove('on'); } });
 let jumpHeld = false;
 const viewBtn = document.getElementById('view');
 function setView(two) {

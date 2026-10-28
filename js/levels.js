@@ -1288,6 +1288,7 @@ export const MODES = {
   fps3d: { name: 'Blaster Arena', levels: [tdLevel('fps3d')], min: 1 },
   mars3d: { name: 'Mars Rover', levels: [tdLevel('mars3d')], min: 1 },
   flightfree: { name: 'Free Flight', levels: [tdLevel('flightfree')], min: 1 },
+  doors3d: { name: 'Dimendoors', levels: [tdLevel('doors3d')], min: 1 },
   chairs: { name: 'Musical Chairs', levels: [tdLevel('chairs')], min: 1 },
   hide: { name: 'Hide and Seek', levels: [tdLevel('hide')], min: 1 },
   simon: { name: 'Simon Says', levels: [tdLevel('simon')], min: 1 },
