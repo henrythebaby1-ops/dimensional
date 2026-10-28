@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dimensional Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #0d0c18; --panel: #17152a; --panel2: #201d3a; --line: rgba(255,255,255,.12); --text: #f1eefc; --muted: #a49fc4; --accent: #ff6ad5; --ok: #39ff88; --err: #ff7a7a; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px Rubik, system-ui, sans-serif; overflow: hidden; }
+    button, select, input, textarea { font: inherit; color: inherit; }
+    button { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    button.go { background: #1f6b3a; border-color: #39ff88; font-weight: 800; }
+    button.stop { background: #6b1f2a; border-color: #ff5a5a; font-weight: 800; }
+    #app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+    #top { display: flex; gap: 6px; align-items: center; padding: 8px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    #top .brand { font-weight: 800; margin-right: 6px; }
+    #top input#name { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 170px; }
+    #main { display: grid; grid-template-columns: 210px 1fr 250px; min-height: 0; }
+    .side { background: var(--panel); border-right: 1px solid var(--line); overflow: auto; padding: 8px; min-height: 0; }
+    #props { border-right: 0; border-left: 1px solid var(--line); }
+    h4 { margin: 8px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .add { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .add button { font-size: 12px; padding: 5px; text-align: left; }
+    #list div { padding: 4px 6px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #list div.sel { background: var(--accent); color: #111; font-weight: 700; }
+    #list div:hover:not(.sel) { background: var(--panel2); }
+    #view { position: relative; min-width: 0; min-height: 0; }
+    #view canvas { width: 100%; height: 100%; display: block; }
+    #viewhint { position: absolute; left: 8px; bottom: 8px; font-size: 12px; color: var(--muted); background: rgba(0,0,0,.4); padding: 4px 8px; border-radius: 6px; pointer-events: none; }
+    .row { display: grid; grid-template-columns: 70px 1fr; gap: 6px; align-items: center; margin: 4px 0; }
+    .row input, .row select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; width: 100%; min-width: 0; }
+    .row input[type=checkbox] { width: auto; }
+    .row input[type=color] { padding: 0; height: 28px; }
+    .trip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    #bottom { height: 34vh; display: grid; grid-template-rows: auto 1fr; background: var(--panel); border-top: 1px solid var(--line); min-height: 0; }
+    #bottom.small { height: auto; }
+    #bottom.small #panes { display: none; }
+    #tabs { display: flex; gap: 4px; padding: 6px 8px; align-items: center; }
+    #tabs button.sel { background: var(--accent); color: #111; font-weight: 800; }
+    #panes { display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
+    textarea { width: 100%; height: 100%; resize: none; background: #0a0914; border: 0; border-top: 1px solid var(--line); padding: 10px; font: 13px/1.5 'JetBrains Mono', ui-monospace, monospace; color: #e8e4ff; outline: none; tab-size: 2; }
+    #docs { overflow: auto; padding: 8px 10px; font-size: 12px; border-left: 1px solid var(--line); border-top: 1px solid var(--line); color: var(--muted); }
+    #docs code { color: #ffd23a; font-family: 'JetBrains Mono', monospace; }
+    #console { overflow: auto; padding: 8px 10px; font: 12px 'JetBrains Mono', monospace; border-top: 1px solid var(--line); }
+    #console .error { color: var(--err); } #console .win { color: var(--ok); }
+    #play { position: fixed; inset: 0; z-index: 10; display: none; background: #000; }
+    #play iframe { width: 100%; height: 100%; border: 0; }
+    #play button { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2; }
+    #openlist { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 9; }
+    #openlist > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; width: min(420px, 92vw); max-height: 80vh; overflow: auto; }
+    #openlist .proj { display: flex; justify-content: space-between; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); align-items: center; }
+    @media (max-width: 820px) {
+      #main { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+      #parts, #props { border: 0; max-height: 26vh; }
+      #bottom { height: 40vh; }
+      #panes { grid-template-columns: 1fr; }
+      #docs { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <a href="./" style="color:var(--muted);text-decoration:none">← Game</a>
+    <span class="brand">🧱 Dimensional Studio</span>
+    <input id="name" maxlength="40" placeholder="My game">
+    <button id="new">📄 New</button>
+    <button id="open">📂 Open</button>
+    <button id="save">💾 Save</button>
+    <select id="template"><option value="">✨ Templates…</option><option value="obby">🧗 Obby</option><option value="coins">🪙 Coin hunt</option><option value="lava">🌋 Rising lava</option><option value="blank">⬜ Blank</option></select>
+    <button id="export">⬇️ Export</button>
+    <button id="import">⬆️ Import</button>
+    <button id="playbtn" class="go">▶ Play</button>
+  </div>
+  <div id="main">
+    <div class="side" id="parts">
+      <h4>Add</h4>
+      <div class="add">
+        <button data-add="block">🟫 Block</button><button data-add="ball">⚪ Ball</button>
+        <button data-add="cylinder">🛢️ Cylinder</button><button data-add="wedge">📐 Wedge</button>
+        <button data-add="spawn">🟩 Spawn</button><button data-add="coin">🪙 Coin</button>
+        <button data-add="kill">🟥 Kill brick</button><button data-add="bounce">🟦 Bounce pad</button>
+        <button data-add="goal">🏁 Goal</button><button data-add="sign">🪧 Sign</button>
+      </div>
+      <h4>🧰 Toolbox</h4>
+      <div class="add" id="toolbox"></div>
+      <h4>Explorer</h4>
+      <div id="list"></div>
+    </div>
+    <div id="view"><canvas id="c"></canvas><div id="viewhint">Drag empty space to turn · wheel / pinch to zoom · drag a part to move it · Del deletes · Ctrl+D copies</div></div>
+    <div class="side" id="props"><h4>Properties</h4><div id="propbox"><p style="color:var(--muted)">Click a part to edit it.</p></div>
+      <h4>World</h4>
+      <div class="row"><label>Sky</label><input type="color" id="sky"></div>
+      <div class="row"><label>Ground</label><input type="color" id="ground"></div>
+      <div class="row"><label>Baseplate</label><input type="checkbox" id="baseplate"></div>
+      <div class="row"><label>Player</label><input type="color" id="pcolor"></div>
+    </div>
+  </div>
+  <div id="bottom">
+    <div id="tabs"><button data-tab="script" class="sel">📜 Script (JavaScript)</button><button data-tab="html">🖼️ UI (HTML)</button><button data-tab="console">🧾 Output</button><span style="flex:1"></span><button id="fold">▾</button></div>
+    <div id="panes">
+      <textarea id="code" spellcheck="false" autocomplete="off"></textarea>
+      <div id="docs">
+        <b style="color:var(--text)">Script API</b><br>
+        <code>game.part("Name")</code> a part by name<br>
+        <code>game.find("tag")</code> parts with a tag/type<br>
+        <code>part.x / .y / .z / .sx / .ry / .color / .visible / .collide / .glow</code><br>
+        <code>part.onTouch(fn)</code> when the player touches it<br>
+        <code>part.move(dx, dy, dz)</code> <code>part.destroy()</code> <code>part.clone({x})</code> <code>part.setText("hi")</code><br>
+        <code>game.create("block", {x, y, z, color})</code><br>
+        <code>game.onStart(fn)</code> <code>game.onUpdate(dt =&gt; …)</code><br>
+        <code>game.onKey("e", fn)</code><br>
+        <code>player.x / y / z / speed / jumpPower / color</code> <code>player.respawn()</code> <code>player.launch(30)</code><br>
+        <code>game.say("text")</code> <code>game.score += 1</code> <code>game.win("text")</code> <code>game.lose()</code><br>
+        <code>await game.wait(2)</code> <code>game.random(1, 6)</code> <code>game.sound(440, 0.2)</code> <code>game.sky("#000")</code> <code>game.gravity = 30</code><br>
+        <code>console.log(...)</code> shows in 🧾 Output<br><br>
+        <b style="color:var(--text)">UI (HTML)</b>: your HTML and CSS sit on top of the game. Scripts can change it with <code>document.getElementById</code>.<br><br>
+        Built in: <b>Coins</b> add to the score, <b>Kill bricks</b> send you back, <b>Bounce pads</b> launch you, the <b>Goal</b> wins, you start on the <b>Spawn</b>.
+      </div>
+    </div>
+  </div>
+</div>
+<div id="play"><button id="stop" class="stop">■ Stop</button></div>
+<div id="openlist"><div><h3 style="margin-top:0">📂 Your games</h3><div id="projs"></div><button id="closeopen" style="margin-top:10px">Close</button></div></div>
+<input type="file" id="file" accept=".json,application/json" hidden>
+<script type="importmap">
+  { "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  } }
+</script>
+<script type="module" src="js/studio.js"></script>
+</body>
+</html>

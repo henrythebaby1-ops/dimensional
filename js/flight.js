@@ -479,8 +479,8 @@ const live = () => performance.now() - active < 600;
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   keys.add(e.code);
-  if (!live() || e.repeat) return;
-  const F = MODES_FLIGHT;
+  if (!live() || e.repeat || !CUR) return;
+  const F = CUR;
   if (e.code === 'KeyG') F.toggleGear();
   if (e.code === 'KeyC' || e.code === 'KeyV') F.cycleCam();
   if (e.code === 'KeyI') F.invert();
@@ -494,7 +494,7 @@ const pref = (k, d) => { try { const v = localStorage.getItem(k); return v === n
 const setPref = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch {} };
 
 // on-screen buttons (and the throttle on phones)
-let btnBox = null;
+let btnBox = null, CUR = null;          // CUR: the Flight game on screen (normal or free flight)
 const touchHeld = new Set();
 function buttons() {
   if (btnBox) return btnBox;
@@ -508,10 +508,10 @@ function buttons() {
     else b.onclick = e => { e.stopPropagation(); fn(); b.blur(); };
     btnBox.append(b); return b;
   };
-  mk('fl-gear', '', () => MODES_FLIGHT.toggleGear());
-  mk('fl-flaps', '', () => MODES_FLIGHT.toggleFlaps());
-  mk('fl-cam', '🎥 View (C)', () => MODES_FLIGHT.cycleCam());
-  mk('fl-gpws', '', () => MODES_FLIGHT.toggleCallouts());
+  mk('fl-gear', '', () => CUR.toggleGear());
+  mk('fl-flaps', '', () => CUR.toggleFlaps());
+  mk('fl-cam', '🎥 View (C)', () => CUR.cycleCam());
+  mk('fl-gpws', '', () => CUR.toggleCallouts());
   if (matchMedia('(pointer: coarse)').matches) { mk('fl-up', '⏫ Throttle +', null, 'up'); mk('fl-dn', '⏬ Throttle −', null, 'dn'); }
   document.body.append(btnBox);
   setInterval(() => { if (!live()) { btnBox.style.display = 'none'; engine.set(null); } }, 300);
@@ -549,6 +549,7 @@ const MODES_FLIGHT = {
   name: 'Flight',
   objective: 'Take off, fly through all 11 rings around the island, and land at Cloud Peak Airfield. Listen to the cockpit — it warns you like a real Boeing!',
   init(api) {
+    CUR = this;
     this.world = new World(4, 4, TILE.FLOOR);
     this.planes = new Map();     // id -> { s: state (mine and my bots), tgt: last received, slot }
     this.order = [];
@@ -595,13 +596,13 @@ const MODES_FLIGHT = {
       const was = s.ground;
       step(s, this.controls(api), dt);
       this.storm = weather(s, dt);
-      if (ringCheck(s)) { api.sfx('coin'); api.toast(s.ring >= RINGS.length ? '◆ All rings! Now land at Cloud Peak Airfield (runway heading east) — gear down, flaps down.' : `◆ Ring ${s.ring}/${RINGS.length}`, '#ffe23a'); }
+      if (!this.free && ringCheck(s)) { api.sfx('coin'); api.toast(s.ring >= RINGS.length ? '◆ All rings! Now land at Cloud Peak Airfield (runway heading east) — gear down, flaps down.' : `◆ Ring ${s.ring}/${RINGS.length}`, '#ffe23a'); }
       if (s.deadT > 0) { api.sfx('die'); api.toast('💥 ' + s.why, '#ff5a5a'); window.speechSynthesis?.cancel(); }
       if (!was && s.ground && !s.deadT) {
         const fpm = Math.round(-s.landed * FPM);
         api.toast(fpm < 250 ? `🧈 Butter landing! (${fpm} ft/min)` : fpm < 600 ? `🛬 Nice landing (${fpm} ft/min)` : `😬 Firm landing (${fpm} ft/min)`, '#9feaff');
       }
-      if (s.ground && !s.deadT && s.ring >= RINGS.length && onRunwayB(s.x, s.y) && s.spd < 25 && !s.done) {
+      if (!this.free && s.ground && !s.deadT && s.ring >= RINGS.length && onRunwayB(s.x, s.y) && s.spd < 25 && !s.done) {
         s.done = 1; api.sfx('win'); api.toast('🏁 LANDED at Cloud Peak! Welcome in, Captain.', '#39ff88');
         this.finish(api, api.meId());
         api.send({ k: 'fin', id: api.meId() });
@@ -632,7 +633,7 @@ const MODES_FLIGHT = {
     const bots = api.ids().filter(id => api.isBot(id) && this.planes.get(id));
     this.botSendT = (this.botSendT || 0) - dt;
     if (bots.length && this.botSendT <= 0) { this.botSendT = 0.1; api.send({ k: 'pls', a: bots.map(id => [id, pack(this.planes.get(id).s)]) }); }
-    if (this.ended) return;
+    if (this.ended || this.free) return;
     const ids = api.ids(), humans = ids.filter(id => !api.isBot(id));
     const isDone = id => this.order.includes(id);
     if (this.t >= TIME || (humans.length && humans.every(isDone)) || ids.every(isDone)) {
@@ -661,6 +662,7 @@ const MODES_FLIGHT = {
   },
   hud(api) {
     const s = this.me(api);
+    if (this.free) return `🕊️ Free flight · ${s ? Math.round(s.alt * FT) + ' ft · ' + Math.round(s.spd * KT) + ' kt' : ''}`;
     const left = Math.max(0, TIME - this.t), m = Math.floor(left / 60), sec = String(Math.floor(left % 60)).padStart(2, '0');
     return `✈️ ${s ? (s.ring >= RINGS.length ? 'Land at Cloud Peak' : `Ring ${s.ring + 1}/${RINGS.length}`) : ''} · ⏱️ ${m}:${sec} · ${this.order.length} landed`;
   },
@@ -697,7 +699,7 @@ const MODES_FLIGHT = {
     }
     for (const [id, m] of sc.planes) if (!seen.has(id)) { sc.scene.remove(m); sc.planes.delete(id); }
     // rings: mine glow gold, passed ones vanish
-    sc.rings.forEach((m, i) => { const next = me && i === me.ring; m.visible = !me || i >= me.ring; m.material.color.set(next ? 0xffd23a : 0x6ff0ff); m.material.opacity = next ? 0.95 : 0.4; m.scale.setScalar(next ? 1 + Math.sin(performance.now() / 200) * 0.04 : 1); });
+    sc.rings.forEach((m, i) => { if (this.free) { m.visible = false; return; } const next = me && i === me.ring; m.visible = !me || i >= me.ring; m.material.color.set(next ? 0xffd23a : 0x6ff0ff); m.material.opacity = next ? 0.95 : 0.4; m.scale.setScalar(next ? 1 + Math.sin(performance.now() / 200) * 0.04 : 1); });
     for (const l of sc.blink) l.visible = Math.floor(performance.now() / 700) % 2 === 0;
     if (me) { const ang = Math.atan2(me.alt - AP_B.e, Math.max(1, AP_B.x0 + 300 - me.x)) * 180 / Math.PI; sc.papi.forEach((l, i) => l.material.color.set(ang > [3.5, 3.17, 2.83, 2.5][i] ? 0xffffff : 0xff2a2a)); }
     for (let i = sc.fx.length - 1; i >= 0; i--) { const f = sc.fx[i]; f.t += dt; f.m.position.addScaledVector(f.v, dt); f.v.y -= 9 * dt; f.m.scale.setScalar(4 + f.t * 22); f.m.material.opacity = Math.max(0, 1 - f.t / f.max); if (f.t > f.max) { sc.scene.remove(f.m); sc.fx.splice(i, 1); } }
@@ -756,7 +758,9 @@ const MODES_FLIGHT = {
     if (!s) { ctx.restore(); return; }
     const e = this.env || sense(s);
     // the next ring (or the runway) as a marker in the sky
-    const r = RINGS[s.ring], tgt = r ? { x: r.x, y: r.y, alt: r.alt } : { x: AP_B.x0 + 300, y: AP_B.y, alt: AP_B.e };
+    const r = this.free ? null : RINGS[s.ring];
+    const nearA = Math.hypot(s.x - AP_A.x, s.y - (AP_A.y0 + AP_A.y1) / 2) < Math.hypot(s.x - (AP_B.x0 + AP_B.x1) / 2, s.y - AP_B.y);
+    const tgt = r ? { x: r.x, y: r.y, alt: r.alt } : this.free && nearA ? { x: AP_A.x, y: AP_A.y0, alt: AP_A.e } : { x: AP_B.x0 + 300, y: AP_B.y, alt: AP_B.e };
     const q = this.project(cam, tgt.x, tgt.alt, tgt.y, VW, VH), dist = Math.hypot(tgt.x - s.x, tgt.y - s.y);
     if (q && !s.done) { ctx.strokeStyle = '#ffd23a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(q.x, q.y - 12); ctx.lineTo(q.x + 12, q.y); ctx.lineTo(q.x, q.y + 12); ctx.lineTo(q.x - 12, q.y); ctx.closePath(); ctx.stroke(); }
     // nav strip at the top
@@ -766,7 +770,7 @@ const MODES_FLIGHT = {
       ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.roundRect(VW / 2 - 150, y0, 300, 34, 10); ctx.fill();
       ctx.save(); ctx.translate(VW / 2 - 128, y0 + 17); ctx.rotate(rel); ctx.fillStyle = '#ffd23a'; ctx.beginPath(); ctx.moveTo(0, -11); ctx.lineTo(8, 8); ctx.lineTo(0, 3); ctx.lineTo(-8, 8); ctx.fill(); ctx.restore();
       ctx.fillStyle = '#fff'; ctx.font = '700 14px Rubik, sans-serif';
-      ctx.fillText(`${r ? `◆ Ring ${s.ring + 1}/${RINGS.length}` : '🛬 Cloud Peak rwy 09'} · ${(dist / 1000).toFixed(1)} km · ${dAlt > 0 ? '▲' : '▼'} ${Math.abs(Math.round(dAlt / 10) * 10)} ft`, VW / 2 + 12, y0 + 22);
+      ctx.fillText(`${r ? `◆ Ring ${s.ring + 1}/${RINGS.length}` : this.free && nearA ? '🛬 Dimension Intl rwy 18' : '🛬 Cloud Peak rwy 09'} · ${(dist / 1000).toFixed(1)} km · ${dAlt > 0 ? '▲' : '▼'} ${Math.abs(Math.round(dAlt / 10) * 10)} ft`, VW / 2 + 12, y0 + 22);
     }
     // the PFD (primary flight display)
     const k = Math.min(1, VW / 640), px = 12, py = VH - 190 * k - (VW < 700 ? 150 : 12);
@@ -836,5 +840,8 @@ const MODES_FLIGHT = {
   },
 };
 registerTD('flight', MODES_FLIGHT);
+// Free flight: the same island and plane, no rings, no clock — fly anywhere, land anywhere you can
+registerTD('flightfree', { ...MODES_FLIGHT, name: 'Free Flight', free: true,
+  objective: 'Free flight: no rings and no clock. Fly anywhere over the island, try the storms and the mountains, and land at either airport.' });
 // test handles (local preview only)
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__fl = { F: MODES_FLIGHT, RINGS, AP_A, AP_B, terrainAt, groundAt, sense, autopilot, step, OBST, keys };
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__fl = { get F() { return CUR || MODES_FLIGHT; }, RINGS, AP_A, AP_B, terrainAt, groundAt, sense, autopilot, step, OBST, keys };

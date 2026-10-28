@@ -554,13 +554,13 @@ html.r-box .friend, html.r-box .invite-pop { border-radius: 0; }
 
 /* the 3D view of the top-down games sits under the 2D canvas */
 canvas#td3d { visibility: hidden; background: #8fc8ff; }
-#view-btn { position: absolute; left: calc(50% + 144px); top: 8px; pointer-events: auto; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.45); color: #fff; font-size: 15px; }
+#view-btn { position: absolute; left: calc(50% + 144px); top: 8px; pointer-events: auto; min-width: 34px; padding: 0 6px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.45); color: #fff; font-size: 15px; }
 html.r-box #view-btn { border-radius: 0; }
 
 /* All / 3D / 2D game tabs */
 .game-tabs { margin: 6px 0 4px; }
 .f-3d .mode:not([data-kind="3d"]), .f-2d .mode[data-kind="3d"], .f-3d h3, .f-2d h3 { display: none !important; }
-#cam-btns { position: absolute; left: calc(50% + 184px); top: 8px; display: flex; gap: 4px; pointer-events: auto; }
+#cam-btns { position: absolute; left: calc(50% + 206px); top: 8px; display: flex; gap: 4px; pointer-events: auto; }
 #cam-btns button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.45); color: #fff; font-size: 17px; touch-action: none; user-select: none; -webkit-user-select: none; }
 #cam-btns.hidden { display: none; }
 @media (max-width: 700px) { #cam-btns { left: auto; right: 8px; top: 96px; flex-direction: column; } #cam-btns button { width: 40px; height: 40px; } }

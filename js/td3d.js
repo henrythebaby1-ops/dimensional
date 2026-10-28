@@ -6,10 +6,11 @@
 import * as THREE from 'three';
 import { TILE, TS, TILE_COL } from './td.js';
 import { makeHat } from './render3d.js';
+import { makeGuy, hop } from './g3d.js';
 
 const PITCH = 42 * Math.PI / 180, SIN = Math.sin(PITCH), COS = Math.cos(PITCH);
 const ZOOM = 1.3;                                  // a little closer than the flat view
-const BODY_H = 1.55;                               // avatar height in tiles (to the top of the head)
+const BODY_H = 1.4;                                // avatar height in tiles (to the top of the head)
 // how tall each kind of tile is, in tiles
 const HEIGHT = { [TILE.WALL]: 1.15, [TILE.TREE]: 1.7, [TILE.ROCK]: 0.7, [TILE.BUSH]: 0.55, [TILE.GLASS]: 1.15, [TILE.DOOR]: 1.15, [TILE.STUMP]: 0.3 };
 const SKY = 0x8fc8ff;
@@ -155,18 +156,10 @@ export class TD3D {
   avatar(id) {
     let a = this.avatars.get(id);
     if (a) return a;
-    const g = new THREE.Group(), body = mat({ color: 0x3a8aff }), skin = mat({ color: 0xffd8a8 }), legs = mat({ color: 0x2a3a5a });
-    const part = (w, h, d, m, x, y) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, 0); b.castShadow = true; g.add(b); return b; };
-    const torso = part(0.46, 0.42, 0.26, body, 0, 0.62);
-    const head = part(0.34, 0.32, 0.32, skin, 0, 1.02);
-    const eyeM = mat({ color: 0x111111 });
-    for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.02), eyeM); e.position.set(sx * 0.08, 1.05, 0.165); g.add(e); }
-    const pivot = (x, y, w, h, m) => { const p = new THREE.Group(); p.position.set(x, y, 0); const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), m); b.position.y = -h / 2; b.castShadow = true; p.add(b); g.add(p); return p; };
-    const armL = pivot(-0.32, 0.82, 0.16, 0.4, body), armR = pivot(0.32, 0.82, 0.16, 0.4, body);
-    const legL = pivot(-0.12, 0.42, 0.2, 0.42, legs), legR = pivot(0.12, 0.42, 0.2, 0.42, legs);
-    const hatSlot = new THREE.Group(); hatSlot.position.y = 0.8; hatSlot.scale.setScalar(0.85); g.add(hatSlot);
-    a = { g, torso, head, armL, armR, legL, legR, body, skin, legs, hatSlot, hat: null, phase: Math.random() * 6, yaw: 0, mats: [body, skin, legs, eyeM] };
-    g.scale.setScalar(1.2);
+    // the same rounded-square guy as in the 2D levels
+    const g = makeGuy(0x3a8aff, 1), u = g.userData;
+    a = { g, mat: u.mat, hatSlot: u.hatSlot, hat: null, yaw: 0, mats: u.mats };
+    g.scale.setScalar(1.35);
     this.scene.add(g);
     this.avatars.set(id, a);
     return a;
@@ -183,16 +176,13 @@ export class TD3D {
       a.g.visible = alpha > 0.02;
       if (!a.g.visible) continue;
       const col = parseCol(b.dead ? '#888888' : b.color, '#3a8aff');
-      a.body.color.copy(col);
-      a.legs.color.copy(col).multiplyScalar(0.55);
+      a.mat.color.copy(col); a.mat.emissive.copy(col);
       for (const m of a.mats) { m.transparent = alpha < 1; m.opacity = alpha; }
       a.g.position.set(b.x / TS, 0.12, b.y / TS);
       const moving = Math.hypot(b.vx || 0, b.vy || 0) > 20;
       if (moving) { const want = Math.atan2(b.vx, b.vy); let d = want - a.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); a.yaw += d * Math.min(1, dt * 12); }
       a.g.rotation.y = a.yaw;
-      a.phase += dt * (moving ? 11 : 0);
-      const swing = moving ? Math.sin(a.phase) * 0.7 : a.armL.rotation.x * 0.8;
-      a.armL.rotation.x = swing; a.armR.rotation.x = -swing; a.legL.rotation.x = -swing; a.legR.rotation.x = swing;
+      hop(a.g, moving ? Math.hypot(b.vx || 0, b.vy || 0) / TS : 0, dt);
       a.g.rotation.z = b.dead ? Math.PI / 2 : 0;
       if (a.hatId !== (b.hat || '')) {
         a.hatId = b.hat || '';

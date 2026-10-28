@@ -42,11 +42,45 @@ follows you. Press **🎥** in a game (or ⚙️ Settings) to switch back to the
 The side-view games get a 3D camera too, swung round so you see the tops and sides of the blocks.
 
 **Turn the camera** like Roblox: **← →** turn it round you, **↑ ↓** zoom in and out (or tilt, in side-view games), and
-you move with **W A S D** — W always walks "up the screen", whichever way the camera faces. Phones get **⟲ ⟳ ＋ －**
+you move with **W A S D** — W always walks "up the screen", whichever way the camera faces. In side-view (2D) games
+**🎥** switches between the normal flat view and the 3D camera (each kind of game remembers its own choice). Phones get **⟲ ⟳ ＋ －**
 buttons. Switch it off in ⚙️ Settings and the arrow keys move you again.
 
 The **🧊 3D games** tile on the menu (and the **All / 3D / 2D** tabs in Solo and the lobby) lists every 3D game.
 The dimension card in the corner has a **✕** to shrink it to just your hearts and coins; **ℹ️** brings it back.
+
+## More 3D games
+Everyone plays as the same rounded-square guy as in the 2D levels.
+- **🏎️ Car Race**: 3 laps round a 3D track against friends and bots. Boost pads, **Shift** nitro, **Space** to drift.
+- **🌆 Open City** (GTA-style, cartoon and kid-friendly): walk or run around a 3D city and take any car with **E**,
+  even one driving past. Do jobs for cash at the yellow circles (🚕 taxi, 🍕 pizza delivery, 🏁 street race at the police
+  station). Hit the orange ramps for stunt-jump bonuses and buy a sports car ($400). The **foam blaster** (F / click)
+  knocks people over. Crimes give you ★ wanted stars, and police cars chase you on the roads. If they catch you you're
+  BUSTED, and getting hit by traffic too often means WASTED. Lose the cops or pay $100 at the 🎨 Spray Shop.
+  Click to look around with the mouse.
+- **🎯 Blaster Arena**: a first-person foam-blaster battle. Click to aim with the mouse, WASD to move, click to fire.
+  First to 10 tags wins. Phones: drag on the right side to look.
+- **🤖 Mars Rover**: a robotics mission. Drive a 6-wheeled rover over Mars, stop next to a glowing crystal and
+  **hold E** so the robot arm drills it, then bring the samples to the lander. **Q** launches the scout drone, which
+  shows samples on the radar. Watch the battery (solar panels charge it, the lander charges it fast) and the dust storms.
+  The team goal is 10 samples.
+- **🕊️ Free Flight**: the Flight island and plane with no rings and no clock.
+
+## 🧱 Studio (make your own 3D game)
+**Studio** on the main menu opens a Roblox-style game maker (`studio.html`):
+- Add parts (block, ball, cylinder, wedge, spawn, coin, kill brick, bounce pad, goal, sign) and drag them around.
+- Set position, size, turn, color, solid, glow and tags in Properties.
+- The **🧰 Toolbox** has ready-made models: tree, house, tower, bridge, stairs, moving platform, moving lava,
+  checkpoint, coin row, finish, lamp, car, jump pad, wall, lava floor and speed coil. The ones that need code add it
+  to your Script for you.
+- Write the game's code in **📜 Script (JavaScript)**, e.g. `game.part("Door").onTouch(...)`, `game.onUpdate(dt => …)`,
+  `game.score`, `game.win()`, `player.speed`. The list next to the editor shows everything you can use.
+- Build the on-screen UI in **🖼️ UI (HTML)**.
+- **▶ Play** runs it. Errors and `console.log` show in **🧾 Output**.
+- Templates: Obby, Coin hunt, Rising lava.
+
+Games save in your browser. **Export** gives you a file a friend can **Import**. Games run in a sandboxed frame,
+so a script can't reach the main site or your account.
 
 ## ✈️ Flight (3D)
 Fly a Boeing-style airliner over a big 3D island, with friends (everyone flies their own plane) or alone. Take off from

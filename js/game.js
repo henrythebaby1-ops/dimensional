@@ -16,6 +16,10 @@ import './td9.js';
 import './td10.js';
 import './td11.js';
 import './flight.js';
+import './race3d.js';
+import './city3d.js';
+import './fps3d.js';
+import './mars3d.js';
 const MIDY = MID * T;
 import { friendRequest, friendRespond, friendList, OnlineBoard, Room, PublicBoard, fetchLeaderboard, recordClear, fetchGift, giveGift, signUp, logIn, whoAmI, cloudSave, logOut, publishLevel, browseLevels, getLevel, levelPlayed, likeLevel } from './net.js';
 import { playIntro, playIntro2, playIntro3, playStory, SCENES, crashAndRestart, dieScreen } from './story.js';
@@ -153,10 +157,10 @@ addEventListener('keyup', e => { const a = KEYMAP[e.code]; if (a) held.delete(a)
 const CAM_KEYS = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd' };
 const camHeld = new Set();
 function camKeysOn() {
-  if (ui$.camKeys === false || ui$.view3d === false || mode !== 'play' || !level || paused) return false;
-  if (level.td) return td3d.ok && !MODES_TD[level.td]?.render3d;          // Flight flies with the arrows
+  if (ui$.camKeys === false || mode !== 'play' || !level || paused) return false;
+  if (level.td) return ui$.view3d !== false && td3d.ok && !MODES_TD[level.td]?.render3d;          // Flight flies with the arrows
   const D = DIMS[P?.dim];
-  return !level.dash && !!D && !D.flat && !D.topdown;
+  return ui$.side3d !== false && !level.dash && !!D && !D.flat && !D.topdown;
 }
 let camT = 0;
 function camStep() { const now = performance.now(), dt = Math.min(0.1, (now - (camT || now)) / 1000); camT = now; return dt; }
@@ -2475,6 +2479,7 @@ function tdDraw() {
   $('td3d').style.visibility = three ? 'visible' : 'hidden';
   $('view-btn').classList.remove('hidden');
   $('cam-btns').classList.toggle('hidden', !camKeysOn());
+  viewBtnText(three);
   if (three) turnCamera(td3d);
   else td3d.yaw = 0;
   const v = three ? td3d.view(tdApi) : tdView(tdApi);
@@ -2534,7 +2539,13 @@ function label3d(v, o, b) {
   ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x - w / 2, top, w, Math.max(14, 12 * v.k));
   ctx.fillStyle = '#fff'; ctx.fillText(label, x, top + Math.max(11, 9.5 * v.k));
 }
-$('view-btn').onclick = () => { ui$.view3d = ui$.view3d === false; saveUi(); $('set-view3d').checked = ui$.view3d; toast(ui$.view3d ? '🧊 3D view' : (level?.td ? '🗺️ Classic 2D view' : '➡️ Flat side view'), '#9feaff'); sfx('click'); };
+// 🎥 switches the view: top-down games and side-view (2D) games each remember their own choice
+function viewBtnText(on) { const t = on ? '🎥 3D' : '🎥 2D'; if ($('view-btn').textContent !== t) $('view-btn').textContent = t; }
+$('view-btn').onclick = () => {
+  if (level && !level.td) { ui$.side3d = ui$.side3d === false; $('set-side3d').checked = ui$.side3d; toast(ui$.side3d ? '🧊 3D camera' : '➡️ Normal side view', '#9feaff'); }
+  else { ui$.view3d = ui$.view3d === false; $('set-view3d').checked = ui$.view3d; toast(ui$.view3d ? '🧊 3D view' : '🗺️ Classic 2D view', '#9feaff'); }
+  saveUi(); sfx('click'); $('view-btn').blur();
+};
 
 // ---------- chat box ----------
 const BAD = /\b(f+u+c+k+\w*|sh+i+t+\w*|b+i+t+c+h+\w*|a+s+s+h+o+l+e+\w*|d+i+c+k+\w*|c+u+n+t+\w*|n+i+g+\w*|f+a+g+\w*|r+e+t+a+r+d+\w*|k+y+s+)\b/gi;
@@ -4101,7 +4112,8 @@ function drawGame(dt) {
   }
   $('game').style.visibility = '';
   $('td3d').style.visibility = 'hidden'; $('view-btn').classList.remove('hidden');
-  renderer.angled = ui$.view3d !== false && !level.dash;   // rhythm dashes stay straight-on so you can read the beat
+  renderer.angled = ui$.side3d !== false && !level.dash;   // its own switch; rhythm dashes stay straight-on so you can read the beat
+  viewBtnText(ui$.side3d !== false);
   turnSideCamera(renderer);
   $('cam-btns').classList.toggle('hidden', !camKeysOn());
   // chapter style repaints the world, except for dimensions with a look of their own
@@ -4787,6 +4799,7 @@ function applyStyle(keep = 0) {
   $('set-pixel3d').checked = ui$.pix3d;
   $('set-view3d').checked = ui$.view3d !== false;
   $('set-camkeys').checked = ui$.camKeys !== false;
+  $('set-side3d').checked = ui$.side3d !== false;
 }
 $('style-retro').onclick = () => { ui$.style = 'retro'; eraT = 0; eraStage = 0; saveUi(); applyStyle(); sfx('click'); };
 $('style-modern').onclick = () => { ui$.style = 'modern'; saveUi(); applyStyle(); sfx('click'); };
@@ -4796,6 +4809,7 @@ function dimCard() { $('hud-dim').classList.toggle('mini', !!ui$.dimMini); $('di
 $('dim-toggle').onclick = e => { e.stopPropagation(); ui$.dimMini = !ui$.dimMini; saveUi(); dimCard(); sfx('click'); $('dim-toggle').blur(); };
 dimCard();
 $('set-view3d').onchange = () => { ui$.view3d = $('set-view3d').checked; saveUi(); };
+$('set-side3d').onchange = () => { ui$.side3d = $('set-side3d').checked; saveUi(); };
 $('set-camkeys').onchange = () => { ui$.camKeys = $('set-camkeys').checked; saveUi(); camHeld.clear(); };
 for (const b of document.querySelectorAll('#cam-btns button')) {
   const c = b.dataset.c, off = () => camHeld.delete(c);
@@ -5111,12 +5125,13 @@ const SOLO = [
   ['Just for one', [['trial', '⏱️ Time Trial', 'Race all 6 maps alone against the clock'], ['endless', '♾️ Endless', 'Waves never stop — how long can you last?'],
     ['survival', '🛡️ Survival', '10 waves of crawlers'], ['hunt', '🎯 Crawler Hunt', '2 minutes, shoot as many as you can'], ['daily', '📅 Daily', 'Today\'s challenge'], ['training', '🧪 Training', 'Try every role and dimension']]],
   ['Story & series', [['story', 'Chapter 1', 'The Spectre'], ['story2', 'Chapter 2', 'The Unicoder'], ['story3', 'Chapter 3', 'The Floatter'], ['story4', 'Chapter 4', 'Troppa'], ['story5', 'Chapter 5', 'The Conductor (rhythm dash)'], ['geo', '🔺 Geometry Beats', '8 rhythm-dash levels, works solo'], ['story6', 'Chapter 6', 'The Ship — free every captive'], ['space', '🪐 Across the Worlds', 'Earth to the Black Hole'], ['time', '⏳ Through Time', 'Dinosaurs to the end of time'], ['sea', '🌊 Deep Sea', 'Down to the Kraken'], ['banana', '🍌 Into the Bananaverse', 'Top-down banana war + boss'], ['parallel', '💀 Parallel World', 'Your goal is to DIE'], ['bossrush', 'Boss Rush', '3 bosses in a row']]],
-  ['3D games', [['flight', '✈️ Flight', 'Fly a Boeing through the rings — real cockpit callouts']]],
+  ['3D games', [['flight', '✈️ Flight', 'Fly a Boeing through the rings — real cockpit callouts'], ['race3d', '🏎️ Car Race', '3 laps, boost pads, nitro and drifting'], ['city3d', '🌆 Open City', 'GTA-style: cars, jobs, cash, police chases'], ['fps3d', '🎯 Blaster Arena', 'First-person foam-blaster battle'], ['mars3d', '🤖 Mars Rover', 'Robotics mission: drill samples, fly the drone'], ['flightfree', '🕊️ Free Flight', 'Fly anywhere, no rings, no clock']]],
   ['Roleplay', [['school', '🏫 School', 'Roleplay: classes, bells, detention'], ['city', '🏙️ City', 'Roleplay: money, cars, houses, cops & robbers'], ['area51', '🛸 Area 51', 'Roleplay map: jobs, aliens, chat']]],
   ['New mini games', [['towers', '🏰 Tower Defense', 'Build towers together, 20 waves'], ['infect', '🧟 Zombie Infection', 'Don\'t get infected'], ['ctf', '🚩 Capture the Flag', 'Red vs Blue'], ['trails', '🏍️ Light Trails', 'Tron light cycles'], ['blast', '💣 Blast Arena', 'Bomberman style'], ['soccer', '⚽ Dimension Soccer', 'Team soccer'], ['rails', '🚑 Emergency Response', 'Dead Rails style rescue train'], ['imposter', '🔪 Imposter', 'Among Us style (with bots)'], ['nights', '🔥 99 Nights in the Dimensions', 'Keep the fire alive'], ['colors', '🎨 Color Blocks', 'Run to the called color'], ['chameleon', '🦎 Crazy Chameleon', 'Camouflage hide-and-seek'], ['parkour', '🛹 Parkour', 'Skate across rooftops'], ['obby', '🧗 Obby', '2D obstacle course race, Roblox style'], ['lava', '🌋 The Floor is Lava', '2D: stay off the lava'], ['sniper', '🎯 Who is the sniper god?', 'Snipe across two floating islands'], ['meteor', '☄️ Meteor Shower', 'Dodge the falling rocks'], ['paint', '🎨 Paint the Floor', 'Paint the most tiles'], ['redlight', '🚦 Red Light, Green Light', 'Freeze on red!']]],
   ['Party games', [['race', '🏁 Race', 'Race the clock'], ['tag', '🏃 Tag', 'Don\'t be IT'], ['koth', '👑 King of the Hill', 'Hold the zone'], ['chaos', '🌀 Coin Chaos', 'Grab coins'], ['lms', '💥 Last One Standing', 'Shootout'], ['potato', '💣 Hot Potato', 'Pass the bomb'], ['chairs', '🪑 Musical Chairs', 'Grab a chair when the music stops'], ['simon', '🗣️ Simon Says', 'Only obey when Simon says'], ['hide', '🙈 Hide and Seek', 'Hide in the dark house (add bots)']]],
 ];
-const SOLO_BOTS = { flight: 3, obby: 2, lava: 3, chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
+const BOT_RIVALS = new Set(['race3d', 'fps3d']);
+const SOLO_BOTS = { fps3d: 5, mars3d: 2, flightfree: 0, city3d: 2, race3d: 5, flight: 3, obby: 2, lava: 3, chairs: 4, hide: 5, simon: 4, geo: 1, towers: 2, area51: 7, school: 9, city: 9, infect: 5, ctf: 5, trails: 3, blast: 3, soccer: 5, rails: 3, imposter: 6, nights: 3, colors: 4, chameleon: 4, parkour: 2, sniper: 3, story6: 1, story5: 1, banana: 1, parallel: 1, meteor: 3, paint: 3, redlight: 3, story: 1, story2: 1, story3: 1, story4: 1, space: 1, time: 1, sea: 1, bossrush: 1, race: 3, tag: 3, koth: 3, chaos: 3, lms: 3, potato: 3 };
 for (const [head, list] of SOLO) {
   const mg = head === 'New mini games' || head === 'Party games' || head === 'Roleplay' || head === '3D games';
   const h = document.createElement('h3');
@@ -5131,7 +5146,7 @@ for (const [head, list] of SOLO) {
     b.onclick = () => {
       $('solo-pick').classList.add('hidden');
       gameMode = m;
-      pendingBots = 0;                        // no forced bots: add them in the lobby if you want them
+      pendingBots = BOT_RIVALS.has(m) ? SOLO_BOTS[m] : 0;   // no forced bots (add them in the lobby), except rivals for races
       pendingStart = true;
       $('create').click();
     };
@@ -5139,7 +5154,7 @@ for (const [head, list] of SOLO) {
   }
 }
 // games that are 3D: Flight, and every top-down game (drawn Roblox style)
-const GAMES_3D = new Set(['flight', 'chairs', 'hide', 'simon', 'colors', 'nights', 'imposter', 'rails', 'area51', 'school', 'city', 'towers', 'infect', 'ctf', 'trails', 'blast', 'soccer', 'chameleon']);
+const GAMES_3D = new Set(['flight', 'flightfree', 'race3d', 'city3d', 'fps3d', 'mars3d', 'chairs', 'hide', 'simon', 'colors', 'nights', 'imposter', 'rails', 'area51', 'school', 'city', 'towers', 'infect', 'ctf', 'trails', 'blast', 'soccer', 'chameleon']);
 function gameTabs(tabs, list) {
   const pick = f => { for (const t of tabs.querySelectorAll('.tab')) t.classList.toggle('sel', t.dataset.f === f); list.classList.toggle('f-3d', f === '3d'); list.classList.toggle('f-2d', f === '2d'); };
   for (const t of tabs.querySelectorAll('.tab')) t.onclick = () => { pick(t.dataset.f); sfx('click'); };
