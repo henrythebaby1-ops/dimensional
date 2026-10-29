@@ -83,6 +83,7 @@ Everyone plays as the same rounded-square guy as in the 2D levels.
     them in the morning.
   - Friends build in the same world. It saves in your browser (or online, on a server).
   - **TNT** (4 sand + 2 coal): hit it and it hisses, then blows a crater. TNT nearby sets off a chain reaction.
+  - **🪂 Glider** (4 wool + 3 sticks): keep it in your pack and hold Space while falling to soar forward. No fall damage while gliding.
   - **Beds** (3 wool + 3 planks): right-click one to set your spawn. At night, sleeping skips everyone to morning.
   - **Farming**: punching grass sometimes drops seeds. Plant them on dirt (right click) and wheat grows; 3 wheat
     make bread.

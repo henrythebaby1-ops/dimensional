@@ -14,9 +14,9 @@ const SEE_THROUGH = new Set([B.AIR, B.WATER, B.GLASS, B.LEAVES, B.WHEAT, B.RIPE]
 const CROP = new Set([B.WHEAT, B.RIPE]);
 const SOLID = b => b !== B.AIR && b !== B.WATER && !CROP.has(b);
 // items that aren't blocks
-export const I = { STICK: 101, WPICK: 102, SPICK: 103, IPICK: 104, WSWORD: 105, SSWORD: 106, ISWORD: 107, APPLE: 108, COAL: 109, IRON: 110, BREAD: 111, SEEDS: 112, GRAIN: 113, PORK: 114, STEAK: 115 };
-const INAME = { 101: 'Stick', 102: 'Wooden Pickaxe', 103: 'Stone Pickaxe', 104: 'Iron Pickaxe', 105: 'Wooden Sword', 106: 'Stone Sword', 107: 'Iron Sword', 108: 'Apple', 109: 'Coal', 110: 'Iron Ingot', 111: 'Bread', 112: 'Seeds', 113: 'Wheat', 114: 'Porkchop', 115: 'Steak' };
-const IICON = { 101: '🥢', 102: '⛏️', 103: '⛏️', 104: '⛏️', 105: '🗡️', 106: '🗡️', 107: '🗡️', 108: '🍎', 109: '⚫', 110: '🔩', 111: '🍞', 112: '🌱', 113: '🌾', 114: '🍖', 115: '🥩' };
+export const I = { STICK: 101, WPICK: 102, SPICK: 103, IPICK: 104, WSWORD: 105, SSWORD: 106, ISWORD: 107, APPLE: 108, COAL: 109, IRON: 110, BREAD: 111, SEEDS: 112, GRAIN: 113, PORK: 114, STEAK: 115, GLIDER: 116 };
+const INAME = { 101: 'Stick', 102: 'Wooden Pickaxe', 103: 'Stone Pickaxe', 104: 'Iron Pickaxe', 105: 'Wooden Sword', 106: 'Stone Sword', 107: 'Iron Sword', 108: 'Apple', 109: 'Coal', 110: 'Iron Ingot', 111: 'Bread', 112: 'Seeds', 113: 'Wheat', 114: 'Porkchop', 115: 'Steak', 116: 'Glider' };
+const IICON = { 101: '🥢', 102: '⛏️', 103: '⛏️', 104: '⛏️', 105: '🗡️', 106: '🗡️', 107: '🗡️', 108: '🍎', 109: '⚫', 110: '🔩', 111: '🍞', 112: '🌱', 113: '🌾', 114: '🍖', 115: '🥩', 116: '🪂' };
 const itemName = id => id < 100 ? NAME[id] : INAME[id];
 const HARD = { 1: 0.6, 2: 0.5, 3: 3, 4: 1.6, 5: 0.25, 6: 0.5, 8: 1.4, 9: 3, 10: 3.2, 11: 3.6, 12: 0.4, 13: 1.6, 14: Infinity, 15: 3, 16: 3, 17: 0.4, 18: 0.6, 19: 0.3, 20: 0.1, 21: 0.6, 22: 0.5, 23: 0.05, 24: 0.05 };
 const ROCKY = new Set([3, 9, 10, 11, 15, 16]);
@@ -41,6 +41,7 @@ const RECIPES = [
   { out: [I.BREAD, 1], need: [[I.GRAIN, 3]], at: B.TABLE },
   { out: [B.TNT, 1], need: [[B.SAND, 4], [I.COAL, 2]], at: B.TABLE },
   { out: [B.BED, 1], need: [[B.WOOL, 3], [B.PLANKS, 3]], at: B.TABLE },
+  { out: [I.GLIDER, 1], need: [[B.WOOL, 4], [I.STICK, 3]], at: B.TABLE },
 ];
 
 // ---------- the world: a seed, then whatever people changed ----------
@@ -227,7 +228,7 @@ export const SURV = {
     const sx = W / 2 + Math.floor(Math.random() * 6) - 3, sz = D / 2 + Math.floor(Math.random() * 6) - 3;
     this.spawn = { x: sx + 0.5, z: sz + 0.5 };
     this.me = { x: sx + 0.5, y: this.vox.top(sx, sz) + 0.1, z: sz + 0.5, vy: 0, yaw: 0, pitch: 0, hp: 20, food: 20, ground: false, fly: false, breakT: 0, target: null, swing: 0, air: 0, fallFrom: null };
-    this.inv = this.creative ? [B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.PLANKS, B.LOG, B.GLASS, B.BRICK, B.LAMP, B.WOOL, B.SAND, B.LEAVES, B.SNOW, B.TABLE, B.FURNACE, B.WATER, B.COAL, B.IRON, B.TNT, B.BED, I.SEEDS].map(id => ({ id, n: 999 })) : [];
+    this.inv = this.creative ? [B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.PLANKS, B.LOG, B.GLASS, B.BRICK, B.LAMP, B.WOOL, B.SAND, B.LEAVES, B.SNOW, B.TABLE, B.FURNACE, B.WATER, B.COAL, B.IRON, B.TNT, B.BED, I.SEEDS, I.GLIDER].map(id => ({ id, n: 999 })) : [];
     this.fuses = []; this.animals = []; this.aid = 0;
     this.slot = 0; this.t = DAY * 0.25; this.zombies = []; this.zid = 0; this.helpT = 20; this.hurt = 0; this.saveT = 0; this.msg = null;
     this.bots = new Map();
@@ -339,14 +340,18 @@ export const SURV = {
     if (m.dead > 0) { m.dead -= dt; if (m.dead <= 0) this.respawn(api); }
     else {
       // walk / fly
-      const sp = (this.creative && m.fly ? 11 : inp.run ? 5.6 : 4.3) * (vox.get(Math.floor(m.x), Math.floor(m.y + 0.5), Math.floor(m.z)) === B.WATER ? 0.55 : 1);
+      // a glider in your pack: hold Space while falling to soar forward
+      const gliding = !(this.creative && m.fly) && !m.ground && m.vy < -1 && inp.jump && this.inv.some(s => s.id === I.GLIDER) && vox.get(Math.floor(m.x), Math.floor(m.y + 0.4), Math.floor(m.z)) !== B.WATER;
+      if (gliding && !m.glided) { m.glided = true; api.toast('🪂 Gliding! Let go of Space to drop', '#9feaff'); }
+      const sp = gliding ? 9 : (this.creative && m.fly ? 11 : inp.run ? 5.6 : 4.3) * (vox.get(Math.floor(m.x), Math.floor(m.y + 0.5), Math.floor(m.z)) === B.WATER ? 0.55 : 1);
       const fx = -Math.sin(m.yaw), fz = -Math.cos(m.yaw);
-      let dx = fx * inp.fwd - fz * inp.side, dz = fz * inp.fwd + fx * inp.side; const l = Math.hypot(dx, dz); if (l > 1) { dx /= l; dz /= l; }
+      let dx = fx * (gliding ? 1 : inp.fwd) - fz * inp.side, dz = fz * (gliding ? 1 : inp.fwd) + fx * inp.side; const l = Math.hypot(dx, dz); if (l > 1) { dx /= l; dz /= l; }
       collideAxis(vox, m, 'x', dx * sp * dt); collideAxis(vox, m, 'z', dz * sp * dt);
       this.spd = l * sp;
       const inWater = vox.get(Math.floor(m.x), Math.floor(m.y + 0.4), Math.floor(m.z)) === B.WATER;
       if (this.creative && m.fly) { m.vy = (inp.jump ? 8 : 0) - (keys.has('ShiftLeft') ? 8 : 0); }
       else if (inWater) { m.vy = Math.max(m.vy - 9 * dt, -2.5); if (inp.jump) m.vy = 3.2; }
+      else if (gliding) { m.vy = Math.max(m.vy - 28 * dt, -2.2); m.fallFrom = m.y; }
       else { m.vy = Math.max(m.vy - 28 * dt, -40); if (inp.jump && m.ground) { m.vy = 8.6; } }
       if (inp.jump && !m.prevJump) { if (this.creative && this.t - (m.lastJump ?? -9) < 0.35) { m.fly = !m.fly; m.vy = 0; } m.lastJump = this.t; }   // double-tap Space = fly
       m.prevJump = inp.jump;
