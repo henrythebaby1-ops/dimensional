@@ -1318,6 +1318,8 @@ export const MODES = {
   zwave3d: { name: 'Zombie Waves', levels: [tdLevel('zwave3d')], min: 1 },
   soccer3d: { name: 'Soccer 3D', levels: [tdLevel('soccer3d')], min: 1 },
   chairs3d: { name: 'Musical Chairs 3D', levels: [tdLevel('chairs3d')], min: 1 },
+  bowl3d: { name: 'Bowling', levels: [tdLevel('bowl3d')], min: 1 },
+  archery3d: { name: 'Archery', levels: [tdLevel('archery3d')], min: 1 },
   chairs: { name: 'Musical Chairs', levels: [tdLevel('chairs')], min: 1 },
   hide: { name: 'Hide and Seek', levels: [tdLevel('hide')], min: 1 },
   simon: { name: 'Simon Says', levels: [tdLevel('simon')], min: 1 },

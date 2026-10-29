@@ -122,6 +122,8 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 - **🧟 Zombie Waves** (co-op): foam-blast (click or F) 5 waves of zombies with your team. Three touches and you're out.
 - **⚽ Soccer 3D**: Red vs Blue. Run into the ball to kick it (Shift = power kick). First to 3 goals wins.
 - **🪑 Musical Chairs 3D**: walk round while the music plays, then grab a chair when it stops.
+- **🎳 Bowling**: aim, hold to power up, and roll for strikes over 5 frames.
+- **🏹 Archery**: aim with the mouse, mind the wind, and score the most over 8 arrows.
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
