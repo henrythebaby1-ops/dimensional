@@ -1322,6 +1322,8 @@ export const MODES = {
   archery3d: { name: 'Archery', levels: [tdLevel('archery3d')], min: 1 },
   coins3d: { name: 'Coin Rush 3D', levels: [tdLevel('coins3d')], min: 1 },
   meteor3d: { name: 'Meteor Dodge 3D', levels: [tdLevel('meteor3d')], min: 1 },
+  spin3d: { name: 'Spin Jump', levels: [tdLevel('spin3d')], min: 1 },
+  mole3d: { name: 'Whack-a-Mole 3D', levels: [tdLevel('mole3d')], min: 1 },
   chairs: { name: 'Musical Chairs', levels: [tdLevel('chairs')], min: 1 },
   hide: { name: 'Hide and Seek', levels: [tdLevel('hide')], min: 1 },
   simon: { name: 'Simon Says', levels: [tdLevel('simon')], min: 1 },

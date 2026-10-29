@@ -126,6 +126,8 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 - **🏹 Archery**: aim with the mouse, mind the wind, and score the most over 8 arrows.
 - **🪙 Coin Rush 3D**: grab the most coins in 60 seconds. Gold stars are worth 5, and some coins sit on crates.
 - **☄️ Meteor Dodge 3D**: red circles show where meteors will land. Get out of them; last one standing wins.
+- **🌀 Spin Jump**: jump the beam as it sweeps round. The island shrinks and the beam speeds up.
+- **🔨 Whack-a-Mole 3D**: stomp moles before they hide. Golden moles are worth 3.
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
