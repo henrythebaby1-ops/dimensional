@@ -71,6 +71,7 @@ export function base(name, objective, extra) {
       for (const [id, o] of net.others) { if (this.out[id]) continue; const q = toScreen(cam, o.v.x, o.v.y + 2.4, o.v.z, VW, VH); if (q) tag(ctx, q.x, q.y, api.name(id), hue(id)); }
       const alive = api.ids().filter(id => !this.out[id]).length;
       panel(ctx, VW / 2 - 140, 64, 280, 32); ctx.textAlign = 'center'; ctx.font = '800 15px Rubik'; ctx.fillStyle = '#fff'; ctx.fillText(this.status(api, alive), VW / 2, 86);
+      this.extraHud?.(ctx, VW, VH);
       if (this.out[api.meId()]) big(ctx, VW, VH * 0.45, 'You\'re out — watch the others!', '#ff8a8a', 20);
       if (this.msg && (this.msg.t -= dt) > 0) big(ctx, VW, VH * 0.36, this.msg.text, '#ff5a5a', 26);
       if (this.helpT > 0) help(ctx, VW, VH, this.helpLines);
