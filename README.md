@@ -128,6 +128,8 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 - **☄️ Meteor Dodge 3D**: red circles show where meteors will land. Get out of them; last one standing wins.
 - **🌀 Spin Jump**: jump the beam as it sweeps round. The island shrinks and the beam speeds up.
 - **🔨 Whack-a-Mole 3D**: stomp moles before they hide. Golden moles are worth 3.
+- **💎 Treasure Dig**: stand on mounds to dig. Gems score, bombs stun you.
+- **🚀 Rocket Race**: tap Space as fast as you can to pump your rocket to the top.
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
