@@ -11,6 +11,9 @@ const JOBS = {
   principal: { icon: '🎓', name: 'Principal', col: '#1a1a22', act: 'Send to detention', lines: ['To my office!', 'Where is your hall pass?', 'Welcome to Dimensional School!', 'Walk, don\'t run.', 'I have my eye on you.'] },
   janitor: { icon: '🧹', name: 'Janitor', col: '#8a8aa8', act: 'Mop the floor', lines: ['Who spilled the chocolate milk?!', 'Wet floor!', 'Another day, another mess.', 'I found a lost backpack.'] },
   nurse: { icon: '🩺', name: 'Nurse', col: '#ff8ab4', act: 'Give a bandage', lines: ['Feeling sick?', 'Drink some water.', 'Here\'s an ice pack.', 'You\'ll be fine, sweetie.'] },
+  coach: { icon: '🏅', name: 'Coach', col: '#39c85a', act: 'Blow the whistle / "Run a lap!"', lines: ['Hustle, hustle!', 'Drop and give me ten!', 'Great hustle out there!', 'Hydrate, people!', 'Dodgeball tournament after school!'] },
+  librarian: { icon: '📚', name: 'Librarian', col: '#a86a3a', act: 'Lend a book / "Shhh!"', lines: ['Shhh!', 'Books are due Friday.', 'Have you read this one?', 'Please use your library voice.', 'The new comics just came in!'] },
+  bus: { icon: '🚌', name: 'Bus Driver', col: '#ffcc22', act: 'Honk the horn', lines: ['All aboard!', 'Stay in your seat, please.', 'Next stop: school!', 'No eating on the bus.', 'Buckle up!'] },
   cook: { icon: '🧑‍🍳', name: 'Lunch Cook', col: '#ffffff', act: 'Serve lunch', lines: ['Pizza Friday!', 'Want some extra fries?', 'Take a tray!', 'Don\'t forget your milk!', 'Mystery meat today…'] },
 };
 // [name, x0, y0, x1, y1, doorX, doorY, lock]
@@ -41,7 +44,7 @@ registerRP('school', {
   objective: 'ROLEPLAY! Follow the bell from class to class, chat (T) and play your job. E = doors, seats and things; F = your job action. Pick a job at the 🪪 board in the hallway. /rp for commands.',
   W: 64, H: 44, ground: TILE.SAND,
   jobs: JOBS, rooms: ROOMS, seats: SEATS,
-  order: ['student', 'teacher', 'student', 'student', 'principal', 'student', 'cook', 'student', 'janitor', 'teacher', 'nurse', 'student'],
+  order: ['student', 'teacher', 'student', 'student', 'principal', 'student', 'cook', 'student', 'janitor', 'teacher', 'nurse', 'student', 'coach', 'librarian', 'student', 'bus'],
   alarmText: '🚨 FIRE DRILL! Everyone out to the playground!',
   jailAt: [[40, 24], [44, 24], [40, 28], [44, 28]], releaseAt: [42, 19],
   build(w) {
@@ -98,6 +101,9 @@ registerRP('school', {
     principal(api, p, id, o) { if (!o) return api.toast('Stand next to someone to send them to detention'); this.emit(api, { k: 'jail', id: o.id, by: id, secs: 20, icon: '📋', why: 'sent you to detention' }); api.say(`📋 *sends ${api.name(o.id)} to detention*`); },
     janitor: ACT.mop,
     nurse(api, p, id, o) { if (!o) return api.toast('Stand next to someone to help them'); this.pop(api, o.id, '🩹', `🩹 Nurse ${api.name(id)} gave you a bandage. You feel better!`); api.say(`🩹 *puts a bandage on ${api.name(o.id)}*`); },
+    coach(api, p, id, o) { if (!o) { this.pop(api, id, '📣'); return api.say('📣 *TWEEEET!* *blows the whistle*'); } this.pop(api, o.id, '🏃', `🏃 Coach ${api.name(id)} says: RUN A LAP!`); api.say(`📣 *tells ${api.name(o.id)} to run a lap*`); },
+    librarian(api, p, id, o) { if (!o) { this.pop(api, id, '🤫'); return api.say('🤫 SHHHHH!'); } const b = pick(['📕', '📗', '📘', '📙']); this.emit(api, { k: 'item', id: o.id, it: b }); this.pop(api, o.id, b, `${b} ${api.name(id)} lent you a book. Bring it back by Friday!`); api.say(`${b} *lends ${api.name(o.id)} a book*`); },
+    bus(api, p, id) { this.pop(api, id, '📯'); api.say(pick(['🚌 *HONK HONK!* All aboard!', '🚌 *beep beep!* Bus is leaving!', '🚌 *honks* Next stop: Dimensional School!'])); api.sfx('ping'); },
     cook(api, p, id, o) { const f = pick(FOODS); const to = o?.id || id; this.emit(api, { k: 'item', id: to, it: f }); this.pop(api, to, f, o ? `${f} ${api.name(id)} served you lunch!` : ''); api.say(`${f} *serves ${o ? api.name(o.id) : 'a tray'}*`); },
   },
   cmdHelp: '/board <text> (teachers) · /bell (staff) · /announce <text> (principal or intercom)',
@@ -135,6 +141,9 @@ registerRP('school', {
     if (job === 'teacher') { const boards = BOARDS[room] ? [BOARDS[room]] : Object.values(BOARDS); const bd = boards[h % boards.length]; return [bd[0], bd[1] + 2]; }
     if (job === 'cook') return [9 + (h % 6), 30];
     if (job === 'nurse') return [49, 28];
+    if (job === 'coach') return room === 'Gym' || room === 'Playground' ? [24 + (h % 10), 27] : [29, 25];
+    if (job === 'librarian') return [51, 10];
+    if (job === 'bus') return [50, 39];
     return null;
   },
   routes: { principal: [[42, 26], [30, 18], [12, 18], [50, 18], [42, 26], [30, 38]], janitor: [[12, 19], [30, 19], [50, 19], [12, 27], [29, 27], [25, 10], [50, 12]], student: [[30, 18]] },

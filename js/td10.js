@@ -11,6 +11,9 @@ const JOBS = {
   firefighter: { icon: '🧑‍🚒', name: 'Firefighter', col: '#d83a3a', pay: 25, act: 'Spray water (puts out fires)', lines: ['Stop, drop and roll!', 'Fire safety first!', 'Anyone smell smoke?', 'To the fire truck!'] },
   chef: { icon: '🧑‍🍳', name: 'Chef', col: '#ffffff', pay: 25, act: 'Hand out a pizza', lines: ['Pizza is ready!', 'Fresh out of the oven!', 'Extra cheese for you.', 'Come to the Pizza Place!'] },
   shopkeeper: { icon: '🛍️', name: 'Shopkeeper', col: '#39c88a', pay: 25, act: 'Give a free sample', lines: ['Welcome! Look around!', 'Big sale today!', 'Can I help you find something?', 'Thanks for shopping!'] },
+  mail: { icon: '📬', name: 'Mail Carrier', col: '#3a6ad8', pay: 25, act: 'Deliver mail (+$5)', lines: ['Special delivery!', 'Package for you!', 'Rain or shine, the mail gets through.', 'Beware of dog…', 'Sign here, please.'] },
+  musician: { icon: '🎸', name: 'Street Musician', col: '#ff6ab4', pay: 10, act: 'Play a song (tips!)', lines: ['This one\'s for you!', 'Any requests?', 'Tips appreciated!', '🎵 La la la 🎵', 'I\'m gonna be famous one day.'] },
+  mechanic: { icon: '🔧', name: 'Mechanic', col: '#5a5a6a', pay: 25, act: 'Fix someone\'s car (+$10)', lines: ['Sounds like your engine.', 'Needs new tires.', 'Good as new!', 'Oil change? Ten bucks.', 'Who parked here?!'] },
   mayor: { icon: '🎩', name: 'Mayor', col: '#6a3ab8', pay: 40, act: 'Give a medal', lines: ['Vote for me!', 'This city is the best city.', 'I\'ll fix the potholes soon.', 'Welcome to Dimension City!'] },
 };
 const HOUSES = [[42, 30], [53, 30], [64, 30], [42, 41], [53, 41], [64, 41]];
@@ -38,7 +41,7 @@ registerRP('city', {
   objective: 'ROLEPLAY! Pick a job, earn money on payday, shop, buy a house, drive cars (E near one), and chat (T). Robbers rob the bank — police catch them! /rp for commands.',
   W: 80, H: 56, ground: TILE.SAND,
   jobs: JOBS, rooms: ROOMS, seats: SEATS,
-  order: ['citizen', 'police', 'robber', 'citizen', 'chef', 'doctor', 'firefighter', 'shopkeeper', 'police', 'citizen', 'mayor', 'robber'],
+  order: ['citizen', 'police', 'robber', 'citizen', 'chef', 'doctor', 'firefighter', 'shopkeeper', 'police', 'citizen', 'mayor', 'robber', 'mail', 'musician', 'citizen', 'mechanic'],
   alarmText: '🚨 BANK ALARM! The bank is being robbed!',
   jailAt: [[27, 7], [28, 8]], releaseAt: [24, 15],
   doors: [[13, 9, ['police', 'robber', 'mayor']], [27, 9, ['police']]],
@@ -148,6 +151,9 @@ registerRP('city', {
       if (f && (r === f.r || dist(p, this.roomCenter(f.r)) < 6 * TS)) { this.emit(api, { k: 'fireout', by: id }); this.emit(api, { k: 'cash', id, d: 60 }); api.toast('🧯 Fire out! +$60', '#39ff88'); }
       else api.say('💦 *sprays the hose*');
     },
+    mail(api, p, id, o) { if (!o) return api.toast('Stand next to someone to deliver their mail'); const m = pick(['✉️', '📦', '💌', '📰']); this.emit(api, { k: 'item', id: o.id, it: m }); this.emit(api, { k: 'cash', id, d: 5 }); this.pop(api, o.id, m, `${m} ${api.name(id)} delivered your mail!`); api.say(`${m} *delivers mail to ${api.name(o.id)}*`); },
+    musician(api, p, id) { this.pop(api, id, '🎵'); api.say(pick(['🎸 *plays a groovy song*', '🎵 *strums a happy tune*', '🎤 *sings loudly*', '🥁 *plays a drum solo*'])); api.sfx('emote'); if (Math.random() < 0.4) { this.emit(api, { k: 'cash', id, d: 3 }); api.toast('🪙 Someone tossed you a $3 tip!', '#39ff88'); } },
+    mechanic(api, p, id, o) { if (!o) return api.say('🔧 *tinkers with an engine*'); this.emit(api, { k: 'cash', id, d: 10 }); this.pop(api, o.id, '🔧', `🔧 ${api.name(id)} fixed your car. Good as new!`); api.say(`🔧 *fixes ${api.name(o.id)}'s car*`); },
     chef(api, p, id, o) { const to = o?.id || id; this.emit(api, { k: 'item', id: to, it: '🍕' }); this.pop(api, to, '🍕', o ? `🍕 Chef ${api.name(id)} gave you pizza!` : ''); api.say('🍕 *tosses a fresh pizza*'); },
     shopkeeper(api, p, id, o) { if (!o) return api.say('🛍️ *stacks the shelves*'); const it = pick(['🍬', '🍪', '🧃']); this.emit(api, { k: 'item', id: o.id, it }); this.pop(api, o.id, it, `${it} Free sample from ${api.name(id)}!`); },
     mayor(api, p, id, o) { if (!o) return api.say('🎩 *waves to the crowd*'); this.pop(api, o.id, '🏅', `🏅 Mayor ${api.name(id)} gave you a medal!`); this.emit(api, { k: 'item', id: o.id, it: '🏅' }); api.say(`🏅 *gives ${api.name(o.id)} a medal*`); },
@@ -214,6 +220,9 @@ registerRP('city', {
     chef: [[24, 21], [21, 20], [27, 20]],
     shopkeeper: [[10, 21], [8, 19], [13, 19]],
     mayor: [[30, 46], [30, 42], [26, 34], [38, 30]],
+    mail: [[42, 30], [53, 30], [64, 30], [64, 41], [53, 41], [42, 41], [24, 22], [10, 22]],
+    musician: [[26, 34], [24, 34], [28, 36]],
+    mechanic: [[38, 20], [38, 34], [60, 27], [20, 27]],
   },
   under(api, ctx, v) {
     const k = v.k;
