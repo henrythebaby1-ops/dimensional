@@ -113,6 +113,12 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 - **🚀 Jetpack Rings**: hold Space to fly and grab the most rings. Fuel refills on the ground.
 - **🟪 Block Party 3D**: when a color is called, stand on it before the rest of the floor drops.
 - **🎣 Fishing**: cast (click or F), wait for a bite, and press when the marker is in the green. Rare fish score more.
+- **🏀 Hoop Shot**: hold to charge, let go in the green zone. Shots from behind the line score 3.
+- **🏃 Hurdle Race**: sprint, jump the hurdles and pits, and wait out the swinging bars. First across wins.
+- **🦖 Dino Escape**: T-rexes roam a fenced island. Climb the rocks and survive 90 seconds (they shake the rocks!).
+- **🚗 Bumper Cars**: bash the others from the side or behind for points.
+- **🎈 Balloon Pop**: jump into rising balloons. Gold ones are worth 5.
+- **🏍️ Light Cycles 3D**: Tron bikes that leave glowing walls. Turn with A/D, and the last bike riding wins.
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
