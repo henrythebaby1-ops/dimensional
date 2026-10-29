@@ -1070,6 +1070,11 @@ function physics(p, inp, h) {
     if (g * p.vy >= 0 || p.onGround) p.padLift = false;
     if (!inp.has('jump') && g * p.vy < 0 && !p.padLift) gm *= 1.9;   // (a jump pad always launches you all the way)
     if (p.role === 'glider' && inp.has('jump') && g * p.vy > 0) { p.vy = g * Math.min(g * p.vy, 110); gm = 0; }   // float down   // short hops when jump is released
+    if (p.role === 'flyer') {                 // Flyer: hold jump to rise, let go to drift down slowly
+      const ceil = g > 0 ? p.y < T : p.y > (H - 1) * T - PH;   // don't fly off the top of the world
+      const want = inp.has('jump') && !ceil ? -g * 300 : inp.has('jump') ? 0 : g * Math.min(g * p.vy + G * h, 160);
+      p.vy += (want - p.vy) * Math.min(1, 8 * h); gm = 0;
+    }
     if (p.inFan) p.vy += (-g * 470 - p.vy) * Math.min(1, 9 * h);   // a fan's updraft beats gravity
     else p.vy += g * gm * h;
     const maxFall = pl.swim ? Math.min(D.maxFall, 240) : D.maxFall;

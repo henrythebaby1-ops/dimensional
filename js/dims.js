@@ -102,6 +102,7 @@ export const ROLES = {
   lucky: { name: 'Lucky', icon: '🍀', desc: '1 in 3 hits miss you' },
   phoenix: { name: 'Phoenix', icon: '🔥', desc: 'Once per level, come back to life right where you fell' },
   collector: { name: 'Collector', icon: '🪙', desc: 'Double coins for finishing levels' },
+  flyer: { name: 'Flyer', icon: '🕊️', desc: 'Hold jump to fly up, let go to drift down' },
 };
 
 // Chapter styles: some chapters repaint the world no matter which dimension you are in

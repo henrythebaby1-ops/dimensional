@@ -368,7 +368,7 @@ Tank (5 hearts) · Scout (sees through darkness) · Medic (ping heals the team) 
 Ninja (dash anywhere) · Jetpack (extra mid-air jump) · Sniper (piercing shots) · Bomber (exploding shots) ·
 Ghost (crawlers can't hurt you) · Magnet (grab keystones from afar) · 🪂 Glider (hold jump to float down) ·
 🔰 Shield (hold down to block shots) · 🎈 Floaty (low gravity) · 💚 Regen (a heart back every 15s) ·
-🍀 Lucky (1 in 3 hits miss) · 🔥 Phoenix (one comeback per level) · 🪙 Collector (double level coins).
+🍀 Lucky (1 in 3 hits miss) · 🔥 Phoenix (one comeback per level) · 🪙 Collector (double level coins) · 🕊️ Flyer (hold jump to fly up, let go to drift down).
 
 ## Tech
 - Static HTML/JS with **Three.js** for 3D, hosted on **GitHub Pages** (no build step).
