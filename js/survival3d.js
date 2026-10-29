@@ -8,18 +8,19 @@ import { readyCode } from './skins.js';
 
 export const W = 96, D = 96, HY = 40, SEA = 10, CH = 16;
 // blocks
-export const B = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, LOG: 4, LEAVES: 5, SAND: 6, WATER: 7, PLANKS: 8, COBBLE: 9, COAL: 10, IRON: 11, GLASS: 12, TABLE: 13, BEDROCK: 14, BRICK: 15, FURNACE: 16, LAMP: 17, WOOL: 18, SNOW: 19 };
-const NAME = ['Air', 'Grass', 'Dirt', 'Stone', 'Log', 'Leaves', 'Sand', 'Water', 'Planks', 'Cobblestone', 'Coal Ore', 'Iron Ore', 'Glass', 'Crafting Table', 'Bedrock', 'Bricks', 'Furnace', 'Lamp', 'Wool', 'Snow'];
-const SEE_THROUGH = new Set([B.AIR, B.WATER, B.GLASS, B.LEAVES]);
-const SOLID = b => b !== B.AIR && b !== B.WATER;
+export const B = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, LOG: 4, LEAVES: 5, SAND: 6, WATER: 7, PLANKS: 8, COBBLE: 9, COAL: 10, IRON: 11, GLASS: 12, TABLE: 13, BEDROCK: 14, BRICK: 15, FURNACE: 16, LAMP: 17, WOOL: 18, SNOW: 19, TNT: 20, BED: 21, FARM: 22, WHEAT: 23, RIPE: 24 };
+const NAME = ['Air', 'Grass', 'Dirt', 'Stone', 'Log', 'Leaves', 'Sand', 'Water', 'Planks', 'Cobblestone', 'Coal Ore', 'Iron Ore', 'Glass', 'Crafting Table', 'Bedrock', 'Bricks', 'Furnace', 'Lamp', 'Wool', 'Snow', 'TNT', 'Bed', 'Farmland', 'Wheat (growing)', 'Wheat'];
+const SEE_THROUGH = new Set([B.AIR, B.WATER, B.GLASS, B.LEAVES, B.WHEAT, B.RIPE]);
+const CROP = new Set([B.WHEAT, B.RIPE]);
+const SOLID = b => b !== B.AIR && b !== B.WATER && !CROP.has(b);
 // items that aren't blocks
-export const I = { STICK: 101, WPICK: 102, SPICK: 103, IPICK: 104, WSWORD: 105, SSWORD: 106, ISWORD: 107, APPLE: 108, COAL: 109, IRON: 110, BREAD: 111 };
-const INAME = { 101: 'Stick', 102: 'Wooden Pickaxe', 103: 'Stone Pickaxe', 104: 'Iron Pickaxe', 105: 'Wooden Sword', 106: 'Stone Sword', 107: 'Iron Sword', 108: 'Apple', 109: 'Coal', 110: 'Iron Ingot', 111: 'Bread' };
-const IICON = { 101: '🥢', 102: '⛏️', 103: '⛏️', 104: '⛏️', 105: '🗡️', 106: '🗡️', 107: '🗡️', 108: '🍎', 109: '⚫', 110: '🔩', 111: '🍞' };
+export const I = { STICK: 101, WPICK: 102, SPICK: 103, IPICK: 104, WSWORD: 105, SSWORD: 106, ISWORD: 107, APPLE: 108, COAL: 109, IRON: 110, BREAD: 111, SEEDS: 112, GRAIN: 113, PORK: 114, STEAK: 115 };
+const INAME = { 101: 'Stick', 102: 'Wooden Pickaxe', 103: 'Stone Pickaxe', 104: 'Iron Pickaxe', 105: 'Wooden Sword', 106: 'Stone Sword', 107: 'Iron Sword', 108: 'Apple', 109: 'Coal', 110: 'Iron Ingot', 111: 'Bread', 112: 'Seeds', 113: 'Wheat', 114: 'Porkchop', 115: 'Steak' };
+const IICON = { 101: '🥢', 102: '⛏️', 103: '⛏️', 104: '⛏️', 105: '🗡️', 106: '🗡️', 107: '🗡️', 108: '🍎', 109: '⚫', 110: '🔩', 111: '🍞', 112: '🌱', 113: '🌾', 114: '🍖', 115: '🥩' };
 const itemName = id => id < 100 ? NAME[id] : INAME[id];
-const HARD = { 1: 0.6, 2: 0.5, 3: 3, 4: 1.6, 5: 0.25, 6: 0.5, 8: 1.4, 9: 3, 10: 3.2, 11: 3.6, 12: 0.4, 13: 1.6, 14: Infinity, 15: 3, 16: 3, 17: 0.4, 18: 0.6, 19: 0.3 };
+const HARD = { 1: 0.6, 2: 0.5, 3: 3, 4: 1.6, 5: 0.25, 6: 0.5, 8: 1.4, 9: 3, 10: 3.2, 11: 3.6, 12: 0.4, 13: 1.6, 14: Infinity, 15: 3, 16: 3, 17: 0.4, 18: 0.6, 19: 0.3, 20: 0.1, 21: 0.6, 22: 0.5, 23: 0.05, 24: 0.05 };
 const ROCKY = new Set([3, 9, 10, 11, 15, 16]);
-const DROP = { 1: 2, 3: 9, 10: I.COAL, 5: 0, 12: 0 };
+const DROP = { 1: 2, 3: 9, 10: I.COAL, 5: 0, 12: 0, 22: 2, 23: I.SEEDS, 24: I.GRAIN };
 // recipes: what you need -> what you get; `at` = must be next to a crafting table / furnace
 const RECIPES = [
   { out: [B.PLANKS, 4], need: [[B.LOG, 1]] },
@@ -37,7 +38,9 @@ const RECIPES = [
   { out: [B.BRICK, 4], need: [[B.COBBLE, 2], [B.SAND, 2]], at: B.FURNACE },
   { out: [B.LAMP, 2], need: [[B.GLASS, 1], [I.COAL, 1]], at: B.TABLE },
   { out: [B.WOOL, 2], need: [[B.LEAVES, 4]], at: B.TABLE },
-  { out: [I.BREAD, 1], need: [[I.APPLE, 2]], at: B.FURNACE },
+  { out: [I.BREAD, 1], need: [[I.GRAIN, 3]], at: B.TABLE },
+  { out: [B.TNT, 1], need: [[B.SAND, 4], [I.COAL, 2]], at: B.TABLE },
+  { out: [B.BED, 1], need: [[B.WOOL, 3], [B.PLANKS, 3]], at: B.TABLE },
 ];
 
 // ---------- the world: a seed, then whatever people changed ----------
@@ -79,8 +82,8 @@ export class Voxels {
 
 // ---------- pixel textures, painted in code (16×16 each, Minecraft style) ----------
 const TILE_N = 32, TS = 16;
-const TILES = { grassTop: 0, grassSide: 1, dirt: 2, stone: 3, logSide: 4, logTop: 5, leaves: 6, sand: 7, water: 8, planks: 9, cobble: 10, coal: 11, iron: 12, glass: 13, tableTop: 14, tableSide: 15, bedrock: 16, brick: 17, furnace: 18, lamp: 19, wool: 20, snow: 21, snowSide: 22 };
-const FACE_TILE = { 1: ['grassTop', 'grassSide', 'dirt'], 2: ['dirt'], 3: ['stone'], 4: ['logTop', 'logSide', 'logTop'], 5: ['leaves'], 6: ['sand'], 7: ['water'], 8: ['planks'], 9: ['cobble'], 10: ['coal'], 11: ['iron'], 12: ['glass'], 13: ['tableTop', 'tableSide', 'planks'], 14: ['bedrock'], 15: ['brick'], 16: ['cobble', 'furnace', 'cobble'], 17: ['lamp'], 18: ['wool'], 19: ['snow', 'snowSide', 'dirt'] };
+const TILES = { grassTop: 0, grassSide: 1, dirt: 2, stone: 3, logSide: 4, logTop: 5, leaves: 6, sand: 7, water: 8, planks: 9, cobble: 10, coal: 11, iron: 12, glass: 13, tableTop: 14, tableSide: 15, bedrock: 16, brick: 17, furnace: 18, lamp: 19, wool: 20, snow: 21, snowSide: 22, tntSide: 23, tntTop: 24, bedTop: 25, bedSide: 26, farm: 27, wheat: 28, ripe: 29 };
+const FACE_TILE = { 1: ['grassTop', 'grassSide', 'dirt'], 2: ['dirt'], 3: ['stone'], 4: ['logTop', 'logSide', 'logTop'], 5: ['leaves'], 6: ['sand'], 7: ['water'], 8: ['planks'], 9: ['cobble'], 10: ['coal'], 11: ['iron'], 12: ['glass'], 13: ['tableTop', 'tableSide', 'planks'], 14: ['bedrock'], 15: ['brick'], 16: ['cobble', 'furnace', 'cobble'], 17: ['lamp'], 18: ['wool'], 19: ['snow', 'snowSide', 'dirt'], 20: ['tntTop', 'tntSide', 'tntTop'], 21: ['bedTop', 'bedSide', 'planks'], 22: ['farm', 'dirt', 'dirt'], 23: ['wheat'], 24: ['ripe'] };
 const tileOf = (b, face) => { const t = FACE_TILE[b] || ['stone']; return TILES[face === 'top' ? t[0] : face === 'bottom' ? (t[2] || t[0]) : (t[1] || t[0])]; };
 let ATLAS = null;
 function atlas() {
@@ -113,6 +116,13 @@ function atlas() {
   tile(TILES.wool, () => shade([235, 235, 235], 0.1));
   tile(TILES.snow, () => shade([245, 248, 255], 0.05));
   tile(TILES.snowSide, (x, y) => y < 4 ? shade([245, 248, 255], 0.05) : shade([134, 96, 67], 0.4));
+  tile(TILES.tntSide, (x, y) => y > 5 && y < 10 ? ((x > 1 && x < 14 && (y === 6 || y === 9 || x % 4 === 2)) ? '#1a1a1a' : '#f0f0f0') : shade([210, 50, 40], 0.15));
+  tile(TILES.tntTop, (x, y) => Math.hypot(x - 7.5, y - 7.5) < 3 ? '#3a3a3a' : shade([210, 50, 40], 0.15));
+  tile(TILES.bedTop, (x, y) => y < 5 ? shade([240, 240, 245], 0.05) : shade([200, 40, 50], 0.15));
+  tile(TILES.bedSide, (x, y) => y < 6 ? (x < 5 ? shade([240, 240, 245], 0.05) : shade([200, 40, 50], 0.15)) : y < 10 ? shade([150, 110, 60], 0.15) : (x < 2 || x > 13) ? '#6a4a2a' : null);
+  tile(TILES.farm, (x, y) => y % 4 === 0 ? shade([70, 46, 28], 0.2) : shade([100, 68, 42], 0.25));
+  tile(TILES.wheat, (x, y) => (x % 4 === 1 || x % 5 === 3) && y > 8 - (x % 3) ? shade([90, 170, 60], 0.3) : null);
+  tile(TILES.ripe, (x, y) => (x % 3 === 1) && y > 2 + (x % 4) ? (y < 7 ? shade([220, 180, 70], 0.2) : shade([170, 150, 60], 0.2)) : null);
   const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace;
   return (ATLAS = { tex: t, canvas: c });
 }
@@ -137,10 +147,20 @@ const FACES = [
   { n: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]], f: 'side', s: 0.7 },
 ];
 function meshChunk(vox, cx, cz) {
-  const bufs = [{ p: [], u: [], c: [], i: [] }, { p: [], u: [], c: [], i: [] }];    // solid, see-through
+  const bufs = [{ p: [], u: [], c: [], i: [] }, { p: [], u: [], c: [], i: [] }, { p: [], u: [], c: [], i: [] }];    // solid, see-through, crops
   for (let y = 0; y < HY; y++) for (let z = cz * CH; z < cz * CH + CH; z++) for (let x = cx * CH; x < cx * CH + CH; x++) {
     const b = vox.get(x, y, z);
     if (b === B.AIR) continue;
+    if (CROP.has(b)) {                       // crops: two crossed panels, like Minecraft
+      const buf = bufs[2], t = tileOf(b, 'side'), u0 = (t * TS + 0.02) / (TILE_N * TS), u1 = ((t + 1) * TS - 0.02) / (TILE_N * TS);
+      for (const [ax, az, bx, bz] of [[0.1, 0.1, 0.9, 0.9], [0.9, 0.1, 0.1, 0.9]]) {
+        const base = buf.p.length / 3;
+        buf.p.push(x + ax, y, z + az, x + ax, y + 1, z + az, x + bx, y + 1, z + bz, x + bx, y, z + bz);
+        buf.u.push(u0, 0, u0, 1, u1, 1, u1, 0); for (let k = 0; k < 4; k++) buf.c.push(1, 1, 1);
+        buf.i.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      }
+      continue;
+    }
     const clear = b === B.WATER || b === B.GLASS, buf = bufs[clear ? 1 : 0];
     for (const F of FACES) {
       const nb = vox.get(x + F.n[0], y + F.n[1], z + F.n[2]);
@@ -207,7 +227,8 @@ export const SURV = {
     const sx = W / 2 + Math.floor(Math.random() * 6) - 3, sz = D / 2 + Math.floor(Math.random() * 6) - 3;
     this.spawn = { x: sx + 0.5, z: sz + 0.5 };
     this.me = { x: sx + 0.5, y: this.vox.top(sx, sz) + 0.1, z: sz + 0.5, vy: 0, yaw: 0, pitch: 0, hp: 20, food: 20, ground: false, fly: false, breakT: 0, target: null, swing: 0, air: 0, fallFrom: null };
-    this.inv = this.creative ? [B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.PLANKS, B.LOG, B.GLASS, B.BRICK, B.LAMP, B.WOOL, B.SAND, B.LEAVES, B.SNOW, B.TABLE, B.FURNACE, B.WATER, B.COAL, B.IRON].map(id => ({ id, n: 999 })) : [];
+    this.inv = this.creative ? [B.GRASS, B.DIRT, B.STONE, B.COBBLE, B.PLANKS, B.LOG, B.GLASS, B.BRICK, B.LAMP, B.WOOL, B.SAND, B.LEAVES, B.SNOW, B.TABLE, B.FURNACE, B.WATER, B.COAL, B.IRON, B.TNT, B.BED, I.SEEDS].map(id => ({ id, n: 999 })) : [];
+    this.fuses = []; this.animals = []; this.aid = 0;
     this.slot = 0; this.t = DAY * 0.25; this.zombies = []; this.zid = 0; this.helpT = 20; this.hurt = 0; this.saveT = 0; this.msg = null;
     this.bots = new Map();
     api.ids().forEach((id, i) => { if (api.isHost() && api.isBot(id)) this.bots.set(id, { x: sx + 2 + i, y: this.vox.top(sx + 2 + i, sz) + 0.1, z: sz + 0.5, vy: 0, yaw: 0, spd: 0, held: 0, goal: null }); });
@@ -239,12 +260,13 @@ export const SURV = {
     for (const [id, n] of r.need) this.take(id, n);
     this.give(r.out[0], r.out[1]); this.api.sfx('coin'); this.renderCraft();
   },
-  eat(api) { const h = this.held(); if (h === I.APPLE || h === I.BREAD) { this.me.food = Math.min(20, this.me.food + (h === I.BREAD ? 8 : 4)); this.me.hp = Math.min(20, this.me.hp + 2); this.take(h, 1); api.sfx('coin'); } },
+  eat(api) { const h = this.held(), f = { [I.APPLE]: 4, [I.BREAD]: 8, [I.PORK]: 6, [I.STEAK]: 8 }[h]; if (f) { this.me.food = Math.min(20, this.me.food + f); this.me.hp = Math.min(20, this.me.hp + 2); this.take(h, 1); api.sfx('coin'); } },
   // break: hold the button on a block (survival), instantly in creative
   breakTick(api, dt, holding) {
     const m = this.me, tg = m.target;
     if (!holding || !tg) { m.breakT = 0; return; }
     if (tg.b === B.BEDROCK) return;
+    if (tg.b === B.TNT) { this.light(api, tg.x, tg.y, tg.z, true); m.breakT = 0; return; }
     const need = this.creative ? 0.15 : (HARD[tg.b] ?? 1) / (ROCKY.has(tg.b) ? this.pickSpeed() : (this.held() >= 102 && this.held() <= 104 ? 1.3 : 1));
     if (m.breakKey !== `${tg.x},${tg.y},${tg.z}`) { m.breakKey = `${tg.x},${tg.y},${tg.z}`; m.breakT = 0; }
     m.breakT += dt; m.swing = 0.2;
@@ -254,6 +276,8 @@ export const SURV = {
     this.setBlock(api, tg.x, tg.y, tg.z, B.AIR);
     let drop = tg.b in DROP ? DROP[tg.b] : tg.b;
     if (tg.b === B.LEAVES && Math.random() < 0.12) drop = I.APPLE;
+    if (tg.b === B.GRASS && Math.random() < 0.25) this.give(I.SEEDS, 1);
+    if (tg.b === B.RIPE) this.give(I.SEEDS, 1 + (Math.random() < 0.5 ? 1 : 0));
     if (tg.b === B.IRON && this.pickSpeed() < 4) { drop = 0; api.toast('You need a stone pickaxe for iron', '#ffb13a'); }
     if (ROCKY.has(tg.b) && this.pickSpeed() === 1) { drop = 0; api.toast('Make a pickaxe to collect stone (C to craft)', '#ffb13a'); }
     this.give(drop, 1);
@@ -261,6 +285,10 @@ export const SURV = {
   },
   place(api) {
     const m = this.me, tg = m.target, h = this.held();
+    if (tg?.b === B.BED) { this.sleep(api, tg); return; }
+    if (tg && h === I.SEEDS && (tg.b === B.DIRT || tg.b === B.GRASS || tg.b === B.FARM) && tg.n[1] === 1 && this.vox.get(tg.x, tg.y + 1, tg.z) === B.AIR) {
+      this.setBlock(api, tg.x, tg.y, tg.z, B.FARM); this.setBlock(api, tg.x, tg.y + 1, tg.z, B.WHEAT); this.take(h, 1); m.swing = 0.2; sound(audioOut(), 300, 0.06, 0.06, 'triangle'); return;
+    }
     if (!tg || !h || h >= 100) return;
     const x = tg.x + tg.n[0], y = tg.y + tg.n[1], z = tg.z + tg.n[2];
     if (this.vox.get(x, y, z) !== B.AIR && this.vox.get(x, y, z) !== B.WATER) return;
@@ -269,6 +297,37 @@ export const SURV = {
     if (SOLID(h) && (inside(m) || [...net.others.values()].some(o => inside(o.v)))) return;
     this.setBlock(api, x, y, z, h); this.take(h, 1); m.swing = 0.2;
     sound(audioOut(), 200, 0.08, 0.08, 'triangle');
+  },
+  // a bed: your new spawn point, and if it's night everyone skips to morning
+  sleep(api, tg) {
+    this.spawn = { x: tg.x + 0.5, z: tg.z + 0.5 };
+    if (!this.isNight()) { api.toast('🛏️ Spawn point set! You can only sleep at night.', '#9fd8ff'); return; }
+    api.send({ k: 'sleep' }); this.morning(api);
+  },
+  morning(api) { this.t = Math.ceil(this.t / DAY) * DAY + DAY * 0.02; this.zombies = []; this.msg = { text: '☀️ Good morning!', t: 2 }; api.sfx('win'); },
+  // TNT: light it, it hisses for 3 seconds, then boom (every computer runs the same explosion)
+  light(api, x, y, z, send) {
+    if (this.vox.get(x, y, z) !== B.TNT || this.fuses.some(f => f.x === x && f.y === y && f.z === z)) return;
+    this.fuses.push({ x, y, z, t: 3 });
+    if (send) api.send({ k: 'tnt', a: [x, y, z] });
+    sound(audioOut(), 900, 0.4, 0.06, 'sawtooth', 400);
+  },
+  explode(api, cx, cy, cz) {
+    const R = 3.2;
+    for (let y = -4; y <= 4; y++) for (let z = -4; z <= 4; z++) for (let x = -4; x <= 4; x++) {
+      if (Math.hypot(x, y, z) > R + hash(cx + x, cy + y * 7, cz + z) * 0.6) continue;   // (the same holes on every computer)
+      const b = this.vox.get(cx + x, cy + y, cz + z);
+      if (b === B.BEDROCK || b === B.AIR || b === B.WATER) continue;
+      if (b === B.TNT && (x || y || z)) { this.fuses.push({ x: cx + x, y: cy + y, z: cz + z, t: 0.4 + hash(cx + x, cy + y, cz + z) * 0.5 }); continue; }
+      this.vox.set(cx + x, cy + y, cz + z, B.AIR); this.dirtySave = true;
+    }
+    const m = this.me, d = Math.hypot(m.x - cx - 0.5, m.y + 1 - cy, m.z - cz - 0.5);
+    if (d < 6) { this.hurtMe(api, Math.ceil((6 - d) * 2.5)); m.vy = 9; }
+    for (const z of this.zombies) if (Math.hypot(z.x - cx, z.y - cy, z.z - cz) < 5) z.hp -= 10;
+    for (const a of this.animals) if (Math.hypot(a.x - cx, a.y - cy, a.z - cz) < 5) a.hp -= 10;
+    this.shake = 0.5;
+    sound(audioOut(), 80, 1, 0.3, 'sawtooth', 30); sound(audioOut(), 50, 1.2, 0.25, 'square', 20);
+    SC?.booms.push({ x: cx + 0.5, y: cy + 0.5, z: cz + 0.5, t: 0 });
   },
   setBlock(api, x, y, z, b) { if (this.vox.set(x, y, z, b)) { api.send({ k: 'b', a: [x, y, z, b] }); this.dirtySave = true; } },
   tick(api, dt) {
@@ -301,9 +360,11 @@ export const SURV = {
       // what am I pointing at?
       const dir = { x: -Math.sin(m.yaw) * Math.cos(m.pitch), y: Math.sin(m.pitch), z: -Math.cos(m.yaw) * Math.cos(m.pitch) };
       m.target = raycast(vox, { x: m.x, y: m.y + EYE, z: m.z }, dir);
-      const zt = this.aimZombie(dir);
+      const at = !this.aimZombie(dir) && this.aimAnimal(dir);
+      if (at && (inp.fire || touchHeld.has('break')) && (m.hitCd = (m.hitCd || 0) - dt) <= 0) { m.hitCd = 0.45; m.swing = 0.25; this.hitAnimal(api, at.id, { 105: 4, 106: 5, 107: 7 }[this.held()] || 2); }
+      const zt = this.aimZombie(dir) || at;
       const hold = inp.fire || touchHeld.has('break');
-      if (zt && hold && (m.hitCd = (m.hitCd || 0) - dt) <= 0) { m.hitCd = 0.45; m.swing = 0.25; const dmg = { 105: 4, 106: 5, 107: 7 }[this.held()] || 2; this.hitZombie(api, zt.id, dmg, dir); }
+      if (zt && !at && hold && (m.hitCd = (m.hitCd || 0) - dt) <= 0) { m.hitCd = 0.45; m.swing = 0.25; const dmg = { 105: 4, 106: 5, 107: 7 }[this.held()] || 2; this.hitZombie(api, zt.id, dmg, dir); }
       else this.breakTick(api, dt, hold && !zt);
       if (touchHeld.has('place') && !this.placedTouch) { this.place(api); this.placedTouch = true; } if (!touchHeld.has('place')) this.placedTouch = false;
       m.swing = Math.max(0, m.swing - dt);
@@ -314,6 +375,9 @@ export const SURV = {
         if (m.regen > 4) { m.regen = 0; if (m.food > 16 && m.hp < 20) m.hp++; if (m.food <= 0) this.hurtMe(api, 1); }
       }
     }
+    for (const f of [...this.fuses]) { f.t -= dt; if (f.t <= 0) { this.fuses.splice(this.fuses.indexOf(f), 1); if (this.vox.get(f.x, f.y, f.z) === B.TNT) { this.vox.set(f.x, f.y, f.z, B.AIR); this.explode(api, f.x, f.y, f.z); } } }
+    if (api.isHost()) { this.growCrops(api, dt); this.hostAnimals(api, dt); }
+    else for (const a of this.animals) if (a.tx !== undefined) { a.x += (a.tx - a.x) * Math.min(1, dt * 8); a.y += (a.ty - a.y) * Math.min(1, dt * 8); a.z += (a.tz - a.z) * Math.min(1, dt * 8); }
     // the night: zombies (the host runs them)
     if (api.isHost()) this.hostZombies(api, dt);
     else for (const z of this.zombies) if (z.tx !== undefined) { z.x += (z.tx - z.x) * Math.min(1, dt * 8); z.y += (z.ty - z.y) * Math.min(1, dt * 8); z.z += (z.tz - z.z) * Math.min(1, dt * 8); }
@@ -330,6 +394,42 @@ export const SURV = {
   respawn(api) { const m = this.me, s = this.spawn; Object.assign(m, { x: s.x, z: s.z, y: this.vox.top(Math.floor(s.x), Math.floor(s.z)) + 0.1, vy: 0, hp: 20, food: Math.max(m.food, 12), dead: 0, fallFrom: null }); api.toast('You\'re back at spawn (you kept your stuff)', '#9fd8ff'); },
   dayLight() { const p = (this.t % DAY) / DAY; return clamp(Math.sin(p * Math.PI * 2) * 1.6 + 0.6, 0.12, 1); },
   isNight() { return this.dayLight() < 0.35; },
+  // crops grow on the host and the change goes to everyone like any other block
+  growCrops(api, dt) {
+    if ((this.cropT = (this.cropT || 0) - dt) > 0) return;
+    this.cropT = 3;
+    for (const [k, b] of this.vox.edits) if (b === B.WHEAT && Math.random() < 0.06) { const [x, y, z] = k.split(',').map(Number); this.setBlock(api, x, y, z, B.RIPE); }
+  },
+  // animals wander the grass by day: pigs, sheep and cows
+  hostAnimals(api, dt) {
+    if (this.creative) { this.animals = []; return; }
+    if (this.animals.length < 8 && Math.random() < dt * 0.3) {
+      const x = 4 + Math.floor(Math.random() * (W - 8)), z = 4 + Math.floor(Math.random() * (D - 8)), y = this.vox.top(x, z);
+      if (this.vox.get(x, y - 1, z) === B.GRASS) this.animals.push({ id: ++this.aid, kind: ['pig', 'sheep', 'cow'][Math.floor(Math.random() * 3)], x: x + 0.5, y, z: z + 0.5, vy: 0, yaw: 0, hp: 6, walk: 0 });
+    }
+    for (const a of [...this.animals]) {
+      if ((a.walk -= dt) <= 0) { a.walk = 2 + Math.random() * 4; a.dir = Math.random() < 0.4 ? null : Math.random() * 6.28; }
+      if (a.flee > 0) { a.flee -= dt; }
+      const sp = a.flee > 0 ? 3 : 1.2;
+      if (a.dir !== null && a.dir !== undefined) { a.yaw = a.dir; const ox = a.x, oz = a.z; collideAxis(this.vox, a, 'x', -Math.sin(a.dir) * sp * dt); collideAxis(this.vox, a, 'z', -Math.cos(a.dir) * sp * dt); if (a.ground && Math.hypot(a.x - ox, a.z - oz) < sp * dt * 0.3) a.vy = 7; }
+      a.ground = false; a.vy = Math.max((a.vy || 0) - 28 * dt, -40); collideAxis(this.vox, a, 'y', a.vy * dt);
+      if (a.hp <= 0 || a.y < -5) { this.animals.splice(this.animals.indexOf(a), 1); if (a.hp <= 0) api.send({ k: 'adrop', kind: a.kind, x: a.x, z: a.z, by: a.by }); if (a.hp <= 0) this.animalDrop(api, a.kind, a.by); }
+    }
+    if ((this.aT = (this.aT || 0) - dt) <= 0) { this.aT = 0.15; api.send({ k: 'an', a: this.animals.map(a => [a.id, a.kind, Math.round(a.x * 10) / 10, Math.round(a.y * 10) / 10, Math.round(a.z * 10) / 10, Math.round(a.yaw * 100) / 100]) }); }
+  },
+  animalDrop(api, kind, by) { if (by && by !== api.meId()) return; if (kind === 'pig') this.give(I.PORK, 2); if (kind === 'cow') this.give(I.STEAK, 2); if (kind === 'sheep') this.give(B.WOOL, 2); api.sfx('coin'); },
+  aimAnimal(dir) {
+    const m = this.me, e = { x: m.x, y: m.y + EYE, z: m.z };
+    let best = null, bd = 3.5;
+    for (const a of this.animals) { const cx = a.x - e.x, cy = a.y + 0.6 - e.y, cz = a.z - e.z, along = cx * dir.x + cy * dir.y + cz * dir.z; if (along < 0 || along > bd) continue; if (Math.hypot(cx - dir.x * along, cy - dir.y * along, cz - dir.z * along) < 0.8) { bd = along; best = a; } }
+    return best;
+  },
+  hitAnimal(api, id, dmg) {
+    sound(audioOut(), 240, 0.1, 0.1, 'square', 120);
+    if (!api.isHost()) { api.send({ k: 'ahit', id, dmg, by: api.meId() }); return; }
+    const a = this.animals.find(q => q.id === id); if (!a) return;
+    a.hp -= dmg; a.vy = 5; a.flee = 3; a.dir = Math.random() * 6.28; a.by = api.meId();
+  },
   hostZombies(api, dt) {
     if (this.creative) { this.zombies = []; return; }
     const people = [[this.api.meId(), this.me], ...[...net.others].map(([id, o]) => [id, o.v])].filter(([, p]) => !(p.dead > 0));
@@ -378,6 +478,11 @@ export const SURV = {
   botTick() {},
   onMsg(api, d) {
     if (net.recv(api, d, id => id === api.meId() || this.bots.has(id))) return;
+    if (d.k === 'tnt' && Array.isArray(d.a)) { const [x, y, z] = d.a.map(Number); this.light(api, x, y, z, false); }
+    if (d.k === 'sleep') this.morning(api);
+    if (d.k === 'an' && !api.isHost() && Array.isArray(d.a)) this.animals = d.a.map(([id, kind, x, y, z, yaw]) => { const o = this.animals.find(q => q.id === id); return o ? Object.assign(o, { tx: x, ty: y, tz: z, yaw }) : { id, kind, x, y, z, yaw, tx: x, ty: y, tz: z }; });
+    if (d.k === 'ahit' && api.isHost()) { const a = this.animals.find(q => q.id === (d.id | 0)); if (a) { a.hp -= Math.min(8, +d.dmg || 0); a.vy = 5; a.flee = 3; a.dir = Math.random() * 6.28; a.by = String(d.by); } }
+    if (d.k === 'adrop' && String(d.by) === api.meId()) this.animalDrop(api, d.kind, api.meId());
     if (d.k === 'b' && Array.isArray(d.a)) { const [x, y, z, b] = d.a.map(Number); this.vox.set(x, y, z, b); this.dirtySave = true; }
     if (d.k === 'sync?' && api.isHost()) api.send({ k: 'sync', seed: this.seed, t: this.t, edits: this.vox.list().slice(-20000) });
     if (d.k === 'sync' && !this.synced && Array.isArray(d.edits)) {
@@ -454,9 +559,9 @@ export const SURV = {
       const [cx, cz] = k.split(',').map(Number);
       if (cx < 0 || cz < 0 || cx >= W / CH || cz >= D / CH) continue;
       const old = sc.chunks.get(k); if (old) { for (const o of old) { sc.scene.remove(o); o.geometry.dispose(); } }
-      const [g1, g2] = meshChunk(this.vox, cx, cz);
-      const a = new THREE.Mesh(g1, sc.mat), b = new THREE.Mesh(g2, sc.glassMat);
-      sc.scene.add(a, b); sc.chunks.set(k, [a, b]);
+      const [g1, g2, g3] = meshChunk(this.vox, cx, cz);
+      const a = new THREE.Mesh(g1, sc.mat), b = new THREE.Mesh(g2, sc.glassMat), c = new THREE.Mesh(g3, sc.cropMat);
+      sc.scene.add(a, b, c); sc.chunks.set(k, [a, b, c]);
     }
     // day and night
     const L = this.dayLight();
@@ -480,6 +585,18 @@ export const SURV = {
       g.position.set(z.x, z.y, z.z); g.rotation.y = z.yaw; walk(g, 2.2, dt);
     }
     for (const [id, g] of sc.zmesh) if (!zseen.has(id)) { sc.scene.remove(g); sc.zmesh.delete(id); }
+    const aseen = new Set();
+    for (const a of this.animals) {
+      aseen.add(a.id);
+      let g = sc.amesh.get(a.id);
+      if (!g) { g = makeAnimal(a.kind); sc.scene.add(g); sc.amesh.set(a.id, g); }
+      g.position.set(a.x, a.y, a.z); g.rotation.y = a.yaw; g.userData.legs.forEach((l, i) => { l.rotation.x = Math.sin(performance.now() / 120 + i * Math.PI) * 0.4; });
+    }
+    for (const [id, g] of sc.amesh) if (!aseen.has(id)) { sc.scene.remove(g); sc.amesh.delete(id); }
+    // lit TNT flashes white; explosions puff out
+    while (sc.fuseMesh.length < this.fuses.length) { const f = new THREE.Mesh(new THREE.BoxGeometry(1.04, 1.04, 1.04), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })); sc.scene.add(f); sc.fuseMesh.push(f); }
+    sc.fuseMesh.forEach((f, i) => { const u = this.fuses[i]; f.visible = !!u && Math.floor(performance.now() / 150) % 2 === 0; if (u) f.position.set(u.x + 0.5, u.y + 0.5, u.z + 0.5); });
+    for (let i = sc.booms.length - 1; i >= 0; i--) { const b = sc.booms[i]; if (!b.m) { b.m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffb13a, transparent: true })); sc.scene.add(b.m); } b.t += dt; b.m.position.set(b.x, b.y, b.z); b.m.scale.setScalar(1 + b.t * 10); b.m.material.opacity = Math.max(0, 0.9 - b.t * 1.6); if (b.t > 0.6) { sc.scene.remove(b.m); sc.booms.splice(i, 1); } }
     // block highlight
     sc.sel.visible = !!m.target;
     if (m.target) { sc.sel.position.set(m.target.x + 0.5, m.target.y + 0.5, m.target.z + 0.5); sc.crack.visible = m.breakT > 0; sc.crack.position.copy(sc.sel.position); sc.crack.material.opacity = Math.min(0.75, m.breakT * 0.6); }
@@ -487,6 +604,7 @@ export const SURV = {
     // camera = my eyes; my hand holds the item
     const cam = sc.cam; cam.aspect = VW / VH; cam.fov = VW < VH ? 85 : 75; cam.updateProjectionMatrix();
     cam.position.set(m.x, m.y + EYE + (m.dead > 0 ? -1 : 0), m.z); cam.rotation.set(m.pitch, m.yaw, 0, 'YXZ');
+    if ((this.shake = (this.shake || 0) - dt) > 0) { cam.position.x += (Math.random() - 0.5) * this.shake; cam.position.y += (Math.random() - 0.5) * this.shake; }
     const h = this.held();
     if (sc.handId !== h) { sc.handId = h; sc.hand.material.map = h ? new THREE.TextureLoader().load(icon(h)) : null; sc.hand.material.needsUpdate = true; sc.hand.visible = !!h; }
     sc.hand.position.set(0.42, -0.36 - Math.sin(m.swing * 15) * 0.08, -0.6 + m.swing * 0.4); sc.hand.rotation.set(-0.3 - m.swing * 2, 0.4, 0);
@@ -515,15 +633,33 @@ export const SURV = {
     const { scene, cam, hemi, sun } = makeScene(0x87bfff, 40, 120);
     const mat = new THREE.MeshLambertMaterial({ map: atlas().tex, vertexColors: true });
     const glassMat = new THREE.MeshLambertMaterial({ map: atlas().tex, vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide });
+    const cropMat = new THREE.MeshLambertMaterial({ map: atlas().tex, alphaTest: 0.5, side: THREE.DoubleSide });
     const sel = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005, 1.005, 1.005)), new THREE.LineBasicMaterial({ color: 0x000000 })); scene.add(sel);
     const crack = new THREE.Mesh(new THREE.BoxGeometry(1.01, 1.01, 1.01), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })); scene.add(crack);
     const sunBall = new THREE.Mesh(new THREE.BoxGeometry(12, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfff2a0, fog: false })); scene.add(sunBall);
     const moon = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshBasicMaterial({ color: 0xe8e8f8, fog: false })); scene.add(moon);
     const hand = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.32), new THREE.MeshBasicMaterial({ transparent: true, depthTest: false })); hand.renderOrder = 10; cam.add(hand); scene.add(cam);
     const dirty = new Set(); for (let cz = 0; cz < D / CH; cz++) for (let cx = 0; cx < W / CH; cx++) dirty.add(cx + ',' + cz);
-    return { scene, cam, hemi, sun, mat, glassMat, sel, crack, sunBall, moon, hand, chunks: new Map(), dirty, people: new Map(), zmesh: new Map(), vox: this.vox };
+    return { scene, cam, hemi, sun, mat, glassMat, cropMat, sel, crack, sunBall, moon, hand, chunks: new Map(), dirty, people: new Map(), zmesh: new Map(), amesh: new Map(), fuseMesh: [], booms: [], vox: this.vox };
   },
 };
+// blocky farm animals
+function makeAnimal(kind) {
+  const g = new THREE.Group(), box = new THREE.BoxGeometry(1, 1, 1);
+  const c = { pig: ['#f0a0a8', '#e08890'], sheep: ['#f4f4f4', '#8a8a8a'], cow: ['#5a3a2a', '#e8e8e8'] }[kind];
+  const m1 = new THREE.MeshLambertMaterial({ color: c[0] }), m2 = new THREE.MeshLambertMaterial({ color: c[1] }), eye = new THREE.MeshLambertMaterial({ color: '#111' });
+  const add = (m, sx, sy, sz, x, y, z, parent = g) => { const b = new THREE.Mesh(box, m); b.scale.set(sx, sy, sz); b.position.set(x, y, z); parent.add(b); return b; };
+  const big = kind === 'cow' ? 1.25 : 1;
+  add(m1, 0.8 * big, 0.6 * big, 1.2 * big, 0, 0.75 * big, 0);
+  add(kind === 'sheep' ? m2 : m1, 0.55, 0.55, 0.5, 0, 0.95 * big, -0.75 * big);
+  if (kind === 'cow') add(m2, 0.82 * big, 0.3, 0.5, 0, 0.9 * big, 0.2);
+  if (kind === 'pig') add(m2, 0.3, 0.2, 0.1, 0, 0.88, -1.02);
+  for (const sx of [-1, 1]) add(eye, 0.08, 0.08, 0.04, sx * 0.14, 1.03 * big, -1.0 * big);
+  const legs = [];
+  for (const [x, z] of [[-0.25, -0.4], [0.25, -0.4], [-0.25, 0.4], [0.25, 0.4]]) { const p = new THREE.Group(); p.position.set(x * big, 0.45 * big, z * big); add(kind === 'sheep' ? m2 : m1, 0.22, 0.45 * big, 0.22, 0, -0.22 * big, 0, p); g.add(p); legs.push(p); }
+  g.userData.legs = legs;
+  return g;
+}
 let surviveLive = 0;
 const SURV_LIVE = () => performance.now() - surviveLive < 600;
 // right click places a block
