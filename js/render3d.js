@@ -148,6 +148,7 @@ export function makeHat(id) {
 
 // accessories from the shop: on the face, around the neck, or on the back
 export function makeAcc(id) {
+  if (String(id).startsWith('pet-')) id = 'pet';     // in the side view every pet rides along as the duck
   const g = new THREE.Group();
   switch (id) {
     case 'glasses': case 'shades': {
@@ -1466,7 +1467,7 @@ export class Renderer3D {
       const tt = performance.now() / 1000, moving = Math.min(1, Math.abs(b.vx || 0) / 200);
       const hu = g.userData.hatMesh?.userData, au = g.userData.accMesh?.userData;
       if (hu?.spin) hu.spin.rotation.y = tt * (8 + moving * 20);
-      if (au?.bob) au.bob.position.y = (acc === 'pet' ? -0.3 + Math.abs(Math.sin(tt * 6)) * 0.12 * (0.3 + moving) : 1.25 + Math.sin(tt * 2) * 0.06);
+      if (au?.bob) au.bob.position.y = (String(acc).startsWith('pet') ? -0.3 + Math.abs(Math.sin(tt * 6)) * 0.12 * (0.3 + moving) : 1.25 + Math.sin(tt * 2) * 0.06);
       if (au?.flap) au.flap.rotation.x = 0.2 + moving * 0.9 + Math.sin(tt * 10) * 0.08 * moving;
       if (au?.wings) au.wings.forEach((w, i) => { w.rotation.y = (i ? -1 : 1) * Math.sin(tt * 8) * 0.4; });
       if (au?.flames) au.flames.forEach(f => { f.scale.y = 0.6 + Math.random() * 0.8; });

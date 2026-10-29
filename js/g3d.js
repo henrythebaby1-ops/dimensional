@@ -135,6 +135,11 @@ export function hop(g, speed, dt) {
   const h = Math.abs(Math.sin(u.phase)) * 0.14 * k;
   u.bob.position.y = h;
   u.bob.scale.set(1 + (0.06 - h * 0.4) * k, 1 - (0.06 - h * 0.6) * k, 1 + (0.06 - h * 0.4) * k);
+  if (u.pet) {                                                       // the pet hops along (the dragon flaps and flies)
+    const fly = u.pet.userData.kind === 'dragon';
+    u.pet.position.y = fly ? 0.35 + Math.sin(u.phase * 0.7) * 0.06 : Math.abs(Math.sin(u.phase * 1.3)) * 0.08 * (0.3 + k);
+    if (fly) for (const [i, w] of u.pet.userData.wings.entries()) w.rotation.z = (i ? -1 : 1) * Math.sin(u.phase * 2) * 0.6;
+  }
 }
 // a skin as a texture for the guy's body (cached)
 const SKIN_TEX = new Map();
@@ -150,8 +155,28 @@ export function makePerson(color, pattern) {
   if (pattern) { const m = g.userData.mat; m.map = skinTexture(pattern); m.color.set('#ffffff'); m.emissive.set('#000000'); }
   return g;
 }
-// the guy for player `id`, in their own skin
-export function personFor(api, id) { const s = api.skinOf?.(id) || {}; return makePerson(new THREE.Color(s.color || hue(id)).getHex(), s.pattern); }
+// the guy for player `id`, in their own skin, with their pet trotting alongside
+export function personFor(api, id) {
+  const s = api.skinOf?.(id) || {}, g = makePerson(new THREE.Color(s.color || hue(id)).getHex(), s.pattern);
+  if (String(s.acc || '').startsWith('pet')) { const p = makePet(s.acc); p.position.set(0.62, 0, 0.45); g.add(p); g.userData.pet = p; }
+  return g;
+}
+// blocky pets, in the guy's own units (he's 0.875 tall before scaling)
+export function makePet(id) {
+  const g = new THREE.Group(), kind = id === 'pet' ? 'duck' : id.slice(4);
+  const M = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, transparent: kind === 'slime', opacity: kind === 'slime' ? 0.75 : 1 });
+  const add = (c, sx, sy, sz, x, y, z) => { const b = new THREE.Mesh(BOX, M(c)); b.scale.set(sx, sy, sz); b.position.set(x, y, z); g.add(b); return b; };
+  const eyes = (y, z, w = 0.06) => { for (const s of [-1, 1]) add('#111', 0.04, 0.05, 0.02, s * w, y, z); };
+  if (kind === 'duck') { add('#ffe23a', 0.24, 0.18, 0.3, 0, 0.12, 0); add('#ffe23a', 0.16, 0.16, 0.16, 0, 0.28, -0.12); add('#ff8a1a', 0.08, 0.04, 0.08, 0, 0.26, -0.24); eyes(0.31, -0.2); }
+  if (kind === 'dog') { add('#c8935a', 0.2, 0.18, 0.36, 0, 0.17, 0); add('#c8935a', 0.2, 0.2, 0.2, 0, 0.3, -0.22); add('#7a5232', 0.06, 0.12, 0.06, -0.09, 0.38, -0.2); add('#7a5232', 0.06, 0.12, 0.06, 0.09, 0.38, -0.2); add('#1a1a1a', 0.06, 0.05, 0.04, 0, 0.27, -0.33); add('#c8935a', 0.05, 0.05, 0.16, 0, 0.24, 0.24); eyes(0.33, -0.33); for (const [x, z] of [[-0.07, -0.12], [0.07, -0.12], [-0.07, 0.12], [0.07, 0.12]]) add('#c8935a', 0.06, 0.1, 0.06, x, 0.05, z); }
+  if (kind === 'cat') { add('#8a8a94', 0.18, 0.16, 0.32, 0, 0.16, 0); add('#8a8a94', 0.2, 0.18, 0.18, 0, 0.3, -0.2); add('#8a8a94', 0.05, 0.08, 0.04, -0.07, 0.42, -0.2); add('#8a8a94', 0.05, 0.08, 0.04, 0.07, 0.42, -0.2); add('#8a8a94', 0.04, 0.26, 0.04, 0, 0.3, 0.17); eyes(0.32, -0.3); for (const [x, z] of [[-0.06, -0.1], [0.06, -0.1], [-0.06, 0.1], [0.06, 0.1]]) add('#8a8a94', 0.05, 0.1, 0.05, x, 0.05, z); }
+  if (kind === 'bunny') { add('#f4f4f4', 0.2, 0.2, 0.26, 0, 0.12, 0); add('#f4f4f4', 0.18, 0.18, 0.18, 0, 0.28, -0.1); add('#ffb8c8', 0.05, 0.22, 0.03, -0.05, 0.47, -0.1); add('#ffb8c8', 0.05, 0.22, 0.03, 0.05, 0.47, -0.1); add('#ffffff', 0.08, 0.08, 0.08, 0, 0.14, 0.15); eyes(0.3, -0.2, 0.05); }
+  if (kind === 'panda') { add('#f4f4f4', 0.26, 0.22, 0.3, 0, 0.13, 0); add('#1a1a1a', 0.27, 0.1, 0.12, 0, 0.13, -0.02); add('#f4f4f4', 0.22, 0.2, 0.2, 0, 0.32, -0.16); add('#1a1a1a', 0.06, 0.06, 0.04, -0.09, 0.44, -0.16); add('#1a1a1a', 0.06, 0.06, 0.04, 0.09, 0.44, -0.16); add('#1a1a1a', 0.06, 0.06, 0.02, -0.05, 0.34, -0.27); add('#1a1a1a', 0.06, 0.06, 0.02, 0.05, 0.34, -0.27); }
+  if (kind === 'slime') { add('#5aff6a', 0.3, 0.28, 0.3, 0, 0.14, 0); eyes(0.2, -0.16, 0.07); add('#2a8a3a', 0.12, 0.12, 0.12, 0, 0.12, 0); }
+  if (kind === 'dragon') { add('#3aa85a', 0.2, 0.18, 0.36, 0, 0.3, 0); add('#3aa85a', 0.18, 0.16, 0.2, 0, 0.42, -0.22); add('#ffd23a', 0.04, 0.08, 0.04, -0.06, 0.53, -0.2); add('#ffd23a', 0.04, 0.08, 0.04, 0.06, 0.53, -0.2); add('#3aa85a', 0.06, 0.06, 0.24, 0, 0.28, 0.26); eyes(0.45, -0.32); const w1 = add('#2a7a4a', 0.3, 0.02, 0.18, -0.22, 0.38, 0), w2 = add('#2a7a4a', 0.3, 0.02, 0.18, 0.22, 0.38, 0); g.userData.wings = [w1, w2]; }
+  g.userData.kind = kind;
+  return g;
+}
 export function walk(g, speed, dt) { hop(g, speed / 2, dt); }
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 // a chunky cartoon car, about 4.4 long, facing -Z; wheels spin with spinWheels()

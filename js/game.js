@@ -2411,11 +2411,11 @@ const tdApi = {
   serverStore(data, force) { if (!server || !isHost()) return; server.world = data; const now = Date.now(); if (!force && now - (server.savedAt || 0) < 20000) return; server.savedAt = now; serverSaveWorld(server.code, data); },
   // what someone looks like: { color, pattern } from their equipped skin (bots and players alike)
   skinOf(id) {
-    if (id === me.id) return { color: skinColor(profile.equip.skin, time) || chatColor(id), pattern: skinPattern(profile.equip.skin) };
+    if (id === me.id) return { color: skinColor(profile.equip.skin, time) || chatColor(id), pattern: skinPattern(profile.equip.skin), acc: profile.equip.acc };
     const co = id === me.id ? null : botActors.get(id)?.p?.cos || remotes.get(id)?.co;
     if (!Array.isArray(co)) return { color: chatColor(id), pattern: null };
     const cu = decodeCustom(co[5]);
-    return { color: skinColor(co[3], time, cu) || chatColor(id), pattern: skinPattern(co[3], cu) };
+    return { color: skinColor(co[3], time, cu) || chatColor(id), pattern: skinPattern(co[3], cu), acc: co[4] };
   },
   focus: () => tdMode?.focus?.(tdApi) || (P ? { x: P.x, y: P.y } : { x: 0, y: 0 }),
   held: () => held,

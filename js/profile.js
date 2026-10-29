@@ -135,6 +135,13 @@ export const SHOP = {
     { id: 'wings', name: 'Angel wings', icon: '🪽', price: 220 },
     { id: 'jetpack', name: 'Jetpack', icon: '🚀', price: 260 },
     { id: 'pet', name: 'Pet duck', icon: '🐤', price: 300 },
+    // pets follow you around in the 3D games (and ride along as a little friend in 2D)
+    { id: 'pet-dog', name: 'Pet dog', icon: '🐶', price: 350 },
+    { id: 'pet-cat', name: 'Pet cat', icon: '🐱', price: 350 },
+    { id: 'pet-bunny', name: 'Pet bunny', icon: '🐰', price: 350 },
+    { id: 'pet-panda', name: 'Pet panda', icon: '🐼', price: 450 },
+    { id: 'pet-slime', name: 'Pet slime', icon: '🟩', price: 400 },
+    { id: 'pet-dragon', name: 'Pet dragon', icon: '🐲', price: 800 },
   ],
 };
 export const skinColor = (id, t = 0, custom) => {
