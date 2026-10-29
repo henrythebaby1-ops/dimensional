@@ -82,6 +82,11 @@ Everyone plays as the same rounded-square guy as in the 2D levels.
   - Hearts and hunger, fall damage, swimming, and a day and night cycle. At night zombies come out, and the sun burns
     them in the morning.
   - Friends build in the same world. It saves in your browser (or online, on a server).
+  - **TNT** (4 sand + 2 coal): hit it and it hisses, then blows a crater. TNT nearby sets off a chain reaction.
+  - **Beds** (3 wool + 3 planks): right-click one to set your spawn. At night, sleeping skips everyone to morning.
+  - **Farming**: punching grass sometimes drops seeds. Plant them on dirt (right click) and wheat grows; 3 wheat
+    make bread.
+  - **Animals**: pigs, sheep and cows wander the grass. Pigs give porkchops, cows give steak, sheep give wool.
 - **🧱 Creative**: the same world with every block, no monsters, and flying (double-tap Space; Space up, Shift down).
 - **🗼 Tower of Doom** (Tower of Hell style): climb a random tower of 7 sections before the 6-minute clock runs out.
   Sections can be stairs, thin beams, lava floors, moving platforms, a spinning bar to jump or a ladder to climb.
@@ -89,6 +94,28 @@ Everyone plays as the same rounded-square guy as in the 2D levels.
 - **🌪️ Natural Disasters** (Natural Disaster Survival style): 6 rounds on an island town. Each round brings a flood,
   meteor shower, tornado, acid rain, earthquake or volcano. Climb the stairs to the roofs, hide under them, and stay
   away from the twister. Survive the most rounds to win.
+
+### 🎉 3D party games
+Quick rounds with friends or bots, all on the 🧊 3D games tile:
+- **🌉 Glass Bridge**: two glass panels in every row, and one breaks. Watch the others and pick a side.
+- **🟦 Spleef**: every tile you step on falls a moment later, over two floors. Last one standing wins.
+- **🧊 Ice Sumo**: a slippery, shrinking ice platform. Dash (Shift) to knock everyone off.
+- **🏃 3D Tag**: pass the 🔥 by touching someone. Whoever is IT the least wins.
+- **👑 King of the Hill 3D**: hold the golden top of the hill and shove (Shift) the rest off.
+- **🪂 The Dropper**: fall down a long shaft, steer through the holes, and land in the water. 3 drops.
+- **🚦 Red Light, Green Light 3D**: run while the giant robot looks away and freeze when it turns.
+- **🌋 Lava Rising 3D**: climb two spiral staircases of floating blocks above the rising lava.
+- **🐔 Chicken Catch**: catch the most runaway chickens in 90 seconds.
+- **💣 Hot Potato 3D**: pass the bomb before it blows.
+- **🧩 Maze Race 3D**: a random hedge maze. First to the golden center wins.
+- **🎨 Paint Battle 3D**: run over tiles to paint them your color. Most tiles wins.
+- **❄️ Snowball Fight**: throw snowballs (click or F) and hide behind snow walls. Three hits and you're out.
+- **🚀 Jetpack Rings**: hold Space to fly and grab the most rings. Fuel refills on the ground.
+- **🟪 Block Party 3D**: when a color is called, stand on it before the rest of the floor drops.
+- **🎣 Fishing**: cast (click or F), wait for a bite, and press when the marker is in the green. Rare fish score more.
+
+**🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
+game. The dragon flies and flaps its wings.
 
 The first-person games (Blaster Arena, Dimendoors, Survival, Creative) **lock your mouse** as soon as they start (or
 on your first click or key press). Esc lets it go.
