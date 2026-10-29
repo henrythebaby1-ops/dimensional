@@ -8,7 +8,7 @@ import { THREE, clamp, wrap, hash, std, markLive, moveInput, buttonBar, makeScen
 import { stepPlayer, touching, OrbitCam, PR, PH } from './plat3d.js';
 
 // shared bits: players, bots, being out, the end
-function base(name, objective, extra) {
+export function base(name, objective, extra) {
   const net = new Net(['x', 'y', 'z', 'yaw', 'spd', 'out'], ['yaw']);
   let SC = null;
   return {
