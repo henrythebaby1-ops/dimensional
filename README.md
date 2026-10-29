@@ -124,6 +124,8 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 - **🪑 Musical Chairs 3D**: walk round while the music plays, then grab a chair when it stops.
 - **🎳 Bowling**: aim, hold to power up, and roll for strikes over 5 frames.
 - **🏹 Archery**: aim with the mouse, mind the wind, and score the most over 8 arrows.
+- **🪙 Coin Rush 3D**: grab the most coins in 60 seconds. Gold stars are worth 5, and some coins sit on crates.
+- **☄️ Meteor Dodge 3D**: red circles show where meteors will land. Get out of them; last one standing wins.
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
