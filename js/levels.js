@@ -1327,6 +1327,7 @@ export const MODES = {
   dig3d: { name: 'Treasure Dig', levels: [tdLevel('dig3d')], min: 1 },
   rocket3d: { name: 'Rocket Race', levels: [tdLevel('rocket3d')], min: 1 },
   glider3d: { name: 'Hang Glider', levels: [tdLevel('glider3d')], min: 1 },
+  flyer3d: { name: 'Sky Flyer', levels: [tdLevel('flyer3d')], min: 1 },
   chairs: { name: 'Musical Chairs', levels: [tdLevel('chairs')], min: 1 },
   hide: { name: 'Hide and Seek', levels: [tdLevel('hide')], min: 1 },
   simon: { name: 'Simon Says', levels: [tdLevel('simon')], min: 1 },

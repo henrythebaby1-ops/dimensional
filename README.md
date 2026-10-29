@@ -132,6 +132,7 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 - **💎 Treasure Dig**: stand on mounds to dig. Gems score, bombs stun you.
 - **🚀 Rocket Race**: tap Space as fast as you can to pump your rocket to the top.
 - **🪂 Hang Glider**: launch off the tower and fly through 15 rings. W dives, S flares, A/D or the mouse turns. Circle in thermals to climb to the gold rings, and land on the 🎯 for +5.
+- **🕊️ Sky Flyer**: everyone has flapping wings. Hold Space to fly up, Shift to dive, WASD to fly around. Most stars in 60s wins (gold stars up high are worth 3).
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
