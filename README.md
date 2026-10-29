@@ -280,7 +280,7 @@ built-in speech voice and the alarm sounds are made in the browser — they aren
   drive cars (E near one), play the arcade. Robbers rob the bank vault or pickpocket — police arrest wanted robbers and
   lock them in jail. Firefighters put out fires that break out around town, the mayor speaks from City Hall, and day
   turns into night with streetlights. `/cash`, `/pay <name> <amount>`, `/lock`.
-- **🛸 Area 51 (roleplay)**: pick a job (Guard, Scientist, Alien, Janitor, Agent, Tourist) and play it out. Keycard
+- **🛸 Area 51 (roleplay)**: pick a job (Guard, Scientist, Alien, Janitor, Agent, Tourist, Base Medic, UFO Pilot, Cafeteria Cook) and play it out. Keycard
   doors, alarm, blackout, intercom, UFO, alien cells, cafeteria, free wardrobe. Chat is the main thing: /me, /shout,
   /wave, /sit, /announce, /job.
 - **🏰 Tower Defense**: build and upgrade Arrow, Cannon, Frost and Laser towers with shared coins. 20 waves, bosses.

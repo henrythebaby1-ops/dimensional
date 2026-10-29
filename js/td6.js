@@ -10,7 +10,12 @@ export const JOBS = {
   agent: { icon: '🕵️', name: 'Agent', card: 3, col: '#1a1a22', act: 'Memory wipe (F)', lines: ['This never happened.', 'Look into the light…', 'Classified.', 'I was never here.'] },
   tourist: { icon: '📸', name: 'Tourist', card: 0, col: '#ffb347', act: 'Take a photo (F)', lines: ['Is this the alien place?', 'Can I get a selfie?', 'I heard there\'s a UFO in here!', 'Where\'s the gift shop?'] },
 };
-const JOB_ORDER = ['guard', 'scientist', 'alien', 'janitor', 'tourist', 'agent'];
+Object.assign(JOBS, {
+  medic: { icon: '🧑‍⚕️', name: 'Base Medic', card: 2, col: '#ffffff', act: 'Patch someone up (F)', lines: ['Who got bitten this time?', 'Hold still.', 'Alien goo is NOT a medicine.', 'Next!'] },
+  pilot: { icon: '🧑‍✈️', name: 'UFO Pilot', card: 2, col: '#8a8aa8', act: 'Run a pre-flight check (F)', lines: ['She flies like a dream.', 'Who touched the warp drive?', 'Next launch in five.', 'I\'ve seen things up there…'] },
+  cook: { icon: '🍔', name: 'Cafeteria Cook', card: 1, col: '#ffb347', act: 'Hand out space food (F)', lines: ['Moon burgers today!', 'Try the anti-gravity jelly.', 'No feeding the aliens!', 'Who wants space soup?'] },
+});
+const JOB_ORDER = ['guard', 'scientist', 'alien', 'janitor', 'tourist', 'agent', 'medic', 'pilot', 'cook'];
 // rooms: [name, x0, y0, x1, y1, doorX, doorY, keycard level]
 const ROOMS = [
   ['Checkpoint', 28, 33, 42, 39, 35, 33, 0], ['Cafeteria', 8, 25, 22, 36, 22, 30, 0], ['Dorms', 48, 25, 61, 36, 48, 30, 1],
@@ -152,6 +157,9 @@ registerTD('area51', {
     if (jobKey === 'scientist') { if (!other) return; api.send({ k: 'fx', a: 'scan', to: other.id, by: id }); api.say(`🧪 *scans ${api.name(other.id)}*`); return; }
     if (jobKey === 'tourist') { api.send({ k: 'fx', a: 'photo', x: p.x, y: p.y }); this.fx(api, { a: 'photo', x: p.x, y: p.y }); api.say('📸 *takes a photo*'); api.sfx('click'); return; }
     if (jobKey === 'janitor') { api.send({ k: 'fx', a: 'mop', x: p.x, y: p.y }); this.fx(api, { a: 'mop', x: p.x, y: p.y }); api.say('🧹 *mops the floor*'); }
+    if (jobKey === 'medic') { if (!other) return api.toast('Stand next to someone to patch them up'); api.say(`🩹 *patches up ${api.name(other.id)}*`); api.sfx('coin'); return; }
+    if (jobKey === 'pilot') { api.say(['🛸 *checks the warp drive* … all green!', '🛸 *taps the fuel gauge*', '🛸 *polishes the UFO window*'][Math.floor(Math.random() * 3)]); return; }
+    if (jobKey === 'cook') { const f = ['🍔', '🌭', '🥫', '🍮'][Math.floor(Math.random() * 4)]; api.say(other ? `${f} *hands ${api.name(other.id)} some space food*` : `${f} *serves up space food*`); api.sfx('coin'); }
   },
   // chat commands just for roleplay
   chatCommand(api, cmd, text) {
@@ -235,7 +243,7 @@ registerTD('area51', {
       if (!b.cellT || Math.random() < 0.01) b.cellT = t;
       return;
     }
-    const routes = { scientist: [[16, 16], [12, 12], [20, 16], [15, 30], [37, 18]], janitor: [[12, 34], [35, 28], [55, 30], [20, 22], [40, 36]], agent: [[55, 12], [37, 18], [35, 30], [56, 14]], tourist: [[35, 43], [30, 43], [40, 43], [35, 38], [15, 30], [37, 20]] }[job] || [[35, 30]];
+    const routes = { scientist: [[16, 16], [12, 12], [20, 16], [15, 30], [37, 18]], janitor: [[12, 34], [35, 28], [55, 30], [20, 22], [40, 36]], agent: [[55, 12], [37, 18], [35, 30], [56, 14]], tourist: [[35, 43], [30, 43], [40, 43], [35, 38], [15, 30], [37, 20]], medic: [[15, 30], [12, 34], [20, 22]], pilot: [[37, 18], [35, 30], [40, 36]], cook: [[35, 28], [55, 30], [40, 36]] }[job] || [[35, 30]];
     if (!b.route || go(...b.route, 115)) b.route = routes[Math.floor(Math.random() * routes.length)];
   },
   openNear(api, p, card) {                          // bots open doors in their way if their keycard allows
