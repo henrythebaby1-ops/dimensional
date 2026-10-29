@@ -18,8 +18,8 @@ function buildTower(seed) {
   let sx = 0, sz = 4;
   for (let s = 0; s < SECTIONS; s++) {
     const y0 = s * SEC_H, kind = KINDS[Math.floor(r() * KINDS.length)], col = COLS[s % COLS.length];
-    T.starts.push({ x: sx, y: y0 + (s ? 0.5 : 0), z: sz, kind });
-    if (s) box(sx, y0, sz, 3, 0.5, 3, '#c8ccd2');                               // landing pad
+    T.starts.push({ x: sx, y: y0 + 0.5, z: sz, kind });
+    box(sx, y0, sz, 3, 0.5, 3, '#c8ccd2');                                      // the section's starting pad
     const ang0 = Math.atan2(sz, sx);
     if (kind === 'steps') {
       for (let i = 1; i <= 6; i++) { const a = ang0 + i * 0.55; box(Math.cos(a) * 6, y0 + i * 1.3, Math.sin(a) * 6, 2.2, 0.5, 2.2, col); }
@@ -101,7 +101,7 @@ const TOWER = {
       const vx = p.x - s.x, vz = p.z - s.z, t = clamp((vx * ex + vz * ez) / (s.len * s.len), -1, 1);
       if (Math.hypot(vx - ex * t, vz - ez * t) < PR + 0.25 && Math.abs(p.y - (s.y - 0.4)) < 0.9) dead = true;
     }
-    if (p.y < T.starts[p.sec].y - 6 && p.sec > 0) dead = true;
+    if (p.y < T.starts[p.sec].y - 6) dead = true;                              // fell off: back to the start of the section
     if (dead) { const st = T.starts[p.sec]; Object.assign(p, { x: st.x, y: st.y + 0.6, z: st.z, vy: 0 }); if (isMe) { this.falls++; sound(audioOut(), 160, 0.3, 0.12, 'sawtooth', 70); this.flash = 0.3; } }
     if (!p.done && touching(p, T.finish, 0.1) && p.y >= T.top) { p.done = 1; const id = isMe ? api.meId() : p.id; this.finish(api, id); api.send({ k: 'fin', id }); if (isMe) api.sfx('win'); }
   },
@@ -111,11 +111,19 @@ const TOWER = {
     b.id = id;
     if (b.done) return;
     const T = this.T;
-    const above = T.solid.filter(s => s[4] > b.y + 0.3 && s[4] < b.y + 2.4 && s !== T.solid[0]).sort((a, c) => a[4] - c[4]);
-    const tgt = above[0] || T.finish;
-    const cx = (tgt[0] + tgt[3]) / 2, cz = (tgt[2] + tgt[5]) / 2, d = Math.hypot(cx - b.x, cz - b.z);
-    const want = Math.atan2(-(cx - b.x), -(cz - b.z));
-    b.spd = stepPlayer(b, { fwd: d > 0.4 ? 1 : 0, side: 0, jump: d < 3.2 && b.ground && Math.random() < 0.5 * b.skill + 0.2, run: false }, want, T.solid, dt, { speed: 5.5, jump: 9.5 });
+    // the tower's platforms are listed in climbing order: aim for the one after the one I'm standing on
+    const on = T.solid.indexOf(b.on);
+    if (on >= 0) b.k = on;
+    const tgt = T.solid[(b.k ?? 0) + 1] || T.finish;
+    let cx = (tgt[0] + tgt[3]) / 2, cz = (tgt[2] + tgt[5]) / 2;
+    const red = T.kill.find(k2 => k2[0] < tgt[3] && k2[3] > tgt[0] && k2[2] < tgt[5] && k2[5] > tgt[2] && Math.abs(k2[1] - tgt[4]) < 0.2);
+    if (red) { const kx = (red[0] + red[3]) / 2, kz = (red[2] + red[5]) / 2; cx = kx < cx ? tgt[3] - 0.5 : tgt[0] + 0.5; cz = kz < cz ? tgt[5] - 0.5 : tgt[2] + 0.5; }   // land on the safe side
+    const gap = Math.hypot(Math.max(0, tgt[0] - b.x - 0.4, b.x - tgt[3] - 0.4), Math.max(0, tgt[2] - b.z - 0.4, b.z - tgt[5] - 0.4));
+    const up = tgt[4] - b.y, want = Math.atan2(-(cx - b.x), -(cz - b.z)), d = Math.hypot(cx - b.x, cz - b.z);
+    // hop over a spinning bar when it comes round
+    const barNear = T.spinners.some(sp => { const a = this.t * sp.sp + sp.ph, ex = Math.cos(a) * sp.len, ez = Math.sin(a) * sp.len, vx = b.x - sp.x, vz = b.z - sp.z, t2 = clamp((vx * ex + vz * ez) / (sp.len * sp.len), -1, 1); return Math.abs(b.y - sp.y + 0.4) < 1 && Math.hypot(vx - ex * t2, vz - ez * t2) < 1.4; });
+    const jump = b.ground && (barNear || ((up > 0.3 && gap < 1.6) || (gap > 0.2 && gap < 1.2)) && Math.random() < 0.3 + b.skill * 0.6);
+    b.spd = stepPlayer(b, { fwd: d > 0.5 ? 1 : 0, side: 0, jump, run: false }, want, T.solid, dt, { speed: 5.5, jump: 9.5 });
     for (const tr of T.truss) if (touching(b, tr, 0.3)) b.vy = 5.5;
     if (Math.random() < dt * 0.02 * (1 - b.skill)) b.x += 3;                    // a slip now and then
     this.hazards(api, b, false);
@@ -164,3 +172,4 @@ const TOWER = {
   },
 };
 registerTD('tower3d', TOWER);
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__tower = { TOWER, buildTower };

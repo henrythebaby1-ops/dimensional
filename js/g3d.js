@@ -21,7 +21,12 @@ export const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, ro
 // ---------- input ----------
 export const keys = new Set();
 let liveAt = 0, wantLock = false;
-export const markLive = lock => { liveAt = performance.now(); wantLock = !!lock; };
+// called every frame by a 3D game; first-person games ask to lock the mouse as soon as they appear
+export const markLive = lock => {
+  const fresh = performance.now() - liveAt > 600 || (lock && !wantLock);
+  liveAt = performance.now(); wantLock = !!lock;
+  if (fresh && lock && !document.pointerLockElement && !matchMedia('(pointer: coarse)').matches) lockNow();
+};
 export const isLive = () => performance.now() - liveAt < 600;
 const look = { dx: 0, dy: 0 };
 const press = new Map();                   // key code -> handler, while a game is on screen
@@ -35,7 +40,7 @@ addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 addEventListener('mousemove', e => { if (document.pointerLockElement) { look.dx += e.movementX; look.dy += e.movementY; } });
 // first-person games lock the mouse to the game: the first click, or the first key you press
-const lockNow = () => { try { const p = document.body.requestPointerLock?.(); p?.catch?.(() => {}); } catch {} };
+function lockNow() { try { const p = document.body.requestPointerLock?.(); p?.catch?.(() => {}); } catch {} }
 addEventListener('mousedown', e => {
   if (!isLive() || !wantLock || document.pointerLockElement || e.button !== 0 || e.target.closest('button, input, textarea, .panel, #chat, a')) return;
   lockNow();

@@ -74,19 +74,44 @@ Everyone plays as the same rounded-square guy as in the 2D levels.
   - **Seek**: from door 30 it chases you down the red halls. RUN!
 
   F turns on the flashlight. If you die you come back a few seconds later. Get through door 50 to escape.
+- **⛏️ Survival** (Minecraft style): a blocky island world with pixel-art blocks.
+  - Hold click (or F) to break blocks and right click (or G) to place them. 1–9 or the mouse wheel pick the hotbar
+    slot, C opens your bag and crafting, and Q eats.
+  - Punch trees for logs, then craft planks, a crafting table, sticks, wooden/stone/iron pickaxes and swords, a furnace,
+    glass, bricks, lamps and wool. You need a pickaxe to collect stone, and a stone one for iron.
+  - Hearts and hunger, fall damage, swimming, and a day and night cycle. At night zombies come out, and the sun burns
+    them in the morning.
+  - Friends build in the same world. It saves in your browser (or online, on a server).
+- **🧱 Creative**: the same world with every block, no monsters, and flying (double-tap Space; Space up, Shift down).
+- **🗼 Tower of Doom** (Tower of Hell style): climb a random tower of 7 sections before the 6-minute clock runs out.
+  Sections can be stairs, thin beams, lava floors, moving platforms, a spinning bar to jump or a ladder to climb.
+  Touch red and you drop back to the start of that section. First to the top wins.
+- **🌪️ Natural Disasters** (Natural Disaster Survival style): 6 rounds on an island town. Each round brings a flood,
+  meteor shower, tornado, acid rain, earthquake or volcano. Climb the stairs to the roofs, hide under them, and stay
+  away from the twister. Survive the most rounds to win.
+
+The first-person games (Blaster Arena, Dimendoors, Survival, Creative) **lock your mouse** as soon as they start (or
+on your first click or key press). Esc lets it go.
 
 ## 🧱 Studio (make your own 3D game)
 **Studio** on the main menu opens a Roblox-style game maker (`studio.html`):
-- Add parts (block, ball, cylinder, wedge, spawn, coin, kill brick, bounce pad, goal, sign), then tap one and **drag**
+- Add parts (block, ball, cylinder, wedge, spawn, coin, kill brick, bounce pad, goal, sign, light, teleporter,
+  speed pad, checkpoint, NPC, door, water), then tap one and **drag**
   it with a tool: **✋ Move** (slide it along the floor), **↕️ Up/Down**, **⤢ Size** (sideways = wider, up/down = taller),
   **⬌ Depth**, or **🔄 Turn**. Keys 1–5 pick the tools on a computer. No typing numbers needed, though Properties still has them.
 - **On a phone**: the 3D view fills the screen, the tools are a row along the bottom, and the floating
   **➕** (parts and toolbox), **▶** (play) and **⚙️** (edit) buttons open everything else. While playing, a joystick
   appears under your left thumb. Drag on the right side to look, and the big ⤴ button jumps.
-- Set position, size, turn, color, solid, glow and tags in Properties.
+- Set position, size, turn, color, solid, glow and tags in Properties. **Spin** and **Move** make a part turn or
+  slide back and forth by itself (it carries you if you stand on it), with no code needed.
+- What the new parts do on their own: teleporters with the same Tag link up, NPCs say their Text when you walk up,
+  doors swing open when touched, checkpoints become your respawn point, speed pads make you fast for 5 seconds,
+  lights glow, and you swim in water.
 - The **🧰 Toolbox** has ready-made models: tree, house, tower, bridge, stairs, moving platform, moving lava,
   checkpoint, coin row, finish, lamp, car, jump pad, wall, lava floor and speed coil. The ones that need code add it
   to your Script for you.
+- **🌐 Community models (UGC)**: Shift+click (or press **☑️ Many**) to pick some parts, then **🌐 Share as model**.
+  Everyone can find it in **🌐 Community models** and insert it into their own game.
 - Write the game's code in **📜 Script (JavaScript)**, e.g. `game.part("Door").onTouch(...)`, `game.onUpdate(dt => …)`,
   `game.score`, `game.win()`, `player.speed`. The list next to the editor shows everything you can use.
 - Build the on-screen UI in **🖼️ UI (HTML)**.
@@ -101,6 +126,26 @@ Everyone plays as the same rounded-square guy as in the 2D levels.
 **🎮 Studio games** on the main menu (also in 🌐 Player levels → 🧱 Studio games), like it, or **🧱 Remix** it to get
 their own copy to edit. Publishing again updates your game. Games also save in your browser, and **Export** /
 **Import** move them as a file. Games run in a sandboxed frame, so a script can't reach the main site or anyone's account.
+
+## 🎨 Skins
+The Skins tab in the 🛍️ Shop starts with 24 **pixel skins** (Minecraft style), painted onto the front of your
+rounded guy with your eyes on top. They show in the 2D levels, the 3D views and every 3D game. A few of them: Astronaut,
+Ninja, Knight, Robot, Pirate, Diamond and Gold Armor, Zombie, Explorer, Panda, Fox, Penguin, Super Hero, Lava and Ice
+Golem, and Royal.
+- **🖌️ Pixel skin editor**: paint your own 16×16 skin with a pen, fill, color picker, mirror and undo. Start from any
+  ready-made skin, then press **Save & wear**. A dotted circle shows where your eyes sit.
+- **🌐 Community skins (UGC)**: **Share** a skin you painted (log in first). Anyone can **👕 Wear** it, like it, or
+  **🖌️ Copy** it into their editor to change it.
+- The older colors, patterns and the simple skin maker are still there too.
+
+## 🖥️ Servers
+**Servers** on the main menu lists always-on rooms. A server keeps the same 4-letter code and runs the game mode its
+owner picked. Join any time: in open-world modes (Survival, Creative, Open City, roleplay maps, Blaster Arena,
+Dimendoors, Free Flight and more) you drop straight in, even mid-game. The game restarts by itself after a round
+ends. Survival and Creative worlds are **saved online**, so what you build is still there next time.
+
+Log in to make a server (up to 3 each). Pick a name, game mode, message of the day, and public (listed) or private
+(join by code). Change or delete it later under ⭐ My servers.
 
 ## ✈️ Flight (3D)
 Fly a Boeing-style airliner over a big 3D island, with friends (everyone flies their own plane) or alone. Take off from

@@ -1292,6 +1292,7 @@ export const MODES = {
   survival3d: { name: 'Survival', levels: [tdLevel('survival3d')], min: 1 },
   creative3d: { name: 'Creative', levels: [tdLevel('creative3d')], min: 1 },
   tower3d: { name: 'Tower of Doom', levels: [tdLevel('tower3d')], min: 1 },
+  disaster3d: { name: 'Natural Disasters', levels: [tdLevel('disaster3d')], min: 1 },
   chairs: { name: 'Musical Chairs', levels: [tdLevel('chairs')], min: 1 },
   hide: { name: 'Hide and Seek', levels: [tdLevel('hide')], min: 1 },
   simon: { name: 'Simon Says', levels: [tdLevel('simon')], min: 1 },

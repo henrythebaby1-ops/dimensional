@@ -71,3 +71,10 @@ create index if not exists dim_clears_daily_idx on public.dim_clears (mode, crea
 --   data = { parts, script, html, settings, thumb } (max 400 KB, 2000 parts)
 --   rpc dim_publish_studio(token, name, data, id?) -> id (new: logged in, 5/hour; with id: update your own game)
 --   rpc dim_unpublish_studio(token, id), dim_studio_played(id), dim_studio_like(id)
+
+-- v8: UGC skins, Studio models, servers
+--   dim_skins(id, name, author, code, likes, wears) public read · rpc dim_publish_skin(token, name, code) 10/hour, dim_unpublish_skin, dim_skin_like, dim_skin_worn
+--   dim_models(id, name, author, parts, uses, likes) public read · rpc dim_publish_model(token, name, parts) (1-300 parts, 10/hour), dim_unpublish_model, dim_model_used, dim_model_like
+--   dim_servers(code, name, owner, mode, public, motd, world, world_at) public read when public
+--   rpc dim_server_create/update/delete(token, …) (3 each), dim_server_get(code), dim_server_mine(token), dim_server_save(code, world) (1.5 MB, every 5 s)
+--   dim_who(token) -> username (internal helper)
