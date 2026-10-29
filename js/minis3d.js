@@ -2,7 +2,7 @@
 //   🌉 Glass Bridge — two glass panels in each row, one of them breaks. Guess, watch the others, get across.
 //   🟦 Spleef — every tile you step on falls away a moment later. Two floors. Last one standing wins.
 //   🧊 Ice Sumo — a slippery shrinking platform; dash (Shift) into the others to knock them off.
-import { registerTD, World, TILE, rng } from './td.js';
+import { registerTD, World, TILE, rng, MODES_TD } from './td.js';
 import { audioOut } from './audio.js';
 import { THREE, clamp, wrap, hash, std, markLive, moveInput, buttonBar, makeScene, personFor, walk, Net, toScreen, tag, panel, big, help, sound, hue } from './g3d.js';
 import { stepPlayer, touching, OrbitCam, PR, PH } from './plat3d.js';
@@ -238,4 +238,4 @@ registerTD('sumo3d', base('Ice Sumo', 'A slippery, shrinking ice platform. Dash 
   },
   draw() { this.ice.scale.set(this.R, 1, this.R); },
 }));
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__minis = (await import('./td.js')).MODES_TD;
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__minis = MODES_TD;
