@@ -1328,6 +1328,8 @@ export const MODES = {
   rocket3d: { name: 'Rocket Race', levels: [tdLevel('rocket3d')], min: 1 },
   glider3d: { name: 'Hang Glider', levels: [tdLevel('glider3d')], min: 1 },
   flyer3d: { name: 'Sky Flyer', levels: [tdLevel('flyer3d')], min: 1 },
+  floorlava3d: { name: 'Floor Is Lava 3D', levels: [tdLevel('floorlava3d')], min: 1 },
+  pizza3d: { name: 'Pizza Delivery', levels: [tdLevel('pizza3d')], min: 1 },
   chairs: { name: 'Musical Chairs', levels: [tdLevel('chairs')], min: 1 },
   hide: { name: 'Hide and Seek', levels: [tdLevel('hide')], min: 1 },
   simon: { name: 'Simon Says', levels: [tdLevel('simon')], min: 1 },

@@ -133,6 +133,8 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 - **🚀 Rocket Race**: tap Space as fast as you can to pump your rocket to the top.
 - **🪂 Hang Glider**: launch off the tower and fly through 15 rings. W dives, S flares, A/D or the mouse turns. Circle in thermals to climb to the gold rings, and land on the 🎯 for +5.
 - **🕊️ Sky Flyer**: everyone has flapping wings. Hold Space to fly up, Shift to dive, WASD to fly around. Most stars in 60s wins (gold stars up high are worth 3).
+- **🛋️ Floor Is Lava 3D**: when the alarm sounds you have 3 seconds to get up on the furniture. Pieces burn away every round.
+- **🍕 Pizza Delivery**: grab a pizza at the shop and run it to your 🔔 house. Faster deliveries tip more.
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
