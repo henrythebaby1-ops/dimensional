@@ -136,6 +136,7 @@ Quick rounds with friends or bots, all on the 🧊 3D games tile:
 
 **🐾 Pets** (🛍️ Shop → Accessories): a dog, cat, bunny, panda, slime, dragon or duck follows you around in every 3D
 game. The dragon flies and flaps its wings.
+**🪽 Back gear in 3D:** Angel wings (they flutter), Hero cape, Backpack, Jetpack and Balloon now show on your character in every 3D game too.
 
 The first-person games (Blaster Arena, Dimendoors, Survival, Creative) **lock your mouse** as soon as they start (or
 on your first click or key press). Esc lets it go.

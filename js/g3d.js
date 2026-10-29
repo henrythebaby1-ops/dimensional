@@ -135,6 +135,7 @@ export function hop(g, speed, dt) {
   const h = Math.abs(Math.sin(u.phase)) * 0.14 * k;
   u.bob.position.y = h;
   u.bob.scale.set(1 + (0.06 - h * 0.4) * k, 1 - (0.06 - h * 0.6) * k, 1 + (0.06 - h * 0.4) * k);
+  if (u.wings) for (const [piv, sd] of u.wings) piv.rotation.y = sd * (0.35 + Math.sin(u.phase * 0.8) * 0.25);   // wings flutter
   if (u.pet) {                                                       // the pet hops along (the dragon flaps and flies)
     const fly = u.pet.userData.kind === 'dragon';
     u.pet.position.y = fly ? 0.35 + Math.sin(u.phase * 0.7) * 0.06 : Math.abs(Math.sin(u.phase * 1.3)) * 0.08 * (0.3 + k);
@@ -159,7 +160,19 @@ export function makePerson(color, pattern) {
 export function personFor(api, id) {
   const s = api.skinOf?.(id) || {}, g = makePerson(new THREE.Color(s.color || hue(id)).getHex(), s.pattern);
   if (String(s.acc || '').startsWith('pet')) { const p = makePet(s.acc); p.position.set(0.62, 0, 0.45); g.add(p); g.userData.pet = p; }
+  else if (s.acc) wearBack(g, s.acc);
   return g;
+}
+// shop accessories you wear on your back (or float above you) in the 3D games
+function wearBack(g, id) {
+  const u = g.userData, add = (c, sx, sy, sz, x, y, z, o = {}) => { const b = new THREE.Mesh(BOX, std(c, o)); b.scale.set(sx, sy, sz); b.position.set(x, y, z); u.bob.add(b); return b; };
+  if (id === 'wings') {
+    u.wings = [-1, 1].map(sd => { const piv = new THREE.Group(); piv.position.set(sd * 0.12, 0.6, 0.4); const f = new THREE.Mesh(BOX, std('#ffffff', { emissive: '#ffffff', emissiveIntensity: 0.2 })); f.scale.set(0.6, 0.34, 0.04); f.position.set(sd * 0.3, 0.06, 0); piv.add(f); u.bob.add(piv); return [piv, sd]; });
+  }
+  if (id === 'cape') add('#d8283a', 0.62, 0.66, 0.03, 0, 0.42, 0.38);
+  if (id === 'backpack') { add('#3a7ad8', 0.42, 0.42, 0.18, 0, 0.42, 0.44); add('#2a5aa8', 0.3, 0.14, 0.06, 0, 0.32, 0.55); }
+  if (id === 'jetpack') { for (const sd of [-1, 1]) { add('#a8acb8', 0.16, 0.44, 0.16, sd * 0.12, 0.45, 0.45, { metalness: 0.5 }); add('#ff8a1a', 0.1, 0.1, 0.1, sd * 0.12, 0.2, 0.45, { emissive: '#ff4a00', emissiveIntensity: 0.9 }); } }
+  if (id === 'balloon') { add('#dddddd', 0.01, 0.6, 0.01, 0.4, 1.2, 0.2); const b = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), std('#ff3a5a')); b.scale.y = 1.2; b.position.set(0.4, 1.6, 0.2); u.bob.add(b); }
 }
 // blocky pets, in the guy's own units (he's 0.875 tall before scaling)
 export function makePet(id) {
