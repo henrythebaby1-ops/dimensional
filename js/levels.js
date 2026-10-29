@@ -1245,7 +1245,7 @@ function fracture(n, spectre = true, round = 0) {
   });
 }
 
-export const TRAIN_ROLES = ['runner', 'jumper', 'gunner', 'tank', 'scout', 'medic', 'ninja', 'jetpack', 'sniper', 'bomber', 'ghost', 'magnet', 'glider', 'shield'];
+export const TRAIN_ROLES = ['runner', 'jumper', 'gunner', 'tank', 'scout', 'medic', 'ninja', 'jetpack', 'sniper', 'bomber', 'ghost', 'magnet', 'glider', 'shield', 'floaty', 'regen', 'lucky', 'phoenix', 'collector'];
 
 export const MODES = {
   story: {

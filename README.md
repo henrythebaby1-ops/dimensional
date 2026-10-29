@@ -282,7 +282,7 @@ built-in speech voice and the alarm sounds are made in the browser — they aren
   doors, alarm, blackout, intercom, UFO, alien cells, cafeteria, free wardrobe. Chat is the main thing: /me, /shout,
   /wave, /sit, /announce, /job.
 - **🏰 Tower Defense**: build and upgrade Arrow, Cannon, Frost and Laser towers with shared coins. 20 waves, bosses.
-- **🧪 Training Grounds**: pads to try every role (including level-only Glider and Shield) and
+- **🧪 Training Grounds**: pads to try every role and
   every dimension, respawning dummies and all the gadgets.
 - **🎮 Solo**: pick any mode from the menu and play alone. Bots join in automatically when a mode
   needs a team (a bot buddy for story, 3 bot rivals for party games).
@@ -362,7 +362,11 @@ Bananaverse and get its color everywhere else.
 
 ## Roles
 Runner (+20% speed) · Jumper (higher jumps) · Gunner (faster, longer shots) ·
-Tank (5 hearts) · Scout (sees through darkness) · Medic (ping heals the team).
+Tank (5 hearts) · Scout (sees through darkness) · Medic (ping heals the team) ·
+Ninja (dash anywhere) · Jetpack (extra mid-air jump) · Sniper (piercing shots) · Bomber (exploding shots) ·
+Ghost (crawlers can't hurt you) · Magnet (grab keystones from afar) · 🪂 Glider (hold jump to float down) ·
+🔰 Shield (hold down to block shots) · 🎈 Floaty (low gravity) · 💚 Regen (a heart back every 15s) ·
+🍀 Lucky (1 in 3 hits miss) · 🔥 Phoenix (one comeback per level) · 🪙 Collector (double level coins).
 
 ## Tech
 - Static HTML/JS with **Three.js** for 3D, hosted on **GitHub Pages** (no build step).

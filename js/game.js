@@ -915,6 +915,10 @@ function updateActor(p, inp, dt) {
   p.inRift = inRift;
   if (inFlip && !p.inFlip) flipGravity(p);
   p.inFlip = inFlip;
+  if (p.role === 'regen' && p.dead <= 0 && p.hp < maxHp(p) && (p.regenT = (p.regenT || 0) + dt) > 15) {   // Regen: a heart back every 15s
+    p.regenT = 0; p.hp++;
+    if (local) { toast('💚 +1 heart', '#39ff88'); sfx('key'); }
+  }
   if (p.role === 'magnet') {               // Magnet pulls in keystones from a distance
     for (const k of level.objs) {
       if (k.type !== 'key' || k.dim !== p.dim || grabbed.has(k.key) || p.native === p.dim) continue;
@@ -1061,7 +1065,7 @@ function physics(p, inp, h) {
     p.vy += (iy * speed - p.vy) * k;
     p.jumpBuf = 0;
   } else {
-    let gm = G * D.gravMul * (level.mod === 'lowgrav' ? 0.5 : 1) * (pl.grav || 1);
+    let gm = G * D.gravMul * (level.mod === 'lowgrav' ? 0.5 : 1) * (pl.grav || 1) * (p.role === 'floaty' ? 0.65 : 1);
     if (g * p.vy >= 0 || p.onGround) p.padLift = false;
     if (!inp.has('jump') && g * p.vy < 0 && !p.padLift) gm *= 1.9;   // (a jump pad always launches you all the way)
     if (p.role === 'glider' && inp.has('jump') && g * p.vy > 0) { p.vy = g * Math.min(g * p.vy, 110); gm = 0; }   // float down   // short hops when jump is released
@@ -1191,9 +1195,16 @@ function hurt(p) {
   if (p.inv > 0 || p.dead > 0) return;
   if (level?.parallel) { p.hp = maxHp(p); return; }       // nothing hurts in the parallel world
   if (p.ch2 === 'dragger' && boss) return;   // the Unicoder's bullets can't hit Builders, who can't dodge
+  if (p.role === 'lucky' && Math.random() < 1 / 3) { p.inv = 0.6; if (p === P) toast('🍀 Lucky! It missed you', '#39ff88'); return; }
   p.hp--;
   p.inv = 1.3;
   if (p === P) { flash = { t: 0.2, col: '#ff3355' }; buzz(40); sfx('hit'); }
+  if (p.hp <= 0 && p.role === 'phoenix' && !p.phoenixUsed) {   // Phoenix: one free comeback per level
+    p.phoenixUsed = true; p.hp = maxHp(p); p.inv = 2;
+    burst(p.x + PW / 2, p.y + PH / 2, '#ff8a1a', 40, 300);
+    if (p === P) toast('🔥 Phoenix! You rose from the ashes', '#ff8a1a');
+    return;
+  }
   if (p.hp <= 0) die(p);
 }
 
@@ -2694,7 +2705,7 @@ function completeLevel(mode, idx, lv, startMs, deaths) {
   const par = lv.W * 0.75 * 1000;
   const stars = 1 + (deaths === 0 ? 1 : 0) + (ms < par ? 1 : 0);
   const rec = recordLevel(`${mode}-${idx}`, stars, ms);
-  const coins = 15 + stars * 5 + (lv.boss ? 40 : 0);
+  const coins = (15 + stars * 5 + (lv.boss ? 40 : 0)) * (me.role === 'collector' ? 2 : 1);
   addCoins(coins);
   showBanner(`${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, `${fmtTime(ms)}${rec.newBest ? ' · NEW BEST!' : ''}`, `+${coins} 🪙`,
     `${deaths === 0 ? '✓ no deaths' : `${deaths} death${deaths > 1 ? 's' : ''}`} · par ${fmtTime(par)}`);

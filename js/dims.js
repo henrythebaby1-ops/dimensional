@@ -95,9 +95,13 @@ export const ROLES = {
   bomber: { name: 'Bomber', icon: '💣', desc: 'Shots explode and destroy nearby crawlers' },
   ghost: { name: 'Ghost', icon: '👻', desc: 'Crawlers can\'t hurt you' },
   magnet: { name: 'Magnet', icon: '🧲', desc: 'Grab keystones from 3 tiles away' },
-  // only given out by certain levels (and the Training Grounds)
-  glider: { name: 'Glider', icon: '🪂', desc: 'Hold jump while falling to float down slowly', levelOnly: true },
-  shield: { name: 'Shield', icon: '🛡️', desc: 'Hold DOWN to raise a shield that blocks shots in front of you', levelOnly: true },
+  glider: { name: 'Glider', icon: '🪂', desc: 'Hold jump while falling to float down slowly' },
+  shield: { name: 'Shield', icon: '🔰', desc: 'Hold DOWN to raise a shield that blocks shots in front of you' },
+  floaty: { name: 'Floaty', icon: '🎈', desc: 'Low gravity: jump higher and fall slower' },
+  regen: { name: 'Regen', icon: '💚', desc: 'Heal one heart every 15 seconds' },
+  lucky: { name: 'Lucky', icon: '🍀', desc: '1 in 3 hits miss you' },
+  phoenix: { name: 'Phoenix', icon: '🔥', desc: 'Once per level, come back to life right where you fell' },
+  collector: { name: 'Collector', icon: '🪙', desc: 'Double coins for finishing levels' },
 };
 
 // Chapter styles: some chapters repaint the world no matter which dimension you are in
