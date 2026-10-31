@@ -6,6 +6,7 @@ import { startPixelIcons } from './pixels.js';
 import { MODES_TD, XF, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
 import { TD3D } from './td3d.js';
 import { Hub } from './hub.js';
+import { camArrows } from './g3d.js';
 import './td2.js';
 import './td3.js';
 import './td4.js';
@@ -5080,7 +5081,8 @@ $('dim-toggle').onclick = e => { e.stopPropagation(); ui$.dimMini = !ui$.dimMini
 dimCard();
 $('set-view3d').onchange = () => { ui$.view3d = $('set-view3d').checked; saveUi(); };
 $('set-side3d').onchange = () => { ui$.side3d = $('set-side3d').checked; saveUi(); };
-$('set-camkeys').onchange = () => { ui$.camKeys = $('set-camkeys').checked; saveUi(); camHeld.clear(); };
+$('set-camkeys').onchange = () => { ui$.camKeys = $('set-camkeys').checked; camArrows.on = ui$.camKeys; saveUi(); camHeld.clear(); };
+camArrows.on = ui$.camKeys !== false;
 for (const b of document.querySelectorAll('#cam-btns button')) {
   const c = b.dataset.c, off = () => camHeld.delete(c);
   b.addEventListener('pointerdown', e => { e.preventDefault(); camHeld.add(c); });

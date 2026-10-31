@@ -50,7 +50,15 @@ addEventListener('keydown', e => {
   if (/^(Key[WASDEF]|Arrow|Space|Shift)/.test(e.code)) lockNow();
 });
 export const pointerLocked = () => !!document.pointerLockElement;
-export function takeLook() { const d = [look.dx, look.dy]; look.dx = look.dy = 0; return d; }
+// Settings → "turn the 3D camera with the arrow keys": in games that look around (takeLook), ← → turn and ↑ ↓ tilt,
+// and the arrows stop moving you there (W A S D still do).
+export const camArrows = { on: true, last: 0, t: 0 };
+const arrowLook = () => camArrows.on && performance.now() - camArrows.last < 300;
+export function takeLook() {
+  const now = performance.now(), dt = Math.min(0.1, (now - (camArrows.t || now)) / 1000); camArrows.t = now; camArrows.last = now;
+  if (camArrows.on) { look.dx += ((keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0)) * 400 * dt; look.dy += ((keys.has('ArrowDown') ? 1 : 0) - (keys.has('ArrowUp') ? 1 : 0)) * 380 * dt; }
+  const d = [look.dx, look.dy]; look.dx = look.dy = 0; return d;
+}
 // touch: drag on the right half of the screen to look around
 let touchLook = null;
 addEventListener('touchstart', e => { if (!isLive()) return; for (const t of e.changedTouches) if (t.clientX > innerWidth * 0.55 && !t.target.closest('button') && !touchLook) touchLook = { id: t.identifier, x: t.clientX, y: t.clientY }; }, { passive: true });
@@ -59,10 +67,12 @@ addEventListener('touchend', e => { for (const t of e.changedTouches) if (touchL
 export const touchHeld = new Set();
 // what the player is pressing: forward/back, left/right, jump, run (works with WASD, arrows and the phone stick)
 export function moveInput(api) {
-  const h = api.held(), K = c => keys.has(c);
-  const fwd = (K('KeyW') || K('ArrowUp') || h.has('up') ? 1 : 0) - (K('KeyS') || K('ArrowDown') || h.has('down') ? 1 : 0);
-  const side = (K('KeyD') || K('ArrowRight') || h.has('right') ? 1 : 0) - (K('KeyA') || K('ArrowLeft') || h.has('left') ? 1 : 0);
-  const jump = K('Space') || touchHeld.has('jump') || (h.has('jump') && !K('KeyW') && !K('ArrowUp'));
+  const al = arrowLook(), K = c => keys.has(c) && !(al && c.startsWith('Arrow'));
+  const raw = api.held(), H = (a, arrow) => raw.has(a) && !(al && keys.has(arrow));   // the arrows are busy turning the camera
+  const fwd = (K('KeyW') || K('ArrowUp') || H('up', 'ArrowUp') ? 1 : 0) - (K('KeyS') || K('ArrowDown') || H('down', 'ArrowDown') ? 1 : 0);
+  const side = (K('KeyD') || K('ArrowRight') || H('right', 'ArrowRight') ? 1 : 0) - (K('KeyA') || K('ArrowLeft') || H('left', 'ArrowLeft') ? 1 : 0);
+  const h = raw;
+  const jump = K('Space') || touchHeld.has('jump') || (H('jump', 'ArrowUp') && !K('KeyW') && !K('ArrowUp'));
   return { fwd, side, jump, run: K('ShiftLeft') || K('ShiftRight') || h.has('dash'), fire: h.has('fire') || touchHeld.has('fire') || mouseDown };
 }
 let mouseDown = false;
