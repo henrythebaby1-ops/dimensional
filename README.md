@@ -374,6 +374,9 @@ Ghost (crawlers can't hurt you) · Magnet (grab keystones from afar) · 🪂 Gli
 🔰 Shield (hold down to block shots) · 🎈 Floaty (low gravity) · 💚 Regen (a heart back every 15s) ·
 🍀 Lucky (1 in 3 hits miss) · 🔥 Phoenix (one comeback per level) · 🪙 Collector (double level coins) · 🕊️ Flyer (hold jump to fly up, let go to drift down).
 
+## Graphics
+3D views are sharp by default, so skins and pets are easy to see. The CRT scanlines are hidden in 3D games. Chunky pixel 3D is still available in Settings (now less blurry).
+
 ## Tech
 - Static HTML/JS with **Three.js** for 3D, hosted on **GitHub Pages** (no build step).
 - **Supabase Realtime** (broadcast + presence) for rooms. The first player in the room

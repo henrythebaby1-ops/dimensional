@@ -4446,6 +4446,7 @@ function autoQuality(dt) {
 }
 function frame() {
   const now = performance.now();
+  document.documentElement.classList.toggle('in3d', mode === 'play' && $('td3d').style.visibility === 'visible');   // no CRT lines over the 3D games
   const fdt = Math.min(0.1, (now - last) / 1000);
   analogX += (analogTarget - analogX) * Math.min(1, fdt * (analogTarget === 0 ? 30 : 18));   // smooth stick, quick stop
   if (Math.abs(analogX) < 0.02 && analogTarget === 0) analogX = 0;
@@ -5024,8 +5025,9 @@ if (new Date().getHours() < 5) setTimeout(() => { toast('ðŸŒ™ It\'s really lateâ
 // ---------- UI style: retro or modern, and the time-travel easter egg ----------
 // Retro is made of separate pieces so the easter egg can peel them off one at a time.
 const RETRO_PARTS = ['r-scan', 'r-pix', 'r-pal', 'r-font', 'r-box', 'r-px'];
-const ui$ = { style: 'retro', egg: true, pix3d: true };
+const ui$ = { style: 'retro', egg: true, pix3d: false };
 try { Object.assign(ui$, JSON.parse(localStorage.getItem('dim-ui') || '{}')); } catch {}
+if (!ui$.sharp) { ui$.sharp = 1; ui$.pix3d = false; }   // chunky 3D used to be on by default and hid everyone's skins: start sharp
 const saveUi = () => { try { localStorage.setItem('dim-ui', JSON.stringify(ui$)); } catch {} };
 let eraT = 0, eraStage = 0;
 function applyStyle(keep = 0) {

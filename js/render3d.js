@@ -318,7 +318,7 @@ export class Renderer3D {
     this.applyRatio();
   }
   applyRatio() {
-    const base = this.pixelated ? Math.max(0.3, 0.42 / Math.max(1, innerWidth / 1400)) : Math.min(devicePixelRatio, this.lowPower ? 1.5 : 2);
+    const base = this.pixelated ? Math.max(0.5, 0.7 / Math.max(1, innerWidth / 1400)) : Math.min(devicePixelRatio, this.lowPower ? 1.5 : 2);
     this.r.setPixelRatio(base * (this.quality ?? 1));
     if (this.w) this.resize(this.w, this.h);
   }

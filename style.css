@@ -421,6 +421,7 @@ html.r-box .toast { border: 3px solid #fff; background: #000; box-shadow: 4px 4p
 html.r-scan body::after { content: ''; position: fixed; inset: 0; z-index: 50; pointer-events: none;
   background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.45) 100%);
   transition: opacity 3s; }
+html.in3d body::after { display: none; }
 html.r-pix canvas#game { image-rendering: pixelated; image-rendering: crisp-edges; }
 /* the easter egg fades between the two looks */
 html.drift * { transition: border-radius 4s, box-shadow 4s, background-color 4s, border-color 4s, color 4s; }
