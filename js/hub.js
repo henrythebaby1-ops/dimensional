@@ -5,6 +5,33 @@ import { THREE, clamp, std, makeScene, personFor, hop } from './g3d.js';
 
 const ISLAND = 26, RING = 18;
 
+// the classic studded baseplate look
+function studs(col, rep) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); g.fillStyle = col; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = 'rgba(0,0,0,.16)'; g.beginPath(); g.arc(34, 35, 14, 0, 7); g.fill();
+  g.fillStyle = col; g.beginPath(); g.arc(32, 32, 14, 0, 7); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.arc(32, 32, 14, 0, 7); g.fill();
+  g.fillStyle = col; g.beginPath(); g.arc(33, 33, 11, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.08)'; g.strokeRect(0.5, 0.5, 63, 63);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+// a speech bubble over someone's head
+function bubble(text) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const g = c.getContext('2d'), t = text.length > 40 ? text.slice(0, 39) + '…' : text;
+  let fs = 40; do { g.font = `700 ${fs}px Rubik, sans-serif`; } while (g.measureText(t).width > 450 && (fs -= 2) > 18);
+  const w = Math.min(500, g.measureText(t).width + 50);
+  g.fillStyle = '#fff'; g.beginPath(); g.roundRect(256 - w / 2, 8, w, 84, 30); g.fill();
+  g.beginPath(); g.moveTo(240, 90); g.lineTo(256, 118); g.lineTo(272, 90); g.fill();
+  g.fillStyle = '#1a1a2a'; g.textAlign = 'center'; g.fillText(t, 256, 64);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false })); s.scale.set(4, 1, 1);
+  return s;
+}
+const NPC_NAMES = ['BlockyBuilder', 'NoobSlayer99', 'PizzaPal', 'SkyJumper', 'CoolKid2014', 'ObbyQueen'];
+const NPC_LINES = ['hi!', 'anyone wanna play Tower of Doom?', 'lol', 'nice skin!', 'obby time!!', 'who wants to race?', 'gg', 'brb', 'this lobby is so cool', 'try Hang Glider, its fun', 'i just got a dragon pet', 'follow me!', 'Survival with me?', 'how do u get wings', ':)', 'Natural Disasters is the best'];
 function label(text, sub, color) {
   const c = document.createElement('canvas'); c.width = 512; c.height = 160;
   const g = c.getContext('2d');
@@ -23,16 +50,20 @@ export class Hub {
     try { this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); } catch { this.gl = null; return; }
     this.gl.setPixelRatio(Math.min(devicePixelRatio, 2));
     const s = makeScene(0x9fdcff, 60, 160); this.scene = s.scene; this.cam = s.cam;
-    this.me = { x: 0, y: 0, z: 6, vy: 0, yaw: Math.PI, ground: true, spd: 0, inside: null };
+    this.me = { x: 0, y: 0.2, z: 8, vy: 0, yaw: Math.PI, ground: true, spd: 0, inside: null };
     this.camYaw = 0; this.camPitch = 0.38; this.camDist = 11;
     this.build();
     this.bindInput();
+    this.buildHud();
   }
   build() {
     const sc = this.scene;
     const sea = new THREE.Mesh(new THREE.CircleGeometry(220, 48), std('#4ab4ff', { roughness: 0.3, metalness: 0.1, flatShading: false })); sea.rotation.x = -Math.PI / 2; sea.position.y = -0.8; sc.add(sea);
     const sand = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND + 2, ISLAND + 4, 1.4, 64), std('#ffe0a0', { flatShading: false })); sand.position.y = -0.75; sc.add(sand);
-    const grass = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND, ISLAND + 0.5, 0.3, 64), std('#8ee070', { flatShading: false })); grass.position.y = -0.14; sc.add(grass);
+    const grass = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND, ISLAND + 0.5, 0.3, 64), [std('#7acc5e', { flatShading: false }), new THREE.MeshStandardMaterial({ map: studs('#7acc5e', ISLAND * 2 / 2), roughness: 0.7 }), std('#7acc5e')]); grass.position.y = -0.14; sc.add(grass);
+    // the spawn pad you appear on
+    const spawn = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 4), new THREE.MeshStandardMaterial({ map: studs('#b8bcc8', 2), roughness: 0.6 })); spawn.position.set(0, 0.1, 8); sc.add(spawn);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.4, 32), new THREE.MeshBasicMaterial({ color: 0x3a8aff })); ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.21, 8); sc.add(ring);
     // a candy-striped path ring the portals stand on
     const path = new THREE.Mesh(new THREE.RingGeometry(RING - 1.6, RING + 1.6, 72), std('#fff3c8', { flatShading: false, side: THREE.DoubleSide })); path.rotation.x = -Math.PI / 2; path.position.y = 0.02; sc.add(path);
     // the plaza in the middle: a stage with the big DIMENSIONAL sign
@@ -75,7 +106,65 @@ export class Hub {
     }
     // a few travelers wandering about
     const fakeApi = { skinOf: () => ({}) };
-    this.npcs = Array.from({ length: 5 }, (_, i) => { const m = personFor(fakeApi, 'npc' + i * 7); sc.add(m); return { m, x: Math.sin(i * 1.3) * 12, z: Math.cos(i * 1.3) * 12, yaw: 0, tx: 0, tz: 0, t: 0 }; });
+    this.npcs = NPC_NAMES.map((name, i) => {
+      const m = personFor(fakeApi, 'npc' + i * 7); sc.add(m);
+      const tag = label(name, '', '#9feaff'); tag.scale.set(2.3, 0.72, 1); sc.add(tag);
+      return { m, tag, name, x: Math.sin(i * 1.05 + 1.2) * 13, z: Math.cos(i * 1.05 + 1.2) * 13, yaw: 0, tx: 0, tz: 0, t: 0, talk: 4 + Math.random() * 12 };
+    });
+    this.bubbles = [];
+  }
+  say(who, text, color = '#fff') {
+    const target = who === 'me' ? this.me : who;
+    const old = this.bubbles.find(b => b.who === target); if (old) { this.scene.remove(old.s); this.bubbles.splice(this.bubbles.indexOf(old), 1); }
+    const s = bubble(text); this.scene.add(s); this.bubbles.push({ who: target, s, t: 6 });
+    const line = document.createElement('div'); line.innerHTML = `<b style="color:${color}"></b> `; line.firstChild.textContent = (who === 'me' ? this.o.name() : who.name) + ':'; line.append(text);
+    this.log.append(line); while (this.log.children.length > 30) this.log.firstChild.remove(); this.log.scrollTop = 1e9;
+  }
+  buildHud() {
+    const hud = this.hud = document.createElement('div'); hud.className = 'hub-hud hidden';
+    hud.innerHTML = `<div class="hub-tl"><button data-a="menu" title="Menu">☰</button><button data-a="chat" title="Chat (/)">💬</button><button data-a="discover" title="Discover games">🔎</button></div>
+      <div class="hub-list"><div class="hub-list-h">👥 Players</div><div class="hub-list-b"></div></div>
+      <div class="hub-chat"><div class="hub-log"></div><form><input maxlength="80" placeholder="Press / to chat" autocomplete="off"></form></div>`;
+    document.body.append(hud);
+    if (matchMedia('(pointer: coarse)').matches) hud.classList.add('chat-off');   // phones: chat opens with 💬
+    this.log = hud.querySelector('.hub-log'); this.chatIn = hud.querySelector('input');
+    hud.querySelector('.hub-tl').onclick = e => { const a = e.target.closest('button')?.dataset.a; if (a === 'menu') this.o.onMenu(); if (a === 'chat') hud.classList.toggle('chat-off'); if (a === 'discover') this.openDiscover(); };
+    hud.querySelector('form').onsubmit = e => { e.preventDefault(); const t = this.chatIn.value.trim(); if (t) this.say('me', t, '#6ee26e'); this.chatIn.value = ''; this.chatIn.blur(); };
+    addEventListener('keydown', e => { if (this.on && e.code === 'Slash' && document.activeElement !== this.chatIn && !this.o.blocked()) { e.preventDefault(); hud.classList.remove('chat-off'); this.chatIn.focus(); } if (e.code === 'Escape' && document.activeElement === this.chatIn) this.chatIn.blur(); });
+    this.say(this.npcs[0], 'welcome to Dimensional! walk into a portal to play');
+  }
+  renderList() {
+    const b = this.hud.querySelector('.hub-list-b'), me = this.o.name();
+    if (b.dataset.k === me) return; b.dataset.k = me;
+    b.replaceChildren(...[[me, '#6ee26e', '⭐'], ...this.npcs.map(n => [n.name, '#fff', '🤖'])].map(([n, c, i]) => { const d = document.createElement('div'); d.textContent = `${i} ${n}`; d.style.color = c; return d; }));
+  }
+  // a games page like a game catalog: big colorful cards, click one to play
+  openDiscover() {
+    let d = this.disc;
+    if (!d) {
+      d = this.disc = document.createElement('section'); d.className = 'panel-screen hub-disc hidden';
+      d.innerHTML = `<div class="hub-disc-box"><div class="hub-disc-head"><h2>🔎 Discover</h2><input placeholder="Search games" autocomplete="off"><button class="btn small-btn">✕</button></div><div class="hub-disc-body"></div></div>`;
+      document.body.append(d);
+      d.querySelector('button').onclick = () => d.classList.add('hidden');
+      d.onclick = e => { if (e.target === d) d.classList.add('hidden'); };
+      const body = d.querySelector('.hub-disc-body'), grads = [['#ff5a8a', '#ffb13a'], ['#3a8aff', '#39d8c8'], ['#a86aff', '#ff6ad5'], ['#39d870', '#c8e83a'], ['#ff7a3a', '#ff3a5a'], ['#3ac8ff', '#a86aff']];
+      let n = 0;
+      for (const [head, list] of this.o.games()) {
+        const h = document.createElement('h3'); h.textContent = head; body.append(h);
+        const row = document.createElement('div'); row.className = 'hub-row'; body.append(row);
+        for (const [key, name, desc] of list) {
+          const first = name.split(' ')[0], hasIcon = /\p{Extended_Pictographic}/u.test(first), g = grads[n++ % grads.length];
+          const emoji = hasIcon ? first : { 'Story & series': '📖' }[head] || '🎮', rest = hasIcon ? name.split(' ').slice(1) : [name];
+          const c = document.createElement('button'); c.className = 'hub-card'; c.dataset.q = (name + ' ' + desc + ' ' + head).toLowerCase();
+          c.innerHTML = `<div class="hub-thumb" style="background:linear-gradient(135deg,${g[0]},${g[1]})"><span></span></div><b></b><small></small>`;
+          c.querySelector('span').textContent = emoji; c.querySelector('b').textContent = rest.join(' ') || name; c.querySelector('small').textContent = desc;
+          c.onclick = () => { d.classList.add('hidden'); this.o.play(key); };
+          row.append(c);
+        }
+      }
+      d.querySelector('input').oninput = e => { const q = e.target.value.trim().toLowerCase(); for (const c of body.querySelectorAll('.hub-card')) c.style.display = !q || c.dataset.q.includes(q) ? '' : 'none'; for (const r of body.querySelectorAll('.hub-row')) { const any = [...r.children].some(c => c.style.display !== 'none'); r.style.display = any ? '' : 'none'; r.previousSibling.style.display = any ? '' : 'none'; } };
+    }
+    d.classList.remove('hidden'); this.keys.clear();
   }
   dressMe() {
     if (this.meMesh) this.scene.remove(this.meMesh);
@@ -120,14 +209,14 @@ export class Hub {
   }
   start() {
     if (!this.gl || this.on) return;
-    this.on = true; this.canvas.style.display = 'block';
+    this.on = true; this.canvas.style.display = 'block'; this.hud.classList.remove('hidden'); this.renderList();
     this.jumpBtn.classList.toggle('hidden', !matchMedia('(pointer: coarse)').matches);
     if (!this.meMesh || this.skinKey !== JSON.stringify(this.o.skin()) || this.nameKey !== this.o.name()) this.dressMe();
     this.last = performance.now(); this.snap = true;
     const loop = () => { if (!this.on) return; this.frame(); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   }
-  stop() { this.on = false; if (this.canvas) this.canvas.style.display = 'none'; this.keys.clear(); this.jumpBtn?.classList.add('hidden'); this.ring?.classList.add('hidden'); }
+  stop() { this.on = false; this.hud?.classList.add('hidden'); this.disc?.classList.add('hidden'); if (this.canvas) this.canvas.style.display = 'none'; this.keys.clear(); this.jumpBtn?.classList.add('hidden'); this.ring?.classList.add('hidden'); }
   frame() {
     const now = performance.now(), dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
     const w = innerWidth, h = innerHeight;
@@ -135,8 +224,11 @@ export class Hub {
     if (now - (this.skinCheck || 0) > 1000) { this.skinCheck = now; if (this.skinKey !== JSON.stringify(this.o.skin()) || this.nameKey !== this.o.name()) this.dressMe(); }
     const me = this.me, K = c => this.keys.has(c), frozen = this.o.blocked();
     // walking, relative to the camera
-    let fwd = frozen ? 0 : (K('KeyW') || K('ArrowUp') ? 1 : 0) - (K('KeyS') || K('ArrowDown') ? 1 : 0) - this.stick.y;
-    let side = frozen ? 0 : (K('KeyD') || K('ArrowRight') ? 1 : 0) - (K('KeyA') || K('ArrowLeft') ? 1 : 0) + this.stick.x;
+    const ac = this.o.camArrows?.();   // Settings: the arrows turn the camera (W A S D walk)
+    if (ac && !frozen) { this.camYaw += ((K('ArrowLeft') ? 1 : 0) - (K('ArrowRight') ? 1 : 0)) * 2 * dt; this.camPitch = clamp(this.camPitch + ((K('ArrowUp') ? 1 : 0) - (K('ArrowDown') ? 1 : 0)) * 1.2 * dt, 0.12, 1.2); }
+    const AK = c => !ac && K(c);
+    let fwd = frozen ? 0 : (K('KeyW') || AK('ArrowUp') ? 1 : 0) - (K('KeyS') || AK('ArrowDown') ? 1 : 0) - this.stick.y;
+    let side = frozen ? 0 : (K('KeyD') || AK('ArrowRight') ? 1 : 0) - (K('KeyA') || AK('ArrowLeft') ? 1 : 0) + this.stick.x;
     const l = Math.hypot(fwd, side); if (l > 1) { fwd /= l; side /= l; }
     const sp = (K('ShiftLeft') ? 9 : 6.5), cy = this.camYaw;
     const dx = (-Math.sin(cy) * fwd + Math.cos(cy) * side) * sp * dt, dz = (-Math.cos(cy) * fwd - Math.sin(cy) * side) * sp * dt;
@@ -150,7 +242,7 @@ export class Hub {
     if (!frozen && K('Space') && me.ground) { me.vy = 8.5; me.ground = false; this.o.sfx?.('jump'); }
     me.vy -= 24 * dt; me.y += me.vy * dt;
     if (me.y <= floor) { me.y = floor; me.vy = 0; me.ground = true; } else if (me.y > floor + 0.05) me.ground = false;
-    if (me.y < -3) { Object.assign(me, { x: 0, y: 0.6, z: 6, vy: 0 }); this.o.toast?.('🌊 Splash! Back to the beach', '#9feaff'); }
+    if (me.y < -3) { Object.assign(me, { x: 0, y: 0.6, z: 8, vy: 0 }); this.o.toast?.('🌊 Splash! Back to the beach', '#9feaff'); }
     for (const p of this.pads) { if (Math.hypot(me.x - p.x, me.z - p.z) < 1.1 && me.y < 1 && me.vy <= 0) { me.vy = 15; me.ground = false; p.boing = 0.4; this.o.sfx?.('bounce'); } if (p.boing > 0) { p.boing -= dt; p.cap.scale.set(1 + p.boing, 1 - p.boing, 1 + p.boing); } else p.cap.scale.set(1, 1, 1); }
     // portals: step on the pad to go in; leave the pad before it can trigger again
     let inside = null;
@@ -162,10 +254,12 @@ export class Hub {
       if ((n.t -= dt) <= 0) { const p = this.portals[Math.floor(Math.random() * this.portals.length)]; n.tx = p.x * 0.8; n.tz = p.z * 0.8; n.t = 4 + Math.random() * 6; }
       const ddx = n.tx - n.x, ddz = n.tz - n.z, d = Math.hypot(ddx, ddz), go = d > 0.6 ? 3.2 : 0;
       if (go) { n.x += ddx / d * go * dt; n.z += ddz / d * go * dt; n.yaw = Math.atan2(-ddx, -ddz); }
-      n.m.position.set(n.x, 0, n.z); n.m.rotation.y = n.yaw; hop(n.m, go, dt);
+      n.m.position.set(n.x, 0, n.z); n.m.rotation.y = n.yaw; hop(n.m, go, dt); n.tag.position.set(n.x, 2.5, n.z);
+      if ((n.talk -= dt) <= 0) { n.talk = 10 + Math.random() * 18; this.say(n, NPC_LINES[Math.floor(Math.random() * NPC_LINES.length)]); }
     }
     this.meMesh.position.set(me.x, me.y, me.z); this.meMesh.rotation.y = me.yaw; hop(this.meMesh, me.ground ? me.spd : 0, dt);
     this.nameTag.position.set(me.x, me.y + 2.5, me.z);
+    for (const b of [...this.bubbles]) { const w = b.who; b.s.position.set(w.x, (w.y || 0) + 3.4, w.z); if ((b.t -= dt) <= 0) { this.scene.remove(b.s); this.bubbles.splice(this.bubbles.indexOf(b), 1); } else b.s.material.opacity = Math.min(1, b.t); }
     this.star.rotation.y += dt * 1.5; this.star.position.y = 2.2 + Math.sin(now / 500) * 0.2;
     for (const c of this.clouds) { c.position.x += dt * 0.6; if (c.position.x > 90) c.position.x = -90; }
     // camera: behind and above, smoothly following

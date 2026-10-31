@@ -374,6 +374,15 @@ Ghost (crawlers can't hurt you) · Magnet (grab keystones from afar) · 🪂 Gli
 🔰 Shield (hold down to block shots) · 🎈 Floaty (low gravity) · 💚 Regen (a heart back every 15s) ·
 🍀 Lucky (1 in 3 hits miss) · 🔥 Phoenix (one comeback per level) · 🪙 Collector (double level coins) · 🕊️ Flyer (hold jump to fly up, let go to drift down).
 
+## 🌍 The lobby world
+The main menu is a 3D island you walk around (like a Roblox or Eggy Party lobby). You appear on a spawn pad on a studded baseplate as your own character, with your skin, pet and wings.
+- **Portals** ring the island: Quick Play, Solo, 3D Games, Create Room, Public Rooms, Daily, Shop, Discover and more. Walk into one to open it.
+- **🔎 Discover** is a game catalog with colorful cards for every game and a search box. Click a card to play.
+- **Roblox-style HUD:** ☰ menu, 💬 chat and 🔎 buttons top-left, a player list top-right, and chat with speech bubbles over heads (press `/` to chat). Wandering 🤖 travelers chat too.
+- **Bouncy mushrooms** launch you into the air. Fall in the sea and you're back on the beach.
+- **Controls:** WASD to walk, drag to look, Space to jump. On phones, use the left-thumb stick, drag to look, and the jump button. If the arrow-key camera setting is on, the arrows turn the camera.
+- **☰ All menus** opens the classic menu.
+
 ## Graphics
 3D views are sharp by default, so skins and pets are easy to see. The CRT scanlines are hidden in 3D games. Chunky pixel 3D is still available in Settings (now less blurry).
 

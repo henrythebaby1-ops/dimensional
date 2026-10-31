@@ -3768,15 +3768,20 @@ const HUB_PORTALS = [
   ['open-training', '🧪', 'Training', 'try every role', '#6ae86a'], ['open-boards', '🏆', 'Leaderboards', '', '#ffd23a'], ['open-records', '⭐', 'Records', '', '#ffb13a'],
   ['open-gallery', '🗺️', 'All Levels', '', '#8ad8ff'], ['open-community', '🌐', 'Player Levels', '', '#5ae8b8'], ['open-maker', '🛠️', 'Level Maker', '', '#c8a878'],
   ['open-studio-games', '🕹️', 'Studio Games', '', '#d86aff'], ['open-studio', '🧱', 'Studio', 'build your own', '#ff7a5a'], ['open-friends', '👫', 'Friends', '', '#7ae8ff'],
+  ['discover', '🔎', 'Discover', 'browse every game', '#ffffff'],
 ].map(([key, icon, label, sub, color]) => ({ key, icon, label, sub, color }));
 let hubOn = (() => { try { return localStorage.getItem('dim-hub') !== '0'; } catch { return true; } })();
 const hub = new Hub($('hub'), {
   portals: HUB_PORTALS,
-  onPortal: key => { const b = $(key); if (b) { sfx('rift'); b.click(); } },
+  onPortal: key => { sfx('rift'); if (key === 'discover') return hub.openDiscover(); $(key)?.click(); },
   skin: () => tdApi.skinOf(me.id),
   name: () => $('name').value.trim() || 'Traveler',
   blocked: () => document.body.classList.contains('hub-classic') || !!document.querySelector('.panel-screen:not(.hidden):not(#menu)') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || ''),
   sfx, toast: (t, c) => toast(t, c),
+  onMenu: () => $('hub-toggle').click(),
+  games: () => SOLO,
+  play: key => document.querySelector(`#solo-list .mode[data-m="${key}"]`)?.click(),
+  camArrows: () => ui$.camKeys !== false,
 });
 if (location.hostname === 'localhost') window.__hub = hub;
 function updateHub() {

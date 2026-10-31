@@ -601,12 +601,44 @@ body.hub #hub-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: cent
 body.hub #hub-toggle { font-size: 15px; padding: 8px 14px; }
 .hub-hint { font-size: 12px; opacity: .85; }
 body.hub-classic .hub-hint { display: none; }
-body.hub:not(.hub-classic) #menu { pointer-events: none; align-items: flex-start; }
+body.hub:not(.hub-classic) #menu { pointer-events: none; align-items: flex-end; }
 body.hub:not(.hub-classic) #menu .menu-panel { background: transparent; border: 0; box-shadow: none; backdrop-filter: none; width: 100%; max-width: none; padding: 0; margin: 0; }
 body.hub:not(.hub-classic) #menu .menu-panel > :not(.menu-bar):not(#hub-btns) { display: none !important; }
 body.hub:not(.hub-classic) #menu .menu-bar, body.hub:not(.hub-classic) #hub-btns { pointer-events: auto; background: rgba(20, 16, 40, .72); border-radius: 16px; padding: 6px 10px; width: fit-content; margin-left: auto; margin-right: auto; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
 body.hub-classic #menu { background: rgba(10, 8, 24, .35); }
 .hub-stick { position: fixed; z-index: 4; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 3px solid rgba(255,255,255,.6); background: rgba(255,255,255,.12); pointer-events: none; display: grid; place-items: center; }
 .hub-stick i { width: 46px; height: 46px; border-radius: 50%; background: rgba(255,255,255,.8); box-shadow: 0 4px 12px rgba(0,0,0,.25); }
-.hub-jump { position: fixed; z-index: 4; right: max(22px, env(safe-area-inset-right)); bottom: max(40px, env(safe-area-inset-bottom)); width: 78px; height: 78px; border-radius: 50%; border: 3px solid #fff; background: rgba(255, 106, 213, .8); font-size: 32px; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+.hub-jump { position: fixed; z-index: 4; right: max(22px, env(safe-area-inset-right)); bottom: max(150px, env(safe-area-inset-bottom)); width: 78px; height: 78px; border-radius: 50%; border: 3px solid #fff; background: rgba(255, 106, 213, .8); font-size: 32px; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
 .hub-stick.hidden, .hub-jump.hidden { display: none; }
+/* Roblox-style lobby HUD: menu buttons top-left, players top-right, chat bottom-left, and a game catalog */
+.hub-hud { position: fixed; inset: 0; z-index: 3; pointer-events: none; font-family: Rubik, sans-serif; }
+.hub-hud.hidden { display: none; }
+body:not(.hub) .hub-hud, body.hub-classic .hub-hud { display: none; }
+.hub-tl { position: absolute; left: max(12px, env(safe-area-inset-left)); top: max(12px, env(safe-area-inset-top)); display: flex; gap: 8px; pointer-events: auto; }
+.hub-tl button { width: 46px; height: 46px; border-radius: 12px; border: 0; background: rgba(20, 20, 30, .62); color: #fff; font-size: 22px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.hub-tl button:hover { background: rgba(20, 20, 30, .82); }
+.hub-list { position: absolute; right: max(12px, env(safe-area-inset-right)); top: max(12px, env(safe-area-inset-top)); width: 180px; background: rgba(20, 20, 30, .58); border-radius: 12px; color: #fff; font-size: 13px; overflow: hidden; pointer-events: auto; }
+.hub-list-h { padding: 7px 10px; font-weight: 800; background: rgba(0,0,0,.25); }
+.hub-list-b div { padding: 4px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-chat { position: absolute; left: max(12px, env(safe-area-inset-left)); top: 70px; width: min(340px, 60vw); pointer-events: auto; }
+.hub-log { max-height: 160px; overflow-y: auto; background: rgba(20, 20, 30, .45); border-radius: 12px 12px 0 0; padding: 8px 10px; color: #fff; font-size: 13px; line-height: 1.4; text-shadow: 0 1px 2px #000; }
+.hub-chat form input { width: 100%; box-sizing: border-box; border: 0; border-radius: 0 0 12px 12px; padding: 9px 10px; background: rgba(20, 20, 30, .7); color: #fff; font: 600 13px Rubik, sans-serif; outline: none; }
+.hub-hud.chat-off .hub-chat { display: none; }
+@media (max-width: 700px) { .hub-list { width: 130px; font-size: 11px; } .hub-chat { width: 58vw; } .hub-log { max-height: 90px; font-size: 11px; } .hub-hint { display: none; } }
+.hub-disc { z-index: 6; background: rgba(10, 8, 24, .55); }
+.hub-disc-box { width: min(980px, 100%); max-height: 100%; display: flex; flex-direction: column; background: #f4f5f8; color: #1a1a2a; border-radius: 18px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.45); margin: auto; font-family: Rubik, sans-serif; }
+.hub-disc-head { display: flex; gap: 10px; align-items: center; padding: 14px 16px; background: #fff; border-bottom: 1px solid #e2e4ea; }
+.hub-disc-head h2 { margin: 0; font: 800 22px Rubik, sans-serif; color: #1a1a2a; white-space: nowrap; }
+.hub-disc-head input { flex: 1; min-width: 0; border: 1px solid #d0d3dc; border-radius: 10px; padding: 9px 12px; font: 500 15px Rubik, sans-serif; background: #f4f5f8; color: #1a1a2a; }
+.hub-disc-body { overflow-y: auto; padding: 4px 16px 18px; }
+.hub-disc-body h3 { margin: 16px 0 8px; font: 800 18px Rubik, sans-serif; color: #1a1a2a; }
+.hub-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.hub-card { text-align: left; border: 0; background: none; padding: 0; cursor: pointer; color: #1a1a2a; font-family: Rubik, sans-serif; }
+.hub-thumb { aspect-ratio: 1; border-radius: 12px; display: grid; place-items: center; font-size: 56px; box-shadow: 0 4px 10px rgba(0,0,0,.12); transition: transform .12s; }
+.hub-card:hover .hub-thumb { transform: translateY(-3px) scale(1.03); }
+.hub-card b { display: block; margin-top: 6px; font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hub-card small { display: block; font-size: 12px; color: #5a5e6e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.hub:not(.hub-classic) #menu .menu-panel { display: flex; flex-direction: column-reverse; gap: 8px; }
+.hub-disc, .hub-disc *, .hub-hud, .hub-hud * { font-family: Rubik, system-ui, sans-serif !important; }
+.hub-disc-head .btn { border-radius: 10px; }
+.hub-disc-head input { background: #f4f5f8 !important; color: #1a1a2a !important; border: 1px solid #d0d3dc !important; box-shadow: none !important; }
