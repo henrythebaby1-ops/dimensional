@@ -5,6 +5,7 @@ import { createLogic } from './logic.js';
 import { startPixelIcons } from './pixels.js';
 import { MODES_TD, XF, TS, moveBody, drawTiles, drawBody, view as tdView, tileOf } from './td.js';
 import { TD3D } from './td3d.js';
+import { Hub } from './hub.js';
 import './td2.js';
 import './td3.js';
 import './td4.js';
@@ -3758,8 +3759,35 @@ function leaveRoom() {
 }
 
 // ---------- UI ----------
+// ---------- the lobby world: walk around an island and step into portals instead of clicking a menu ----------
+const HUB_PORTALS = [
+  ['quick', '⚡', 'Quick Play', 'jump into a game', '#39d870'], ['solo', '🎮', 'Solo', 'every game, alone', '#3a8aff'], ['open-3d', '🧊', '3D Games', '40+ party games', '#a86aff'],
+  ['create', '👥', 'Create Room', 'play with friends', '#ff8a3a'], ['browse', '🌍', 'Public Rooms', 'join others', '#3ac8c8'], ['daily-btn', '📅', 'Daily', 'today\'s challenge', '#ffcc22'],
+  ['open-minigames', '🎲', 'Mini Games', '', '#ff5a8a'], ['open-servers', '🖥️', 'Servers', 'open worlds', '#5a7ad8'], ['open-shop', '🛍️', 'Shop', 'skins, pets, wings', '#ff6ad5'],
+  ['open-training', '🧪', 'Training', 'try every role', '#6ae86a'], ['open-boards', '🏆', 'Leaderboards', '', '#ffd23a'], ['open-records', '⭐', 'Records', '', '#ffb13a'],
+  ['open-gallery', '🗺️', 'All Levels', '', '#8ad8ff'], ['open-community', '🌐', 'Player Levels', '', '#5ae8b8'], ['open-maker', '🛠️', 'Level Maker', '', '#c8a878'],
+  ['open-studio-games', '🕹️', 'Studio Games', '', '#d86aff'], ['open-studio', '🧱', 'Studio', 'build your own', '#ff7a5a'], ['open-friends', '👫', 'Friends', '', '#7ae8ff'],
+].map(([key, icon, label, sub, color]) => ({ key, icon, label, sub, color }));
+let hubOn = (() => { try { return localStorage.getItem('dim-hub') !== '0'; } catch { return true; } })();
+const hub = new Hub($('hub'), {
+  portals: HUB_PORTALS,
+  onPortal: key => { const b = $(key); if (b) { sfx('rift'); b.click(); } },
+  skin: () => tdApi.skinOf(me.id),
+  name: () => $('name').value.trim() || 'Traveler',
+  blocked: () => document.body.classList.contains('hub-classic') || !!document.querySelector('.panel-screen:not(.hidden):not(#menu)') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || ''),
+  sfx, toast: (t, c) => toast(t, c),
+});
+if (location.hostname === 'localhost') window.__hub = hub;
+function updateHub() {
+  const on = hubOn && mode === 'menu' && !!hub.gl;
+  document.body.classList.toggle('hub', on);
+  if (on) hub.start(); else hub.stop();
+}
+$('hub-toggle').onclick = () => { const c = document.body.classList.toggle('hub-classic'); $('hub-toggle').textContent = c ? '🌍 Back to the world' : '☰ All menus'; };
+
 function setScreen(m) {
   mode = m;
+  updateHub();
   if (m !== 'play' && paused) { paused = false; $('pause').classList.add('hidden'); }
   if (m !== 'play') { document.getElementById('meeting')?.classList.add('hidden'); document.getElementById('rp-panel')?.classList.add('hidden'); }
   if (m !== 'play') { $('chat').classList.remove('rp'); $('chat-form').classList.add('hidden'); }
