@@ -6,6 +6,15 @@ everyone can still see each other. Nobody can win alone.
 
 Play: https://henrythebaby1-ops.github.io/dimensional/
 
+## 📱 Put it on your phone
+
+Dimensional can be installed like an app, with its own icon and full screen with no browser bars.
+
+- **iPhone / iPad:** open the Play link in **Safari**, tap **Share** (the square with an arrow), then **Add to Home Screen**.
+- **Android:** open it in Chrome, tap **⋮**, then **Install app**.
+
+It updates by itself whenever you're online, and games you've already opened still work offline (online rooms need internet).
+
 ## How to play
 Create a room and share the 4-letter code or invite link. In the lobby, pick a
 **game mode**, a **role**, and (optionally) your **dimension**.
